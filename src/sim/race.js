@@ -5,7 +5,7 @@ import { makeWorm, pressAction, stepWorm, assistedAim } from './worm.js';
 import { makeAi, stepAi } from './ai.js';
 
 export const STEP = 1 / 60;
-const COUNTDOWN = 3.6;     // seconds before GO
+const COUNTDOWN = 5;       // seconds before GO (the track's name shows for the first of them)
 const AFTER_WINNER = 30;   // the race is called this long after the first worm finishes
 
 export class Race {

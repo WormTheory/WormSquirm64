@@ -1,4 +1,5 @@
-// Opens the game in a headless browser at desktop and phone sizes, plays a little, and saves screenshots.
+// Opens the game in a headless browser, walks through the menus into a Grand Prix race, plays a
+// little, then looks at each track and each split-screen layout. Saves screenshots along the way.
 //   node tools/playtest.cjs <url> <folder for screenshots>
 const { chromium } = require('playwright');
 
@@ -11,32 +12,59 @@ const { chromium } = require('playwright');
     const page = await ctx.newPage();
     page.on('console', (m) => { if (m.type() === 'error') errs.push(name + ': ' + m.text()); });
     page.on('pageerror', (e) => errs.push(name + ': ' + e.message));
+    const shot = (n) => page.screenshot({ path: `${out}/${name}-${n}.png` });
+    const key = async (k, wait = 150) => { await page.keyboard.press(k); await page.waitForTimeout(wait); };
+    const ws = (fn, arg) => page.evaluate(fn, arg);
     await page.goto(url);
-    await page.waitForTimeout(1200);
-    await page.screenshot({ path: `${out}/${name}-title.png` });
-    await page.keyboard.press('KeyJ');
-    await page.waitForTimeout(4200);
-    const keys = ['KeyJ', 'KeyK', 'KeyL', 'KeyI'];
-    for (let i = 0; i < 40; i++) { await page.keyboard.press(keys[i % 4]); await page.waitForTimeout(250); }
-    await page.screenshot({ path: `${out}/${name}-race.png` });
-    // Look around from where the worm has got to: the road should be there from every angle.
-    for (let a = 0; a < 4; a++) {
-      await page.evaluate((a) => { window.__ws.cam.yaw += Math.PI / 2; window.__ws.cam.pitch = 0.25 + a * 0.2; }, a);
-      await page.waitForTimeout(300);
-      await page.screenshot({ path: `${out}/${name}-look${a}.png` });
+    await page.waitForTimeout(1000);
+    await shot('title');
+    if (hasTouch) {
+      // By touch alone: tap through the menus, then tap the on-screen buttons.
+      await page.touchscreen.tap(200, 120); await page.waitForTimeout(200); await shot('mode');
+      await page.tap('text=GRAND PRIX'); await page.waitForTimeout(200); await shot('players');
+      await page.tap('text=START'); await page.waitForTimeout(200); await shot('worms');
+      await page.tap('text=Flopple');
+      await page.waitForTimeout(5500);
+      const pads = ['SQUIRM', 'WIGGLE', 'UNDULATE', 'FLOP'];
+      for (let i = 0; i < 40; i++) { await page.tap(`.pads button:text-is("${pads[i % 4]}")`); await page.waitForTimeout(220); }
+    } else {
+      await key('Enter'); await shot('mode');           // title -> game select
+      await key('Enter');                               // Grand Prix -> who's playing
+      await key('Enter'); await shot('players');        // the right of the keyboard joins
+      await key('Enter'); await key('ArrowRight'); await shot('worms');
+      await key('Enter');                               // choose a worm: the race starts
+      await page.waitForTimeout(1200); await shot('trackname');
+      await page.waitForTimeout(4300);
+      const keys = ['KeyJ', 'KeyK', 'KeyL', 'KeyI'];
+      for (let i = 0; i < 40; i++) await key(keys[i % 4], 250);
     }
-    console.log(name, await page.evaluate(() => {
-      const r = window.__ws.race, w = r.worms[7];
-      return JSON.stringify({ mode: window.__ws.mode, state: r.state, t: r.time.toFixed(1), prog: w.prog.toFixed(1), rank: w.rank, spasms: w.count });
+    await shot('race');
+    console.log(name, await ws(() => {
+      const r = window.__ws.race, w = r.worms[window.__ws.G.players[0].me];
+      return JSON.stringify({ phase: window.__ws.phase, state: r.state, t: r.time.toFixed(1), prog: w.prog.toFixed(1), rank: w.rank, spasms: w.count });
     }));
     if (name === 'desk') {
-      // Run the rest of the race at once to reach the results screen.
-      await page.evaluate(() => {
-        const r = window.__ws.race;
-        for (let n = 0; r.state !== 'done' && n < 60000; n++) { if (n % 30 === 0) r.press(7, 'FLOP'); r.step(1 / 60); }
+      await key('Escape'); await shot('pause'); await key('Enter');
+      // Run the rest of the race at once to reach the results, then on through the cup.
+      const finish = () => ws(() => {
+        const r = window.__ws.race, me = window.__ws.G.players[0].me, A = ['SQUIRM', 'WIGGLE', 'FLOP'];
+        for (let n = 0; r.state !== 'done' && n < 60000; n++) { if (n % 12 === 0) r.press(me, A[(n / 12) % 3]); r.step(1 / 60); }
       });
-      await page.waitForTimeout(2500);
-      await page.screenshot({ path: `${out}/${name}-results.png` });
+      await finish(); await page.waitForTimeout(2300); await shot('results');
+      for (let t = 1; t < 4; t++) {
+        await key('Enter'); await page.waitForTimeout(600);
+        await ws(() => { const r = window.__ws.race; while (r.clock < 2) r.step(1 / 60); });
+        await page.waitForTimeout(300); await shot('track' + t);
+        await finish(); await page.waitForTimeout(2300);
+      }
+      await key('Enter'); await shot('final');
+      await key('Enter'); await page.waitForTimeout(300);
+      for (const n of [2, 3, 4]) {
+        await ws((n) => { window.__ws.quick(n, n - 1); const r = window.__ws.race; while (r.clock < 3) { r.worms.forEach((w, i) => r.press(i, 'FLOP')); r.step(1 / 60); } }, n);
+        await page.waitForTimeout(500); await shot('split' + n);
+      }
+      await ws(() => { window.__ws.menus.session.players = [{ devs: ['kbR'], char: 0 }]; window.__ws.menus.session.mode = 'vs'; window.__ws.menus.trackSel(); });
+      await page.waitForTimeout(200); await shot('tracksel');
     }
     await ctx.close();
   }
