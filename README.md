@@ -21,7 +21,8 @@ python3 -m http.server 8000   # then open http://localhost:8000
   Q E R F Z X C V and J K L I U O N M are the actions.
 - **Touch:** drag to turn the camera; tap the on-screen buttons.
 - Escape or Start pauses.
-- Add `?sharp` to the address to switch off the pixel effect on the HUD and menus.
+- Options (on the main menu and in the pause menu) has two sliders: the pixel size of the 3D picture, and of the
+  HUD and menus. They're remembered in the browser.
 - On the "Who's playing?" screen every input (the keyboard and mouse, each controller, the touch screen) has a row
   and moves itself into a player slot. A controller appears once one of its buttons has been pressed.
 

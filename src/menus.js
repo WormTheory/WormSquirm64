@@ -5,13 +5,14 @@ import { CHARS } from './characters.js';
 import { DEVICE_NAMES, devsOf } from './input.js';
 import { drawTrackMap } from './hud.js';
 import { buildTrack, CUP } from './sim/track.js';
+import { settings, saveSettings, renderPx, uiPx } from './settings.js';
 
 export const CSS = `
 #ws .panel{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2.2vmin;
   background:rgba(8,16,40,.6);pointer-events:auto;text-align:center;box-sizing:border-box;overflow:auto;
   padding:var(--pt) var(--pr) var(--pb) var(--pl)}
 #ws .logo{font-size:clamp(34px,11vmin,110px);line-height:.92;padding:0 .15em;background:linear-gradient(#fff36a 20%,#ff8a1c 60%,#e02818);
-  -webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:3px #1a0a40;filter:drop-shadow(5px 5px 0 #1a0a40);transform:rotate(-3deg)}
+  -webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:3px #1a0a40;filter:drop-shadow(5px 5px 0 #1a0a40)}
 #ws .logo span{font-size:1.5em;background:linear-gradient(#7cf0ff,#2860e8);-webkit-background-clip:text;background-clip:text}
 #ws .head{font-size:clamp(22px,6vmin,54px);padding:0 .15em;background:linear-gradient(#fff36a,#ff8a1c);-webkit-background-clip:text;background-clip:text;
   color:transparent;-webkit-text-stroke:2px #1a0a40;filter:drop-shadow(3px 3px 0 #1a0a40)}
@@ -26,6 +27,11 @@ export const CSS = `
 #ws .btn{font:inherit;font-size:clamp(13px,3.2vmin,26px);padding:.4em 1.1em;border:3px solid #000;border-radius:10px;color:#fff;
   background:linear-gradient(#5a6a90,#2a3658);box-shadow:0 5px 0 #000;cursor:pointer}
 #ws .btn:disabled{opacity:.4;cursor:default}
+#ws .col{display:flex;flex-direction:column;gap:1.6vmin;align-items:stretch}
+#ws .opts{display:flex;flex-direction:column;gap:1.4vmin;width:min(94%,30em);font-size:clamp(12px,2.6vmin,20px)}
+#ws .opt{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1.2fr) 2.2em;gap:.6em;align-items:center;text-align:left}
+#ws .rng{width:100%;height:1.6em;margin:0;min-width:0;touch-action:none}
+#ws .rng.foc{outline:3px solid #fff}
 #ws .btn.foc{background:linear-gradient(#ff7a3a,#d82818);outline:3px solid #fff}
 #ws .assign{display:grid;grid-template-columns:minmax(0,2.2fr) repeat(4,minmax(0,1fr));gap:1vmin;width:min(94%,36em);align-items:stretch;
   font-size:clamp(12px,2.5vmin,19px)}
@@ -73,6 +79,7 @@ export class Menus {
     this.portraits = [];   // a picture of each worm, set by the game once it can draw them
     this.screen = null; this.focus = 0; this.btns = []; this.tickFn = null;
     this.onOnline = () => {}; // set by the game: what ONLINE leads to once the players are settled
+    this.onSettings = () => {}; // set by the game: called when a slider in the options moves
     panel.addEventListener('click', (e) => {
       const t = e.target.closest('[data-a]');
       if (t && this.acts[t.dataset.a]) this.acts[t.dataset.a](t.dataset.v);
@@ -87,7 +94,7 @@ export class Menus {
   put(screen, html, acts, focus = 0) {
     this.screen = screen; this.acts = acts; this.panel.hidden = false; this.tickFn = null;
     this.panel.innerHTML = html;
-    this.btns = [...this.panel.querySelectorAll('.btn:not(:disabled),.card.pick')];
+    this.btns = [...this.panel.querySelectorAll('.btn:not(:disabled),.card.pick,.rng')];
     this.setFocus(focus);
   }
   setFocus(i) {
@@ -100,6 +107,12 @@ export class Menus {
   // between rows. So up and down do nothing to a single row of buttons, and left and right nothing to a column.
   steer(nav) {
     const cur = this.btns[this.focus];
+    // On a slider, left and right change its value rather than moving on.
+    if (cur && cur.classList.contains('rng') && nav.dx) {
+      if (nav.dx > 0) cur.stepUp(); else cur.stepDown();
+      cur.dispatchEvent(new Event('input', { bubbles: true }));
+      return;
+    }
     if (cur && (nav.dx || nav.dy)) {
       const box = (b) => { const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, h: r.height }; };
       const me = box(cur), sameRow = (o) => Math.abs(o.y - me.y) < Math.min(o.h, me.h) / 2;
@@ -118,24 +131,66 @@ export class Menus {
   }
 
   // A plain dialog: some HTML and a row of buttons [{label, fn}]. onBack runs on a back press.
-  dialog(html, buttons, onBack) {
+  // withOptions puts the pixel-size sliders above the buttons.
+  dialog(html, buttons, onBack, withOptions) {
     const acts = {};
     buttons.forEach((b, i) => { acts['b' + i] = b.fn; });
     this.onBack = onBack || null;
-    this.put('dialog', `${html}<div class="row">${buttons.map((b, i) => `<button class="btn" type="button" data-a="b${i}">${b.label}</button>`).join('')}</div>`, acts);
+    this.put('dialog', `${html}${withOptions ? this.optionsHtml() : ''}<div class="row">${buttons.map((b, i) => `<button class="btn" type="button" data-a="b${i}">${b.label}</button>`).join('')}</div>`, acts, withOptions ? 2 : 0);
+    if (withOptions) this.bindOptions();
   }
 
+  // The main menu.
   title() {
-    this.put('title', `<div class="logo">WORM<br>SQUIRM <span>64</span></div><div class="blink t">PRESS ANY BUTTON</div>
-      <div class="help">Controller: left stick turns the camera. Every face and shoulder button does something.<br>
-      Keyboard: A/D or the arrow keys turn the camera (or drag with the mouse). Q E R F Z X C V and J K L I U O N M do something.<br>
-      ${this.touch ? 'Touch: drag to turn the camera. Tap the buttons to squirm, wiggle, undulate or flop.<br>' : ''}
-      Your worm heads roughly where the camera points. Roughly.</div>`, {});
-    this.panel.onclick = () => { if (this.screen === 'title') this.mode(); };
+    this.put('title', `<div class="logo">WORM<br>SQUIRM <span>64</span></div>
+      <div class="col"><button class="btn" type="button" data-a="start">START</button>
+      <button class="btn" type="button" data-a="controls">CONTROLS</button>
+      <button class="btn" type="button" data-a="options">OPTIONS</button></div>`,
+    { start: () => this.mode(), controls: () => this.controls(), options: () => this.options() }, this.titleFocus || 0);
+  }
+
+  controls() {
+    this.titleFocus = 1;
+    this.put('controls', `<div class="head">CONTROLS</div>
+      <div class="help"><b>Controller:</b> the left stick turns the camera. Every face and shoulder button does something.</div>
+      <div class="help"><b>Keyboard and mouse:</b> A/D or the arrow keys turn the camera, or drag with the mouse.
+      Q E R F Z X C V and J K L I U O N M do something.</div>
+      <div class="help"><b>Touch:</b> drag to turn the camera. Tap the buttons to squirm, wiggle, undulate or flop.</div>
+      <div class="help">Your worm heads roughly where the camera points. Roughly.<br>Escape or Start pauses.</div>
+      <div class="row"><button class="btn" type="button" data-a="back">BACK</button></div>`, { back: () => this.title() });
+    this.tickFn = (nav) => { if (nav.back) this.title(); else this.steer(nav); };
+  }
+
+  options() {
+    this.titleFocus = 2;
+    this.put('options', `<div class="head">OPTIONS</div>${this.optionsHtml()}
+      <div class="row"><button class="btn" type="button" data-a="back">BACK</button></div>`, { back: () => this.title() });
+    this.bindOptions();
+    this.tickFn = (nav) => { if (nav.back) this.title(); else this.steer(nav); };
+  }
+
+  // The two pixel-size sliders, shown in the options and in the pause menu. Both read and write the
+  // same saved settings, so a change in one place is there in the other.
+  optionsHtml() {
+    const el = this.panel.parentElement, w = el.clientWidth || 640, h = el.clientHeight || 480;
+    const row = (id, label, min, max, step, val) => `<label class="opt"><span>${label}</span>
+      <input class="rng" type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}" aria-label="${label}"><b id="${id}-v">${val}</b></label>`;
+    return `<div class="opts">${row('ws-rpx', 'PICTURE PIXEL SIZE', 1, 8, 0.5, Math.min(8, renderPx(w, h)))}
+      ${row('ws-upx', 'MENU AND HUD PIXEL SIZE', 1, 5, 1, uiPx(w, h))}</div>`;
+  }
+  bindOptions() {
+    for (const [id, key] of [['ws-rpx', 'renderPx'], ['ws-upx', 'uiPx']]) {
+      const sl = this.panel.querySelector('#' + id);
+      if (!sl) continue;
+      sl.addEventListener('input', () => {
+        settings[key] = +sl.value; saveSettings();
+        this.panel.querySelector('#' + id + '-v').textContent = sl.value;
+        this.onSettings();
+      });
+    }
   }
 
   mode() {
-    this.panel.onclick = null;
     const go = (m) => { this.session.mode = m; this.players(); };
     this.put('mode', `<div class="head">SELECT GAME</div><div class="row">
       <button class="btn" type="button" data-a="gp">GRAND PRIX</button><button class="btn" type="button" data-a="vs">VS RACE</button>
@@ -235,8 +290,8 @@ export class Menus {
   // Call every frame while a screen is up.
   tick() {
     const inp = this.inputs, s = this.session, all = inp.nav();
-    if (this.screen === 'title') { if (inp.anyKey) this.mode(); return; }
-    if (this.screen === 'mode') { if (all.back) this.title(); else this.steer(all); return; }
+    if (this.screen === 'title') { this.steer(all); return; }
+    if (this.screen === 'mode') { if (all.back) { this.titleFocus = 0; this.title(); } else this.steer(all); return; }
     if (this.tickFn) return this.tickFn(all);
     if (this.screen === 'dialog') { if (all.back && this.onBack) this.onBack(); else this.steer(all); return; }
     if (this.screen === 'tracks') {

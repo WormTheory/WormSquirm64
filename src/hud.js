@@ -1,8 +1,9 @@
 // What's drawn over each player's part of the picture: lap, time, place, the running order and
 // the minimap. It's all painted onto one small canvas (a half or a third the size of the screen)
 // and stretched without smoothing, so it comes out in chunky pixels like the picture beneath it.
-// The menus, which are ordinary page elements, get the same look from a filter (the class "pix").
+// The menus, which are ordinary page elements, are copied onto the same canvas (dompaint.js).
 import { CHARS, hex } from './characters.js';
+import { uiPx } from './settings.js';
 
 export const CSS = `
 html,body{height:100%;margin:0;background:#101820;overflow:hidden;overscroll-behavior:none}
@@ -13,7 +14,7 @@ html,body{height:100%;margin:0;background:#101820;overflow:hidden;overscroll-beh
 #ws [hidden]{display:none!important}
 #ws canvas.game,#ws canvas.hudc{position:absolute;inset:0;width:100%;height:100%;display:block}
 #ws canvas.hudc{pointer-events:none;image-rendering:pixelated}
-#ws .pix{filter:url(#ws-pix)}
+#ws.ghost .panel,#ws.ghost .trackname,#ws.ghost .pads{opacity:0}
 #ws .probe{position:absolute;visibility:hidden;pointer-events:none;padding:var(--pt) var(--pr) var(--pb) var(--pl)}
 #ws .t{text-shadow:2px 2px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000;letter-spacing:.02em}
 #ws .hud{position:absolute;pointer-events:none;container-type:size;overflow:hidden;box-sizing:border-box}
@@ -53,10 +54,10 @@ export function drawTrackMap(canvas, tr) {
   return f;
 }
 
-// The one canvas every player's HUD is painted on, and the filter that pixelates the menus to match.
+// The one canvas every player's HUD (and the copy of the menus) is painted on.
 export class HudLayer {
-  constructor(root, sharp) {
-    this.root = root; this.sharp = sharp;
+  constructor(root) {
+    this.root = root;
     this.canvas = document.createElement('canvas');
     this.canvas.className = 'hudc';
     root.appendChild(this.canvas);
@@ -64,30 +65,19 @@ export class HudLayer {
     this.probe = document.createElement('div');
     this.probe.className = 'probe';
     root.appendChild(this.probe);
-    this.svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    this.svg.setAttribute('width', '0'); this.svg.setAttribute('height', '0'); this.svg.setAttribute('aria-hidden', 'true');
-    this.svg.style.position = 'absolute';
-    root.appendChild(this.svg);
     this.resize();
   }
 
-  // n: how many screen pixels to one HUD pixel. Two on a small screen (any more and small text can't be read), three on a big one.
+  // n: how many screen pixels to one HUD pixel (the player's setting, or two on a small screen and three on a big one).
   resize() {
-    const w = this.root.clientWidth || 640, h = this.root.clientHeight || 480, n = this.sharp ? 1 : Math.min(w, h) < 700 ? 2 : 3;
+    const w = this.root.clientWidth || 640, h = this.root.clientHeight || 480, n = uiPx(w, h);
     this.n = n; this.W = Math.ceil(w / n); this.H = Math.ceil(h / n);
     this.canvas.width = this.W; this.canvas.height = this.H;
     // The space to leave at each edge for a phone's notch and bars, in HUD pixels.
     const cs = getComputedStyle(this.probe), px = (v) => (parseFloat(v) || 0) / n;
     this.inset = { t: px(cs.paddingTop), r: px(cs.paddingRight), b: px(cs.paddingBottom), l: px(cs.paddingLeft) };
-    // The menus' filter: keep one screen pixel in every n-by-n block, then spread it across the block.
-    const ks = Array.from({ length: n - 1 }, (_, i) => i + 1);
-    this.svg.innerHTML = this.sharp ? '' : `<filter id="ws-pix" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
-      <feFlood x="0" y="0" width="1" height="1"/><feComposite x="0" y="0" width="${n}" height="${n}"/><feTile result="grid"/>
-      <feComposite in="SourceGraphic" in2="grid" operator="in" result="a0"/>
-      ${ks.map((k) => `<feOffset in="a0" dx="${k}" result="a${k}"/>`).join('')}
-      <feMerge result="b0"><feMergeNode in="a0"/>${ks.map((k) => `<feMergeNode in="a${k}"/>`).join('')}</feMerge>
-      ${ks.map((k) => `<feOffset in="b0" dy="${k}" result="b${k}"/>`).join('')}
-      <feMerge><feMergeNode in="b0"/>${ks.map((k) => `<feMergeNode in="b${k}"/>`).join('')}</feMerge></filter>`;
+    // With a pixel size above one, the real menus go invisible and a painted copy stands in (dompaint.js).
+    this.root.classList.toggle('ghost', n > 1);
   }
 
   clear() { this.ctx.clearRect(0, 0, this.W, this.H); }
@@ -102,7 +92,7 @@ export class PlayerHud {
       const el = (cls, p, tag = 'div') => { const e = document.createElement(tag); e.className = cls; p.appendChild(e); return e; };
       this.el = el('hud', parent);
       this.el.style.cssText = `left:${rect[0] * 100}%;top:${rect[1] * 100}%;width:${rect[2] * 100}%;height:${rect[3] * 100}%`;
-      const pads = el('pads pix', this.el), cols = ['#2f9a38', '#d82818', '#2860e8', '#e0a010'];
+      const pads = el('pads', this.el), cols = ['#2f9a38', '#d82818', '#2860e8', '#e0a010'];
       ['SQUIRM', 'WIGGLE', 'UNDULATE', 'FLOP'].forEach((a, i) => {
         const b = el('', pads, 'button'); b.type = 'button'; b.textContent = a; b.style.background = cols[i];
         b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); inputs.tap(a); });

@@ -13,6 +13,8 @@ import { Menus, CSS as MENU_CSS } from './menus.js';
 import { Online, CSS as ONLINE_CSS } from './online.js';
 import { MirrorRace, snapshot } from './net/mirror.js';
 import { makePortraits } from './portraits.js';
+import { DomPainter } from './dompaint.js';
+import { settings } from './settings.js';
 import * as sfx from './audio.js';
 
 const root = document.getElementById('ws');
@@ -22,16 +24,16 @@ document.head.appendChild(style);
 const canvas = document.createElement('canvas');
 canvas.className = 'game';
 root.appendChild(canvas);
-// (Add ?sharp to the address to switch the pixel effect on the HUD and menus off.)
-const hudLayer = new HudLayer(root, new URLSearchParams(location.search).has('sharp'));
+const hudLayer = new HudLayer(root);
 const huds = document.createElement('div');
 root.appendChild(huds);
 const trackName = document.createElement('div');
-trackName.className = 'trackname pix'; trackName.hidden = true;
+trackName.className = 'trackname'; trackName.hidden = true;
 root.appendChild(trackName);
 const panel = document.createElement('div');
-panel.className = 'panel pix';
+panel.className = 'panel';
 root.appendChild(panel);
+const painter = new DomPainter(root, hudLayer, () => [trackName, ...huds.querySelectorAll('.pads'), panel]);
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'low-power' });
 renderer.setScissorTest(true);
@@ -42,11 +44,15 @@ const titleCam = new THREE.PerspectiveCamera(62, 4 / 3, 0.5, 500);
 // The picture is drawn small (240 lines on its short side) and stretched, as the old machines did.
 let bufW = 2, bufH = 2;
 function resize() {
-  const w = root.clientWidth || 640, h = root.clientHeight || 480, k = Math.min(1, 240 / Math.min(w, h), 640 / Math.max(w, h));
+  // (Left alone it's 240 lines on the short side and never more than 640 on the long one; the options can set the pixel size instead.)
+  const w = root.clientWidth || 640, h = root.clientHeight || 480;
+  const k = settings.renderPx ? 1 / settings.renderPx : Math.min(1, 240 / Math.min(w, h), 640 / Math.max(w, h));
   bufW = Math.max(2, Math.round(w * k)); bufH = Math.max(2, Math.round(h * k));
   renderer.setSize(bufW, bufH, false);
 }
-addEventListener('resize', () => { resize(); hudLayer.resize(); });
+const applySettings = () => { resize(); hudLayer.resize(); };
+addEventListener('resize', applySettings);
+menus.onSettings = applySettings;
 resize();
 menus.portraits = makePortraits(renderer, bufW, bufH);
 
@@ -165,10 +171,10 @@ function pause(on) {
   if (!on) { if (phase === 'paused') phase = 'race'; return menus.hide(); }
   if (net) {
     // An online race can't stop for one player: this only covers the screen.
-    return menus.dialog('<div class="head">STILL RACING</div>', [{ label: 'RESUME', fn: () => pause(false) }, { label: 'LEAVE GAME', fn: () => online.leave() }], () => pause(false));
+    return menus.dialog('<div class="head">STILL RACING</div>', [{ label: 'RESUME', fn: () => pause(false) }, { label: 'LEAVE GAME', fn: () => online.leave() }], () => pause(false), true);
   }
   phase = 'paused';
-  menus.dialog('<div class="head">PAUSED</div>', [{ label: 'RESUME', fn: () => pause(false) }, { label: 'QUIT', fn: toTitle }], () => pause(false));
+  menus.dialog('<div class="head">PAUSED</div>', [{ label: 'RESUME', fn: () => pause(false) }, { label: 'QUIT', fn: toTitle }], () => pause(false), true);
 }
 
 function showResults() {
@@ -279,6 +285,7 @@ function frame(now, hidden) {
       titleCam.lookAt(p.x, 1, p.z);
       view([0, 0, 1, 1], titleCam);
     }
+    painter.draw(now);
   }
   inputs.endFrame();
 }

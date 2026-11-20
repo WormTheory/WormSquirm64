@@ -18,9 +18,15 @@ const { chromium } = require('playwright');
     await page.goto(url);
     await page.waitForTimeout(1000);
     await shot('title');
+    if (!hasTouch) {
+      // Main menu -> OPTIONS, move a slider, back; then CONTROLS and back.
+      await key('ArrowDown'); await key('ArrowDown'); await key('Enter'); await key('ArrowRight'); await key('ArrowDown'); await key('ArrowLeft'); await shot('options');
+      await key('ArrowRight'); await key('ArrowUp'); await key('ArrowLeft'); await key('Backspace');
+      await key('ArrowUp'); await key('Enter'); await shot('controls'); await key('Enter'); await key('ArrowUp');
+    }
     if (hasTouch) {
       // By touch alone: tap through the menus, then tap the on-screen buttons.
-      await page.touchscreen.tap(200, 120); await page.waitForTimeout(200); await shot('mode');
+      await page.tap('text=START'); await page.waitForTimeout(200); await shot('mode');
       await page.tap('text=GRAND PRIX'); await page.waitForTimeout(200);
       await page.tap('[data-v="touch:0"]'); await page.waitForTimeout(200); await shot('players');
       await page.tap('text=START'); await page.waitForTimeout(200); await shot('worms');
