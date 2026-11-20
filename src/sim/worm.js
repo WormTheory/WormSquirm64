@@ -27,6 +27,7 @@ export function makeWorm(idx, char, human, x, z) {
     hint: -1, s: 0, prog: 0, lap: 1, rank: idx, finished: false, finishTime: 0,
     // What's happened to it. Timers count down in seconds: stunned, boosted, starred, shrunk, falling (or dead) and flattened.
     stun: 0, boost: 0, star: 0, shrunk: 0, fall: 0, flat: 0, slow: 0, // (slow: stuck in glue)
+    shield: 0, giant: 0,    // seconds left in a bubble, and as a giant
     heat: 0, hurts: 0,      // how baked it is (0 to 1), and how many times it's been hurt
     items: 0, item: -1,     // how many items it's had, and the last one
     dead: false, pit: false, // whether its "fall" is a death by baking, or a real fall into nothing (otherwise it just lies off the road)
@@ -75,7 +76,7 @@ function startSpasm(w, action, rng, rankFrac) {
 // How far a worm's lunges go just now, as a multiple of normal: items speed it up or shrink it,
 // baking slows it, and a flattened worm barely moves at all.
 export function speedOf(w) {
-  return (w.boost > 0 ? 1.8 : 1) * (w.star > 0 ? 1.5 : 1) * (w.shrunk > 0 ? 0.6 : 1) * (1 - 0.55 * Math.min(1, w.heat)) * (w.flat > 0 ? 0.12 : 1) * (w.slow > 0 ? 0.4 : 1);
+  return (w.boost > 0 ? 1.8 : 1) * (w.star > 0 ? 1.5 : 1) * (w.shrunk > 0 ? 0.6 : 1) * (1 - 0.55 * Math.min(1, w.heat)) * (w.flat > 0 ? 0.12 : 1) * (w.slow > 0 ? 0.4 : 1) * (w.giant > 0 ? 1.3 : 1);
 }
 
 // Moves a worm on by dt. Returns the action if a new spasm started this step (for sound and the HUD).

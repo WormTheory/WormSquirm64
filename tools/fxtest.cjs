@@ -59,6 +59,10 @@ const { chromium } = require('playwright');
   await ws(() => { const r = window.__ws.race, me = r.worms[window.__ws.G.players[0].me]; r.items.ents.push({ type: 'glue', x: me.x, z: me.z + 0.2, vx: 0, vz: 0, owner: -1, grace: 0, life: 9 }); const o = r.worms[0]; o.spring = { t: 0, s0: me.s - 4, lat: -3 }; o.lift = 0.01; });
   await page.waitForTimeout(450); await shot('glue-spring');
   console.log('glued:', await ws(() => window.__ws.race.worms[window.__ws.G.players[0].me].slow > 0));
+  // Hail, the mix-up, and a worm in a bubble beside a giant one.
+  await race(1, 0); await ws(() => window.__ws.event('hail')); await page.waitForTimeout(2600); await shot('hail');
+  await race(1, 0); await ws(() => { window.__ws.event('dizzy'); const r = window.__ws.race, me = r.worms[window.__ws.G.players[0].me]; me.shield = 9; r.worms[0].giant = 9; r.worms[0].x = me.x + 3; r.worms[0].z = me.z + 1; });
+  await page.waitForTimeout(900); await shot('dizzy-bubble-giant');
   // The bird takes player one of two; player two races on.
   await race(2, 1);
   await ws(() => window.__ws.event('bird', window.__ws.G.players[0].me));

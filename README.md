@@ -44,7 +44,8 @@ python3 -m http.server 8000   # then open http://localhost:8000
   (thrown ahead, bounces off walls), a Homing Pebble (goes for the worm in front), a Squirm Star (faster, can't be
   stopped, bowls others over), Lightning (shrinks and slows everyone else), a Mole (goes for the leader), a Glue Pot
   (a puddle that slows whoever wades through), a Switcheroo (changes places with the worm in front) or a Spring
-  (one great bound up the road).
+  (one great bound up the road), a Bubble (spares it the next bad thing) or a Giant Grub (huge for a while, and it
+  flattens whoever it touches).
   Worms at the back get the better ones.
 - **Random events** (`src/sim/events.js`), switched on in the options: rain washes worms about and sometimes off
   the road; a heatwave bakes them, slowing them and killing some; a bird takes one worm for good (for the rest of
@@ -52,7 +53,8 @@ python3 -m http.server 8000   # then open http://localhost:8000
   flattens whoever is underfoot for five to ten seconds. Under a blood moon one worm turns into a
   were-wolf-worm and hunts the rest, biting them, until the curse lifts; the hand sticks a plaster on each victim.
   A tornado comes down the road and whirls worms off to somewhere else; an earthquake tips them over; a frost
-  makes every lunge slide on.
+  makes every lunge slide on; hail comes down on them, with a shadow to warn of each stone; and in a mix-up every
+  worm goes the opposite way to where it's looking.
 - **The hand.** A worm that falls off is lowered back onto the road by a giant hand, and one that bakes to death
   has a jug of water poured over it. How often events come is a slider in the options.
 - **Wormbow Road** has no walls: a worm that goes over the edge falls and comes back in the middle of the road.

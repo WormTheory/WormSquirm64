@@ -9,9 +9,13 @@
 //           further on or further back.
 //   quake   the ground shakes in fits, and each fit tips some of the worms over.
 //   frost   the road ices up: every lunge keeps sliding afterwards.
+//   hail    hailstones come down round the worms, each with a shadow to warn of it; one that lands on a worm stuns it.
+//   dizzy   a mix-up: every worm goes the opposite way to where it's looking, until its owner catches on.
 import { locate, pointAt } from './track.js';
+import { stun, popped } from './items.js';
 
-export const EVENT_KINDS = ['none', 'rain', 'heat', 'bird', 'stomp', 'moon', 'twister', 'quake', 'frost'];
+export const EVENT_KINDS = ['none', 'rain', 'heat', 'bird', 'stomp', 'moon', 'twister', 'quake', 'frost', 'hail', 'dizzy'];
+export const HAIL = { fall: 1.1, every: 0.22, reach: 1.8, high: 20 }; // seconds a stone takes to land, seconds between stones, how near it must land, how high it starts
 const TWIST = { len: 12, speed: 9, reach: 3, secs: 1.6, high: 6.5 };
 const MOON = { len: 17, pick: 2.6, rear: 1.7, back: 1.3, speed: 10.5 }; // seconds: the whole event, before a worm is chosen, rearing up, turning back; and how fast the wolf runs
 const GAP = [10, 20];          // quiet seconds between events
@@ -24,7 +28,7 @@ const STEP_EVERY = 0.75, FOOT_R = 5;
 // kinds: which events may happen (all of them if not given).
 export function makeEvents(race, on, freq = 5, kinds = null) {
   const wait = 5 / Math.max(1, Math.min(10, freq));
-  const may = ['rain', 'heat', 'stomp', 'moon', 'bird', 'twister', 'quake', 'frost'].filter((k) => !kinds || kinds.includes(k)); // (each as likely as the next)
+  const may = ['rain', 'heat', 'stomp', 'moon', 'bird', 'twister', 'quake', 'frost', 'hail', 'dizzy'].filter((k) => !kinds || kinds.includes(k)); // (each as likely as the next)
   return { on, wait, may, twister: null, type: 'none', t: 0, next: on && may.length ? race.rng.range(8, 14) * wait : Infinity, bird: null, stomp: null, wolf: -1 };
 }
 
@@ -47,6 +51,8 @@ export function begin(race, ev, force) {
     const p = pointAt(tr, ev.twister.s, 0); ev.twister.x = p.x; ev.twister.z = p.z;
   } else if (kind === 'quake') { ev.len = rng.range(6, 8); ev.shake = 0.6; }
   else if (kind === 'frost') ev.len = rng.range(9, 12);
+  else if (kind === 'hail') { ev.len = rng.range(8, 10); ev.hail = []; ev.nextStone = 0.4; }
+  else if (kind === 'dizzy') { ev.len = rng.range(7, 9); for (const w of race.worms) w.wise = rng.range(1.2, 5); }
   else if (kind === 'rain' || kind === 'heat') {
     ev.len = rng.range(WEATHER_FOR[0], WEATHER_FOR[1]);
     for (const w of race.worms) { w.wash = null; w.bake = rng.range(0.15, 1.1); } // (bake: hurts a second, on average)
@@ -136,6 +142,21 @@ export function stepEvents(race, dt) {
       race.events.push({ type: 'tremor' });
       for (const w of live) if (!w.finished && !(w.star > 0) && rng() < 0.4) { w.stun = Math.max(w.stun, rng.range(0.8, 1.6)); w.spasm = null; race.events.push({ type: 'hit', idx: w.idx }); }
     }
+  } else if (ev.type === 'hail') {
+    // A stone every so often, aimed near one of the worms. It lands a moment later, and stuns any worm it lands on.
+    ev.nextStone -= dt;
+    if (ev.nextStone <= 0 && live.length && ev.t < ev.len - HAIL.fall) {
+      ev.nextStone = HAIL.every;
+      const w = rng.pick(live), a = rng.range(0, Math.PI * 2), d = rng.range(0, 4.5);
+      ev.hail.push({ x: w.x + Math.cos(a) * d, z: w.z + Math.sin(a) * d, t: ev.t + HAIL.fall });
+    }
+    for (const h of ev.hail) {
+      if (h.done || ev.t < h.t) continue;
+      h.done = true;
+      race.events.push({ type: 'hailhit', x: h.x, z: h.z });
+      for (const w of live) if (!w.finished && (w.x - h.x) ** 2 + (w.z - h.z) ** 2 < HAIL.reach * HAIL.reach) stun(race, w, 1.2);
+    }
+    ev.hail = ev.hail.filter((h) => ev.t < h.t + 0.25);
   } else if (ev.type === 'frost') {
     // On ice, a lunge that has just ended carries on as a slide.
     for (const w of live) {
@@ -198,8 +219,8 @@ export function stepEvents(race, dt) {
         }
         if (d < 1.5) {
           prey.safe = 7;
-          if (prey.star > 0) { wolf.stun = 1; race.events.push({ type: 'hit', idx: wolf.idx }); } // a starred worm is too much for it
-          else { prey.patch = 0; drop(race, prey, 'bitten'); }
+          if (prey.star > 0 || prey.giant > 0) { wolf.stun = 1; race.events.push({ type: 'hit', idx: wolf.idx }); } // a starred worm is too much for it
+          else if (!popped(race, prey)) { prey.patch = 0; drop(race, prey, 'bitten'); }
         }
       }
     }
@@ -217,7 +238,7 @@ export function stepEvents(race, dt) {
   }
   if (ev.t >= ev.len) {
     if (race.worms[ev.wolf]) race.worms[ev.wolf].wolf = 0;
-    ev.type = 'none'; ev.bird = null; ev.stomp = null; ev.wolf = -1; ev.twister = null;
+    ev.type = 'none'; ev.bird = null; ev.stomp = null; ev.wolf = -1; ev.twister = null; ev.hail = null;
     for (const w of race.worms) { w.slide = null; w.wasSpasm = null; } ev.next = rng.range(GAP[0], GAP[1]) * ev.wait;
     for (const w of race.worms) w.wash = null;
     race.events.push({ type: 'event', kind: 'none' });

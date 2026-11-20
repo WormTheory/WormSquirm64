@@ -14,7 +14,7 @@ const r2 = (v) => Math.round(v * 100) / 100;
 
 // Host side: a race as a snapshot message.
 //   w: per worm: x, z, spasm count, action, taps, progress, lap, place, finish time (-1: still going),
-//      what's wrong with it (a bit each for stunned, boosted, starred, shrunk, flat; 32 for eaten; 64 for baked to death; 128 for fallen into a pit; 4096 stuck in glue;
+//      what's wrong with it (a bit each for stunned, boosted, starred, shrunk, flat; 32 for eaten; 64 for baked to death; 128 for fallen into a pit; 4096 stuck in glue; 8192 in a bubble; 16384 a giant;
 //      256 a were-wolf-worm; 512 rearing up to change; 1024 bitten; 2048 wearing a plaster),
 //      seconds of fall left, height it's being carried at, how baked, times hurt, items had, last item.
 //   b: which item boxes are there (a 1 or 0 each).   e: things lying or flying about: kind, x, z.
@@ -23,7 +23,7 @@ const r2 = (v) => Math.round(v * 100) / 100;
 export function snapshot(race) {
   const w = [];
   for (const o of race.worms) {
-    let flags = (o.out ? 32 : 0) | (o.dead ? 64 : 0) | (o.pit ? 128 : 0) | (o.wolf > 0 ? 256 : 0) | (o.howl > 0 ? 512 : 0) | (o.bit ? 1024 : 0) | (o.patch > 0 ? 2048 : 0) | (o.slow > 0 ? 4096 : 0);
+    let flags = (o.out ? 32 : 0) | (o.dead ? 64 : 0) | (o.pit ? 128 : 0) | (o.wolf > 0 ? 256 : 0) | (o.howl > 0 ? 512 : 0) | (o.bit ? 1024 : 0) | (o.patch > 0 ? 2048 : 0) | (o.slow > 0 ? 4096 : 0) | (o.shield > 0 ? 8192 : 0) | (o.giant > 0 ? 16384 : 0);
     FLAGS.forEach((k, i) => { if (o[k] > 0) flags |= 1 << i; });
     w.push(r2(o.x), r2(o.z), o.count, Math.max(0, ACTIONS.indexOf(o.action)), o.taps, Math.round(o.prog * 10) / 10, o.lap, o.rank,
       o.finished ? r2(o.finishTime) : -1, flags, r2(o.fall), r2(o.lift), r2(o.heat), o.hurts, o.items, o.item);
@@ -33,6 +33,7 @@ export function snapshot(race) {
   if (wx.bird) ev.push(r2(wx.bird.x), r2(wx.bird.z), r2(wx.bird.h));
   else if (wx.twister) ev.push(r2(wx.twister.x), r2(wx.twister.z));
   else if (wx.stomp) for (const f of wx.stomp.steps) ev.push(r2(f.x), r2(f.z), r2(f.t));
+  else if (wx.hail) for (const h of wx.hail) ev.push(r2(h.x), r2(h.z), r2(h.t));
   return { t: 's', c: Math.round(race.clock * 1000) / 1000, st: STATES.indexOf(race.state), w, b: race.items.boxes.map((b) => (b.t > 0 ? 0 : 1)).join(''), e, ev };
 }
 
@@ -117,6 +118,8 @@ export class MirrorRace {
       if (A[k + 11] > 0 && !(w.lift > 0)) { const wk = EVENT_KINDS[a.ev[0]]; if (wk === 'bird') ev.push({ type: 'grab', idx: i }); else if (wk === 'twister') ev.push({ type: 'twirl', idx: i }); }
       if ((fl & 4096) && !(w.slow > 0)) ev.push({ type: 'glued', idx: i });
       w.slow = fl & 4096 ? 1 : 0;
+      if (!(fl & 8192) && w.shield > 0) ev.push({ type: 'pop', idx: i });
+      w.shield = fl & 8192 ? 1 : 0; w.giant = fl & 16384 ? 1 : 0;
       w.lift = A[k + 11] + (B[k + 11] > 0 ? (B[k + 11] - A[k + 11]) * f : 0);
       w.heat = A[k + 12];
       if (A[k + 13] > w.hurts) ev.push({ type: 'hurt', idx: i });
@@ -138,7 +141,8 @@ export class MirrorRace {
     wx.twister = kind === 'twister' && E.length >= 4 ? { x: E[2] + (b.ev[0] === E[0] && b.ev.length >= 4 ? (b.ev[2] - E[2]) * f : 0), z: E[3] + (b.ev[0] === E[0] && b.ev.length >= 4 ? (b.ev[3] - E[3]) * f : 0) } : null;
     if (kind === 'quake' && Math.floor(wx.t / 1.2) !== this.tremors) { this.tremors = Math.floor(wx.t / 1.2); ev.push({ type: 'tremor' }); }
     if (wx.bird && b.ev[0] === a.ev[0] && b.ev.length >= 5) { wx.bird.x += (b.ev[2] - E[2]) * f; wx.bird.z += (b.ev[3] - E[3]) * f; wx.bird.h += (b.ev[4] - E[4]) * f; }
-    wx.stomp = null;
+    wx.stomp = null; wx.hail = null;
+    if (kind === 'hail') { wx.hail = []; for (let i = 2; i + 2 < E.length; i += 3) wx.hail.push({ x: E[i], z: E[i + 1], t: E[i + 2] }); }
     if (kind === 'stomp' && E.length >= 5) {
       const steps = [];
       for (let i = 2; i + 2 < E.length; i += 3) steps.push({ x: E[i], z: E[i + 1], t: E[i + 2] });

@@ -65,7 +65,8 @@ export const squash = () => tone('sawtooth', 500, 60, 0.35, 0.16);
 export const caw = () => [0, 0.22].forEach((w) => tone('sawtooth', 1100, 620, 0.16, 0.12, w));
 export const gulp = () => { tone('sine', 260, 90, 0.25, 0.2); tone('sine', 180, 320, 0.15, 0.15, 0.28); };
 export const eventSting = (kind) => ({ rain: [392, 330, 262], heat: [523, 554, 587], bird: [880, 660, 880], stomp: [196, 147, 98], moon: [220, 208, 147, 139],
-  twister: [330, 392, 330, 392], quake: [98, 92, 98, 87], frost: [1047, 988, 880, 784] }[kind] || [])
+  twister: [330, 392, 330, 392], quake: [98, 92, 98, 87], frost: [1047, 988, 880, 784],
+  hail: [784, 784, 659, 784], dizzy: [523, 370, 523, 370] }[kind] || [])
   .forEach((f, i) => tone('square', f, f, 0.16, 0.1, i * 0.14));
 
 // Menu noises: moving between things, choosing one, going back, and a slider's click.
@@ -87,6 +88,8 @@ export function itemUse(item, k = 1) {
   else if (item === 7) { burst(500, 0.3, 0.12 * k); tone('sine', 220, 90, 0.3, 0.1 * k); }                      // glue: a glop
   else if (item === 8) { tone('sine', 400, 1200, 0.22, 0.12 * k); tone('sine', 1200, 400, 0.22, 0.12 * k, 0.05); }  // switcheroo: two notes crossing
   else if (item === 9) { tone('sine', 200, 900, 0.18, 0.16 * k); tone('sine', 900, 500, 0.3, 0.1 * k, 0.18); }      // spring: boing
+  else if (item === 10) tone('sine', 500, 1400, 0.35, 0.1 * k);                                                    // bubble: a rising blip
+  else if (item === 11) { tone('sawtooth', 70, 160, 0.6, 0.16 * k); burst(200, 0.5, 0.12 * k); }                    // giant: a swelling growl
 }
 // The wolf's howl (or, back: true, a whimper as the curse lifts), its bite with the victim's yelp, and the hand's three pats after.
 export function howl(back) {
@@ -102,3 +105,6 @@ export function bite(vol = 0.15) {
 export const glued = (vol = 0.12) => { burst(400, 0.25, vol); tone('sine', 180, 110, 0.25, vol * 0.7); };
 export const twirl = (vol = 0.14) => { burst(900, 1.2, vol, 'bandpass'); tone('sine', 300, 900, 1.1, vol * 0.5); };
 export const rumble = (vol = 0.25) => { burst(140, 0.8, vol); tone('sawtooth', 55, 38, 0.8, vol * 0.6); };
+// A bubble bursting, and a hailstone landing.
+export const pop = (vol = 0.14) => { tone('square', 1500, 300, 0.07, vol); burst(3000, 0.06, vol, 'highpass'); };
+export const hailHit = () => burst(2600, 0.07, 0.05, 'bandpass');

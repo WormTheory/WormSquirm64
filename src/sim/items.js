@@ -3,8 +3,8 @@
 // the front of the pack gets things to leave behind, the back gets things that catch up.
 import { locate, pointAt } from './track.js';
 
-export const ITEMS = ['BOOST', 'PEEL', 'PEBBLE', 'HOMING', 'STAR', 'ZAP', 'MOLE', 'GLUE', 'SWAP', 'SPRING'];
-export const ITEM_NAMES = ['WORMSHROOM', 'SQUIRMANA PEEL', 'PEBBLE', 'HOMING PEBBLE', 'SQUIRM STAR', 'LIGHTNING', 'MOLE', 'GLUE POT', 'SWITCHEROO', 'SPRING'];
+export const ITEMS = ['BOOST', 'PEEL', 'PEBBLE', 'HOMING', 'STAR', 'ZAP', 'MOLE', 'GLUE', 'SWAP', 'SPRING', 'BUBBLE', 'GIANT'];
+export const ITEM_NAMES = ['WORMSHROOM', 'SQUIRMANA PEEL', 'PEBBLE', 'HOMING PEBBLE', 'SQUIRM STAR', 'LIGHTNING', 'MOLE', 'GLUE POT', 'SWITCHEROO', 'SPRING', 'BUBBLE', 'GIANT GRUB'];
 export const ENT_TYPES = ['peel', 'pebble', 'homing', 'mole', 'glue'];
 const SPRING = { secs: 0.9, dist: 13, high: 4.6 }, GLUE_R = 1.6;
 const BOX_BACK = 4;       // seconds before a taken box comes back
@@ -20,9 +20,18 @@ export function makeItems(track) {
   return { boxes, ents: [] };
 }
 
+// A worm in a bubble is spared the next bad thing, and the bubble bursts. Returns whether that happened.
+export function popped(race, w) {
+  if (!(w.shield > 0)) return false;
+  w.shield = 0;
+  race.events.push({ type: 'pop', idx: w.idx });
+  return true;
+}
+
 // Knocks a worm silly for a while. A worm with a star shrugs it off. Returns whether it landed.
 export function stun(race, w, secs) {
-  if (w.star > 0 || w.out || w.fall > 0) return false;
+  if (w.star > 0 || w.giant > 0 || w.out || w.fall > 0) return false;
+  if (popped(race, w)) return false;
   w.stun = Math.max(w.stun, secs); w.spasm = null; w.queued = null;
   race.events.push({ type: 'hit', idx: w.idx });
   return true;
@@ -31,7 +40,7 @@ export function stun(race, w, secs) {
 // How likely each item is, for a worm r of the way down the order (0: leading, 1: last).
 function roll(rng, r) {
   const wts = [1 + 2 * r, 0.5 + 3 * (1 - r), 0.5 + 2.5 * (1 - r), 0.6 + 1.5 * r, 2.2 * r * r, 1.3 * r * r, r > 0.3 ? 1.4 * r : 0,
-    0.4 + 2 * (1 - r), r > 0.15 ? 1.3 * r : 0, 0.7 + 1.1 * r];
+    0.4 + 2 * (1 - r), r > 0.15 ? 1.3 * r : 0, 0.7 + 1.1 * r, 0.9, 1.7 * r * r];
   let x = rng() * wts.reduce((a, b) => a + b, 0);
   for (let i = 0; i < wts.length; i++) { x -= wts[i]; if (x <= 0) return i; }
   return 0;
@@ -57,7 +66,7 @@ function give(race, w) {
       target: ahead && !ahead.out && !ahead.finished ? ahead.idx : -1 });
   } else if (item === 4) w.star = 6;
   else if (item === 5) {
-    for (const o of race.worms) if (o !== w && !(o.star > 0) && !o.out && !o.finished) o.shrunk = 5;
+    for (const o of race.worms) if (o !== w && !(o.star > 0) && !(o.giant > 0) && !o.out && !o.finished && !popped(race, o)) o.shrunk = 5;
     race.events.push({ type: 'zap' });
   } else if (item === 6) ents.push({ type: 'mole', x: w.x, z: w.z, vx: 0, vz: 0, owner: w.idx, grace: 0.5, life: 14, hint: w.hint, target: leader.idx });
   // A glue pot: a sticky puddle left behind that slows whoever wades through it, for as long as it lasts.
@@ -67,7 +76,9 @@ function give(race, w) {
     for (const k of ['x', 'z', 's', 'hint', 'prog', 'lap']) { const t = w[k]; w[k] = front[k]; front[k] = t; }
     w.spasm = null; front.spasm = null; w.star = Math.max(w.star, 0.4); front.star = Math.max(front.star, 0.4); // (a moment's sparkle on both)
     race.events.push({ type: 'swap', idx: w.idx, other: front.idx });
-  } else {
+  } else if (item === 10) w.shield = 12;   // a bubble: spared the next bad thing
+  else if (item === 11) w.giant = 5;       // giant grub: huge for a while, faster, and it flattens whoever it touches
+  else {
     // A spring: one great bound up the road.
     w.spring = { t: 0, s0: here.s, lat: here.lat }; w.lift = 0.01; w.spasm = null;
   }
@@ -94,7 +105,7 @@ export function stepItems(race, dt) {
     let dead = e.life <= 0;
     if (e.type === 'glue') {
       for (const w of live) {
-        if ((w.idx === e.owner && e.grace > 0) || w.star > 0 || (w.x - e.x) ** 2 + (w.z - e.z) ** 2 > GLUE_R * GLUE_R) continue;
+        if ((w.idx === e.owner && e.grace > 0) || w.star > 0 || w.giant > 0 || (w.x - e.x) ** 2 + (w.z - e.z) ** 2 > GLUE_R * GLUE_R) continue;
         if (!(w.slow > 0)) race.events.push({ type: 'glued', idx: w.idx });
         w.slow = 2.5;
       }

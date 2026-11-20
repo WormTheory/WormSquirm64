@@ -3,10 +3,10 @@ import { makeRng } from './rng.js';
 import { buildTrack, locate, pointAt } from './track.js';
 import { makeWorm, pressAction, stepWorm, assistedAim } from './worm.js';
 import { makeAi, stepAi } from './ai.js';
-import { makeItems, stepItems, stun, STUN } from './items.js';
+import { makeItems, stepItems, stun, popped, STUN } from './items.js';
 import { makeEvents, stepEvents, wash, drop } from './events.js';
 
-const TIMERS = ['stun', 'boost', 'star', 'shrunk', 'flat', 'howl', 'safe', 'patch', 'slow'];
+const TIMERS = ['stun', 'boost', 'star', 'shrunk', 'flat', 'howl', 'safe', 'patch', 'slow', 'shield', 'giant'];
 
 export const STEP = 1 / 60;
 const COUNTDOWN = 5;       // seconds before GO (the track's name shows for the first of them)
@@ -71,7 +71,10 @@ export class Race {
       const here = locate(tr, w.x, w.z, w.hint);
       if (w.ai) stepAi(w.ai, w, here, dt, this.rng);
       // Looking generally the right way is as good as looking exactly the right way.
-      w.aim = assistedAim(w.look, Math.atan2(here.tx, here.tz));
+      // (In a mix-up everything's back to front: a worm goes the opposite way to where it looks. A computer worm
+      // works that out after a few seconds; a player has to turn the camera round.)
+      const mixed = this.weather.type === 'dizzy' && !(w.ai && this.weather.t >= (w.wise || 0));
+      w.aim = assistedAim(w.look + (mixed ? Math.PI : 0), Math.atan2(here.tx, here.tz));
       const a = stepWorm(w, dt, this.rng, n > 1 ? w.rank / (n - 1) : 0.5);
       if (a) this.events.push({ type: 'spasm', idx: w.idx, action: a });
     }
@@ -86,6 +89,12 @@ export class Race {
         a.x -= dx * p; a.z -= dz * p; b.x += dx * p; b.z += dz * p;
         if (a.star > 0 && !(b.stun > 0)) stun(this, b, STUN.star);
         if (b.star > 0 && !(a.stun > 0)) stun(this, a, STUN.star);
+        // A giant flattens whatever it rolls into.
+        for (const [big, small] of [[a, b], [b, a]]) {
+          if (!(big.giant > 0) || small.giant > 0 || small.star > 0 || small.flat > 0 || popped(this, small)) continue;
+          small.flat = 3; small.spasm = null;
+          this.events.push({ type: 'squash', idx: small.idx });
+        }
       }
     }
     for (const w of this.worms) {

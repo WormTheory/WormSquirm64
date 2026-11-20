@@ -246,6 +246,8 @@ function react(e, mine) {
     case 'glued': sfx.glued(me ? 0.14 : 0.04); break;
     case 'twirl': sfx.twirl(me ? 0.16 : 0.06); break;
     case 'tremor': sfx.rumble(); break;
+    case 'pop': sfx.pop(me ? 0.16 : 0.05); break;
+    case 'hailhit': sfx.hailHit(); break;
     case 'hurt': sfx.hurt(me ? 0.12 : 0.025); break;
     case 'stomp': sfx.stomp(); break;
     case 'squash': sfx.squash(); break;
@@ -278,7 +280,7 @@ function stepRace(dt, live, now) {
       // presses a different button every frame, which is faster than counts and never tires a button out.
       const w = race.worms[p.me], l = locate(race.track, w.x, w.z, -1), fwd = Math.atan2(l.tx, l.tz), off = Math.atan2(Math.sin(fwd - p.cam.yaw), Math.cos(fwd - p.cam.yaw));
       p.cam.yaw += off * Math.min(1, dt * 5);
-      race.setAim(p.me, fwd);
+      race.setAim(p.me, fwd + (race.weather.type === 'dizzy' ? Math.PI : 0)); // (in a mix-up, looking backwards is right)
       if (race.state !== 'countdown' && !w.out) race.press(p.me, ACTIONS[(p.autoN = (p.autoN || 0) + 1) % ACTIONS.length]);
       continue;
     }

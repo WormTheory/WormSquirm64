@@ -6,8 +6,8 @@ import { CHARS, hex } from './characters.js';
 import { uiPx } from './settings.js';
 import { ITEM_NAMES } from './sim/items.js';
 
-const EVENT_WORDS = { rain: 'RAIN!', heat: 'HEATWAVE!', bird: 'BIRD!', stomp: 'LOOK OUT!', moon: 'BLOOD MOON!', twister: 'TORNADO!', quake: 'EARTHQUAKE!', frost: 'FROST!' };
-const EVENT_TINT = { rain: 'rgba(20,40,90,.16)', heat: 'rgba(255,110,0,.22)', moon: 'rgba(170,0,10,.3)', frost: 'rgba(190,225,255,.22)', twister: 'rgba(60,60,70,.14)' };
+const EVENT_WORDS = { rain: 'RAIN!', heat: 'HEATWAVE!', bird: 'BIRD!', stomp: 'LOOK OUT!', moon: 'BLOOD MOON!', twister: 'TORNADO!', quake: 'EARTHQUAKE!', frost: 'FROST!', hail: 'HAIL!', dizzy: 'MIX-UP! TURN ROUND!' };
+const EVENT_TINT = { rain: 'rgba(20,40,90,.16)', heat: 'rgba(255,110,0,.22)', moon: 'rgba(170,0,10,.3)', frost: 'rgba(190,225,255,.22)', twister: 'rgba(60,60,70,.14)', hail: 'rgba(70,90,120,.16)', dizzy: 'rgba(150,40,200,.2)' };
 
 export const CSS = `
 html,body{height:100%;margin:0;background:#101820;overflow:hidden;overscroll-behavior:none}

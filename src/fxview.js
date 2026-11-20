@@ -3,10 +3,12 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { canvasTex } from './view.js';
 import { centreNear } from './sim/track.js';
-import { FALL_TIME, DEAD_TIME, DROP_PART, OUT_TIME, LIE_PART, BITE_TIME, PLASTER_PART, PAT_END, carried } from './sim/events.js';
+import { FALL_TIME, DEAD_TIME, DROP_PART, OUT_TIME, LIE_PART, BITE_TIME, PLASTER_PART, PAT_END, HAIL, carried } from './sim/events.js';
 
 const lam = (color, o) => new THREE.MeshLambertMaterial({ color, flatShading: true, ...o });
 const RAIN_BOX = 26;
+// The colour each event turns the sky.
+const TINTS = { rain: 0x4a5868, heat: 0xf8a040, moon: 0x6a0810, frost: 0xd8ecff, twister: 0x70747c, hail: 0x5a6878, dizzy: 0x9040c0 };
 
 // A bird, built facing +z, with wings that can be flapped. size: about its length.
 export function makeBird(size, body = 0x283a70, belly = 0xd8dce8) {
@@ -105,6 +107,7 @@ export class FxView {
     for (const y of [0, RAIN_BOX]) { const pts2 = new THREE.Points(sg, sm); pts2.position.y = y; this.snow.add(pts2); }
     this.snow.visible = false;
     scene.add(this.snow);
+    this.hail = [];
     this.twister = new THREE.Group();
     for (let i = 0; i < 7; i++) {
       const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.7 + i * 0.36, 0.4 + i * 0.34, 1.45, 7, 1, true), lam(i % 2 ? 0x8a8e98 : 0xa8acb4, { side: THREE.DoubleSide, transparent: true, opacity: 0.72 }));
@@ -198,6 +201,21 @@ export class FxView {
     this.rain.visible = kind === 'rain';
     this.moon.visible = kind === 'moon';
     this.snow.visible = kind === 'frost';
+    // Hail: each stone drops onto its mark, where a shadow has been growing to warn of it.
+    const stones = wx.hail || [];
+    stones.forEach((h, i) => {
+      let m = this.hail[i];
+      if (!m) {
+        m = this.hail[i] = { ball: new THREE.Mesh(this.make.pebble().geometry, lam(0xe8f4ff)), mark: new THREE.Mesh(new THREE.CircleGeometry(1, 8), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35, depthWrite: false })) };
+        m.mark.rotation.x = -Math.PI / 2; m.ball.scale.setScalar(0.65);
+        this.scene.add(m.ball, m.mark);
+      }
+      const left = Math.max(0, h.t - wx.t), u = 1 - Math.min(1, left / HAIL.fall);
+      m.ball.visible = left > 0; m.mark.visible = true;
+      m.ball.position.set(h.x, 0.6 + HAIL.high * (1 - u) ** 1.5, h.z); m.ball.rotation.set(time * 5, time * 4, 0);
+      m.mark.position.set(h.x, 0.05, h.z); m.mark.scale.setScalar(0.3 + 1.3 * u);
+    });
+    for (let i = stones.length; i < this.hail.length; i++) { this.hail[i].ball.visible = false; this.hail[i].mark.visible = false; }
     // The tornado: a stack of rings, each turning and swaying a little out of step with the one below.
     this.twister.visible = !!wx.twister;
     if (wx.twister) {
@@ -205,9 +223,9 @@ export class FxView {
       this.twister.children.forEach((ring, i) => { ring.rotation.y = time * (9 - i * 0.5); ring.position.x = Math.sin(time * 5 + i * 0.7) * 0.12 * i; ring.position.z = Math.cos(time * 4 + i * 0.9) * 0.12 * i; });
     }
     // Rain darkens the sky and a heatwave turns it a hot orange, each fading in and out.
-    const want = kind === 'rain' || kind === 'heat' || kind === 'moon' || kind === 'frost' || kind === 'twister' ? 1 : 0;
+    const want = TINTS[kind] ? 1 : 0;
     this.tint += Math.sign(want - this.tint) * Math.min(Math.abs(want - this.tint), dt * 0.8);
-    if (kind === 'rain') this.tintTo.set(0x4a5868); else if (kind === 'heat') this.tintTo.set(0xf8a040); else if (kind === 'moon') this.tintTo.set(0x6a0810); else if (kind === 'frost') this.tintTo.set(0xd8ecff); else if (kind === 'twister') this.tintTo.set(0x70747c);
+    if (TINTS[kind]) this.tintTo.set(TINTS[kind]);
     if (kind !== 'none') this.deep = kind === 'moon' ? 0.9 : 0.6; // (the blood moon turns the sky nearly all the way red)
     const u = this.scene.userData;
     if (u.sky) { this.scene.background.copy(u.sky).lerp(this.tintTo, this.tint * this.deep); this.scene.fog.color.copy(u.fog).lerp(this.tintTo, this.tint * this.deep); }
