@@ -150,8 +150,8 @@ export class Online {
     m.tickFn = () => {
       for (const s of mine) {
         const n = this.inputs.nav(this.humans[s.local].devs);
-        if (s.char < 0 && (n.dx || n.dy)) { this.cur[s.local] = moveCursor(this.cur[s.local], n); return this.select(); }
-        if (s.char < 0 && n.ok) return r.pick(s.local, this.cur[s.local]);
+        if (s.char < 0 && (n.dx || n.dy)) { this.cur[s.local] = moveCursor(this.cur[s.local], n); m.sound('move'); return this.select(); }
+        if (s.char < 0 && n.ok) { m.sound('select'); return r.pick(s.local, this.cur[s.local]); }
         if (n.back) return s.char >= 0 ? r.pick(s.local, -1) : this.leave();
       }
       if (this.inputs.esc) this.leave();

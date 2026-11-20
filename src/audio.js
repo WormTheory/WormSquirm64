@@ -66,3 +66,11 @@ export const caw = () => [0, 0.22].forEach((w) => tone('sawtooth', 1100, 620, 0.
 export const gulp = () => { tone('sine', 260, 90, 0.25, 0.2); tone('sine', 180, 320, 0.15, 0.15, 0.28); };
 export const eventSting = (kind) => ({ rain: [392, 330, 262], heat: [523, 554, 587], bird: [880, 660, 880], stomp: [196, 147, 98] }[kind] || [])
   .forEach((f, i) => tone('square', f, f, 0.16, 0.1, i * 0.14));
+
+// Menu noises: moving between things, choosing one, going back, and a slider's click.
+export function ui(kind) {
+  if (kind === 'move') tone('square', 660, 660, 0.04, 0.06);
+  else if (kind === 'select') { tone('square', 880, 880, 0.06, 0.08); tone('square', 1320, 1320, 0.09, 0.08, 0.06); }
+  else if (kind === 'back') { tone('square', 520, 520, 0.06, 0.07); tone('square', 330, 330, 0.09, 0.07, 0.06); }
+  else if (kind === 'tick') tone('square', 990, 990, 0.025, 0.05);
+}

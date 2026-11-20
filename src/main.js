@@ -56,6 +56,7 @@ function resize() {
 const applySettings = () => { resize(); hudLayer.resize(); sfx.applyVolume(); };
 addEventListener('resize', applySettings);
 menus.onSettings = applySettings;
+menus.sound = (kind) => sfx.ui(kind);
 resize();
 menus.portraits = makePortraits(renderer, bufW, bufH);
 // Browsers allow no sound until the page has been clicked, tapped or typed at.

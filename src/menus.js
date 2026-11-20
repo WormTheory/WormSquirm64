@@ -163,9 +163,13 @@ export class Menus {
     this.screen = null; this.focus = 0; this.btns = []; this.tickFn = null;
     this.onOnline = () => {}; // set by the game: what ONLINE leads to once the players are settled
     this.onSettings = () => {}; // set by the game: called when a slider in the options moves
+    this.sound = () => {};      // set by the game: plays a menu noise ('move', 'select', 'back' or 'tick')
     panel.addEventListener('click', (e) => {
       const t = e.target.closest('[data-a]');
-      if (t && this.acts[t.dataset.a]) this.acts[t.dataset.a](t.dataset.v);
+      if (!t || !this.acts[t.dataset.a]) return;
+      // (Clicks made for a controller or key press count too, so every way of choosing makes the same noise.)
+      this.sound(['back', 'x', 'leave'].includes(t.dataset.a) ? 'back' : 'select');
+      this.acts[t.dataset.a](t.dataset.v);
     });
     this.acts = {};
   }
@@ -179,7 +183,7 @@ export class Menus {
     this.panel.innerHTML = html;
     this.btns = [...this.panel.querySelectorAll('.btn:not(:disabled),.card.pick,.rng')];
     // Pointing at a button with the mouse picks it out, as steering to it does.
-    this.btns.forEach((b, i) => b.addEventListener('pointerenter', () => { if (this.btns[i] === b) this.setFocus(i); }));
+    this.btns.forEach((b, i) => b.addEventListener('pointerenter', () => { if (this.btns[i] === b && this.focus !== i) { this.setFocus(i); this.sound('move'); } }));
     this.setFocus(focus);
   }
   setFocus(i) {
@@ -197,6 +201,7 @@ export class Menus {
     if (cur && cur.classList.contains('rng') && nav.dx) {
       if (nav.dx > 0) cur.stepUp(); else cur.stepDown();
       cur.dispatchEvent(new Event('input', { bubbles: true }));
+      this.sound('tick');
       return;
     }
     if (cur && (nav.dx || nav.dy)) {
@@ -211,7 +216,7 @@ export class Menus {
         else { if (sameRow(o) || Math.sign(o.y - me.y) !== Math.sign(nav.dy)) return; d = Math.abs(o.y - me.y) * 1000 + Math.abs(o.x - me.x); }
         if (d < bd) { bd = d; best = i; }
       });
-      if (best >= 0) this.setFocus(best);
+      if (best >= 0) { this.setFocus(best); this.sound('move'); }
     }
     if (nav.ok && this.btns[this.focus]) this.btns[this.focus].click();
   }
@@ -245,7 +250,6 @@ export class Menus {
       <div class="pad" style="aspect-ratio:${PAD_W}/${PAD_H}"><canvas width="${PAD_W}" height="${PAD_H}"></canvas>${PAD_LABELS.map((l) => label(l, PAD_W, PAD_H, 22)).join('')}</div>
       <div class="pad" style="aspect-ratio:${KB_W}/${KB_H}"><canvas width="${KB_W}" height="${KB_H}"></canvas>${KB_LABELS.map((l) => label(l, KB_W, KB_H, (KB_ZONE / KB_W) * 100)).join('')}
         ${KB_KEYS.map(([ch, x, y]) => `<span class="k" style="left:${((x + KEY / 2) / KB_W) * 100}%;top:${((y + KEY / 2) / KB_H) * 100}%">${ch}</span>`).join('')}</div>
-      <div class="help">The mouse turns the camera too. Touch: drag for the camera, tap the buttons. Escape or Start pauses.</div>
       <div class="row"><button class="btn" type="button" data-a="back">BACK</button></div>`, { back: () => this.title() });
     const cvs = this.panel.querySelectorAll('.pad canvas');
     drawPad(cvs[0]); drawKeyboard(cvs[1]);
@@ -394,6 +398,7 @@ export class Menus {
   // Call every frame while a screen is up.
   tick() {
     const inp = this.inputs, s = this.session, all = inp.nav();
+    if (all.back) this.sound('back');
     if (this.screen === 'title') { this.steer(all); return; }
     if (this.screen === 'mode') { if (all.back) { this.titleFocus = 0; this.title(); } else this.steer(all); return; }
     if (this.tickFn) return this.tickFn(all);
@@ -417,9 +422,10 @@ export class Menus {
           this.pFocus = this.focus;
           continue;
         }
-        if (n.dx) return this.setSlot(d, this.nextSlot(d, Math.sign(n.dx)));
+        if (n.dx) { this.sound('move'); return this.setSlot(d, this.nextSlot(d, Math.sign(n.dx))); }
         if (n.back) return at === undefined ? this.mode() : this.setSlot(d, undefined);
         if (n.ok || n.start || n.any) {
+          this.sound(at === undefined ? 'move' : 'select');
           if (at === undefined) return this.setSlot(d, this.nextSlot(d, 1));
           this.conf.add(d);
           return this.players();
@@ -431,8 +437,8 @@ export class Menus {
     if (this.screen === 'worms') {
       for (const p of s.players) {
         const n = inp.nav(p.devs);
-        if (p.char < 0 && (n.dx || n.dy)) { p.cur = moveCursor(p.cur, n); return this.worms(); }
-        if (n.ok && p.char < 0) return this.lock(p, p.cur);
+        if (p.char < 0 && (n.dx || n.dy)) { p.cur = moveCursor(p.cur, n); this.sound('move'); return this.worms(); }
+        if (n.ok && p.char < 0) { this.sound('select'); return this.lock(p, p.cur); }
         if (n.back) {
           if (p.char >= 0) { p.char = -1; return this.worms(); }
           return this.players();
