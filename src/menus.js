@@ -52,7 +52,8 @@ export class Menus {
     this.panel = panel; this.inputs = inputs; this.tracks = tracks; this.onRace = onRace;
     this.touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     this.session = { mode: 'gp', cpu: true, players: [], track: 0 };
-    this.screen = null; this.focus = 0; this.btns = [];
+    this.screen = null; this.focus = 0; this.btns = []; this.tickFn = null;
+    this.onOnline = () => {}; // set by the game: what ONLINE leads to once the players have joined
     panel.addEventListener('click', (e) => {
       const t = e.target.closest('[data-a]');
       if (t && this.acts[t.dataset.a]) this.acts[t.dataset.a](t.dataset.v);
@@ -65,7 +66,7 @@ export class Menus {
 
   // Puts a screen up. acts: what each data-a button does. Buttons with class "btn" or "card" can be steered between.
   put(screen, html, acts, focus = 0) {
-    this.screen = screen; this.acts = acts; this.panel.hidden = false;
+    this.screen = screen; this.acts = acts; this.panel.hidden = false; this.tickFn = null;
     this.panel.innerHTML = html;
     this.btns = [...this.panel.querySelectorAll('.btn,.card.pick')];
     this.setFocus(focus);
@@ -103,9 +104,11 @@ export class Menus {
     this.panel.onclick = null;
     const go = (m) => { this.session.mode = m; this.players(); };
     this.put('mode', `<div class="head">SELECT GAME</div><div class="row">
-      <button class="btn" type="button" data-a="gp">GRAND PRIX</button><button class="btn" type="button" data-a="vs">VS RACE</button></div>
-      <div class="help">Grand Prix: the four races of the ${CUP.name}, with points. VS Race: one race on a track you pick.</div>`,
-    { gp: () => go('gp'), vs: () => go('vs') }, this.session.mode === 'vs' ? 1 : 0);
+      <button class="btn" type="button" data-a="gp">GRAND PRIX</button><button class="btn" type="button" data-a="vs">VS RACE</button>
+      <button class="btn" type="button" data-a="online">ONLINE</button></div>
+      <div class="help">Grand Prix: the four races of the ${CUP.name}, with points. VS Race: one race on a track you pick.
+      Online: race people elsewhere, with a room code or from the list of open games.</div>`,
+    { gp: () => go('gp'), vs: () => go('vs'), online: () => go('online') }, ['gp', 'vs', 'online'].indexOf(this.session.mode));
   }
 
   players() {
@@ -117,7 +120,7 @@ export class Menus {
       <div class="help">To join: press any button on a controller, F on the left of the keyboard, or J on the right.
       Up to four, sharing the screen. Press your back button (B, Q or Backspace) to drop out.</div>
       <div class="row">${this.touch ? `<button class="btn" type="button" data-a="touch">${s.players.some((p) => p.devs[0] === 'touch') ? 'LEAVE' : 'JOIN'} (TOUCH)</button>` : ''}
-      <button class="btn" type="button" data-a="cpu">COMPUTER WORMS: ${s.cpu ? 'ON' : 'OFF'}</button>
+      ${s.mode === 'online' ? '' : `<button class="btn" type="button" data-a="cpu">COMPUTER WORMS: ${s.cpu ? 'ON' : 'OFF'}</button>`}
       <button class="btn" type="button" data-a="go">START</button>
       <button class="btn" type="button" data-a="back">BACK</button></div>`,
     {
@@ -125,7 +128,7 @@ export class Menus {
       cpu: () => { s.cpu = !s.cpu; this.players(); },
       go: () => this.playersDone(),
       back: () => this.mode(),
-    }, this.touch ? 2 : 1);
+    }, (this.touch ? 1 : 0) + (s.mode === 'online' ? 0 : 1));
   }
   toggle(dev) {
     const ps = this.session.players, i = ps.findIndex((p) => p.devs[0] === dev);
@@ -140,7 +143,7 @@ export class Menus {
     const kb = s.players.filter((p) => p.devs[0].startsWith('kb'));
     if (kb.length === 1) kb[0].devs = [kb[0].devs[0], kb[0].devs[0] === 'kbL' ? 'kbR' : 'kbL'];
     s.players.forEach((p, i) => { p.char = -1; p.cur = i; });
-    this.worms();
+    if (s.mode === 'online') this.onOnline(s); else this.worms();
   }
 
   worms() {
@@ -180,6 +183,7 @@ export class Menus {
     const inp = this.inputs, s = this.session, all = inp.nav();
     if (this.screen === 'title') { if (inp.anyKey) this.mode(); return; }
     if (this.screen === 'mode') { if (all.back) this.title(); else this.steer(all); return; }
+    if (this.tickFn) return this.tickFn(all);
     if (this.screen === 'dialog') { if (all.back && this.onBack) this.onBack(); else this.steer(all); return; }
     if (this.screen === 'tracks') {
       if (all.back) { s.players.forEach((p) => { p.char = -1; }); this.worms(); } else this.steer(all, 1);

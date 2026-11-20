@@ -8,6 +8,9 @@ export const STEP = 1 / 60;
 const COUNTDOWN = 5;       // seconds before GO (the track's name shows for the first of them)
 const AFTER_WINNER = 30;   // the race is called this long after the first worm finishes
 
+// Where the worm in grid place i starts.
+export const gridSlot = (track, i) => pointAt(track, -3 - 2.2 * i, i % 2 ? -3 : 3);
+
 export class Race {
   // racers: [{char, human}], in grid order (first is on pole).
   constructor({ trackDef, seed = 1, racers }) {
@@ -19,7 +22,7 @@ export class Race {
     this.firstFinish = -1;
     this.events = [];
     this.worms = racers.map((r, i) => {
-      const p = pointAt(this.track, -3 - 2.2 * i, i % 2 ? -3 : 3);
+      const p = gridSlot(this.track, i);
       const w = makeWorm(i, r.char, !!r.human, p.x, p.z);
       w.aim = w.look = Math.atan2(p.tx, p.tz);
       const loc = locate(this.track, w.x, w.z, -1);
@@ -30,6 +33,9 @@ export class Race {
   }
 
   get time() { return Math.max(0, this.clock); }
+
+  // Hands a worm to the computer (its player went away).
+  toAi(i) { const w = this.worms[i]; if (!w.ai) { w.human = false; w.ai = makeAi(this.rng); } }
 
   press(i, action) { if (this.state !== 'countdown') pressAction(this.worms[i], action); }
   // Where a player's camera is looking. The step turns this into where the worm aims.

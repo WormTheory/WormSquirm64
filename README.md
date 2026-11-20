@@ -3,7 +3,9 @@
 A kart racer without the karts. You are a worm. Every button does something; none of them does it well.
 
 What's here so far: four tracks (the Wormroom Cup), eight worms, Grand Prix and VS Race, computer worms
-filling the empty places, and split screen for up to four. Online play is still to come.
+filling the empty places, split screen for up to four, and online play with room codes and a list of open games.
+
+It's published at https://wormtheory.github.io/WormSquirm64/ on every push.
 
 ## Playing
 
@@ -29,6 +31,24 @@ python3 -m http.server 8000   # then open http://localhost:8000
   each player's HUD (`hud.js`), the menus (`menus.js`), sound, and `main.js`, which runs the race and shares out the screen.
 - `vendor/` holds three.js r160, so the game depends on no other site.
 
+## Online play
+
+There is no game server: GitHub Pages only serves files. Players' browsers talk to each other directly
+(Trystero over WebRTC, finding each other through public Nostr relays), the same way Goblin Stompin' Gus does.
+
+- **The host's browser runs the race** and is the only one that decides anything. Guests send their controls
+  thirty times a second and show the host's snapshots (twenty a second) a tenth of a second behind
+  (`src/net/mirror.js`). The camera is each player's own, so turning never waits on the network.
+- **Rooms** (`src/net/room.js`) have a four-letter code. A browser can bring up to four split-screen players,
+  and a room holds eight racers; computer worms take the rest. A guest who leaves mid-race is taken over by
+  the computer. If the host leaves, the room ends.
+- **Open games** are listed without a server: every browser on the online screen, and every host whose room
+  isn't private, joins one shared room where hosts advertise every three seconds.
+- **No relay fallback.** Two players whose routers both refuse direct connections can't play together.
+  `TURN` in `src/net/transport.js` is the hook for adding a relay.
+- A host's tab in the background keeps the race going through a timer in a small worker.
+- Add `?net=local` to the address to link tabs of one browser instead of going over the internet.
+
 ## Checking a change
 
 ```bash
@@ -36,6 +56,9 @@ node tools/simstats.mjs 200   # runs 200 races per pressing style; nothing shoul
 
 node tools/trackcheck.mjs      # each track's length and tightest bend; a bend tighter than the road is wide folds over itself
 ```
+
+`tools/nettest.cjs` plays a whole online race between two tabs of a headless browser (host, join from the
+open games list, race, results, back to the lobby, host leaves) and says what passed.
 
 `tools/playtest.cjs` opens the game in a headless browser (needs Playwright), walks the menus, plays a little by
 keyboard and by touch, and saves screenshots of every screen, track and split-screen layout.

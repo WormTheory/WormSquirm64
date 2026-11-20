@@ -23,6 +23,8 @@ export class Inputs {
     this.padPrev = {}; this.padAxes = {};
     addEventListener('keydown', (e) => {
       if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+      // Typing in a text box (a room code) is just typing, apart from Escape.
+      if (e.target && e.target.tagName === 'INPUT') { if (e.code === 'Escape') this.esc = true; return; }
       this.keys.add(e.code); this.anyKey = true;
       if (e.code === 'Escape') this.esc = true;
       for (const dev in KB) {
