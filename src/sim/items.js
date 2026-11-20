@@ -59,7 +59,7 @@ function give(race, w) {
 
 export function stepItems(race, dt) {
   const { boxes, ents } = race.items, tr = race.track;
-  const live = race.worms.filter((w) => !w.out && !(w.fall > 0) && !(w.lift > 0));
+  const live = race.worms.filter((w) => !w.out && !w.finished && !(w.fall > 0) && !(w.lift > 0));
   for (const b of boxes) {
     if (b.t > 0) { b.t -= dt; continue; }
     for (const w of live) if (!w.finished && (w.x - b.x) ** 2 + (w.z - b.z) ** 2 < 1.7) { b.t = BOX_BACK; give(race, w); break; }

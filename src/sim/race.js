@@ -70,7 +70,7 @@ export class Race {
       if (a) this.events.push({ type: 'spasm', idx: w.idx, action: a });
     }
     // Worms shove each other apart, and one with a star bowls the others over.
-    const solid = (w) => !w.out && !(w.fall > 0) && !(w.lift > 0);
+    const solid = (w) => !w.out && !w.finished && !(w.fall > 0) && !(w.lift > 0); // (a finished worm dances where it stopped, in nobody's way)
     for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
       const a = this.worms[i], b = this.worms[j];
       if (!solid(a) || !solid(b)) continue;

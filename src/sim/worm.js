@@ -78,8 +78,8 @@ export function speedOf(w) {
 // Moves a worm on by dt. Returns the action if a new spasm started this step (for sound and the HUD).
 export function stepWorm(w, dt, rng, rankFrac) {
   let started = null;
-  // Stunned, falling, carried off or gone: it does nothing.
-  if (w.stun > 0 || w.fall > 0 || w.lift > 0 || w.out) { w.spasm = null; w.queued = null; return null; }
+  // Stunned, falling, carried off, gone or finished (and busy celebrating): it does nothing.
+  if (w.stun > 0 || w.fall > 0 || w.lift > 0 || w.out || w.finished) { w.spasm = null; w.queued = null; return null; }
   if (!w.spasm) {
     if (w.rest > 0) w.rest -= dt;
     else if (w.queued) { startSpasm(w, w.queued, rng, rankFrac); started = w.queued; w.queued = null; }

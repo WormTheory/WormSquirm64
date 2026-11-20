@@ -25,6 +25,10 @@ const { chromium } = require('playwright');
   await race(1, 0);
   await ws(() => { const r = window.__ws.race, w = r.worms[window.__ws.G.players[0].me], b = r.items.boxes[1]; w.x = b.x - 5; w.z = b.z - 1; window.__ws.G.players[0].cam.fx = w.x; window.__ws.G.players[0].cam.fz = w.z; r.worms[0].star = 9; r.worms[1].shrunk = 9; r.worms[2].flat = 9; for (let i = 0; i < 3; i++) { r.worms[i].x = b.x - 3 + i * 1.5; r.worms[i].z = b.z + 2; } });
   await page.waitForTimeout(500); await shot('boxes');
+  // Every worm's victory dance: all eight finished and lined up in front of the camera.
+  await race(1, 0);
+  await ws(() => { const r = window.__ws.race, p = window.__ws.G.players[0]; r.worms.forEach((w, i) => { w.finished = true; w.finishTime = 60 + i; w.x = -10 + (i % 4) * 6; w.z = -22 + Math.floor(i / 4) * 5; }); p.cam.fx = -1; p.cam.fz = -19; p.cam.yaw = 0; p.cam.pitch = 0.5; });
+  for (const n of [1, 2]) { await page.waitForTimeout(650); await shot('victory' + n); }
   // The bird takes player one of two; player two races on.
   await race(2, 1);
   await ws(() => window.__ws.event('bird', window.__ws.G.players[0].me));

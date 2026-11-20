@@ -179,7 +179,7 @@ export class PlayerHud {
     // The countdown, GO and FINISH across the middle.
     let big = '';
     if (race.state === 'countdown') { const n = Math.ceil(-race.clock); if (n <= 3) big = String(n); } else if (race.clock < 1) big = 'GO!';
-    else if (w.finished) big = 'FINISH!';
+    else if (w.finished && race.clock - w.finishTime < 2) big = 'FINISH!'; // (then out of the way of the victory dance)
     if (big) { const bs = Math.min(m * 0.26, (W * 0.9) / Math.max(2, big.length * 0.62)), by = Y + H * 0.28; text(big, X + W / 2, by, bs, fade(by, bs, '#fff36a', '#ff5a1c'), 'center'); }
 
     // The item just picked up, named in a box at the top, and the name of an event as it starts.

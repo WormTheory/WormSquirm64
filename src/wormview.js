@@ -1,6 +1,7 @@
 // How a worm looks: a chain of ten blobs dragged behind the head, with a different
 // wobble laid over it for each action. None of this affects where the worm goes.
 import * as THREE from '../vendor/three.module.min.js';
+import { CHARS } from './characters.js';
 
 const SEGS = 10, GAP = 0.5;
 const ANIM = 0.65; // seconds one press's wobble lasts, however short the lunge under it
@@ -46,8 +47,36 @@ function accessory(kind, head, lam) {
   }
 }
 
+// Each worm's own way of celebrating once it's finished. Given a blob's number (0 is the head), the seconds
+// since it finished and the blob's size, each says where that blob goes, measured from where the worm stopped.
+const VICTORY = [
+  // Worm: chases its own tail round and round.
+  (i, t, r) => { const a = t * 4 - i * 0.628; return [0.8 * Math.cos(a), r, 0.8 * Math.sin(a)]; },
+  // Green Worm: stands on its tail and sways.
+  (i, t, r) => [0.5 * Math.sin(t * 5 + i * 0.4) * (1 - i / 9), r + (9 - i) * 0.4, 0],
+  // Wormst: rears up and takes bow after bow.
+  (i, t, r) => {
+    if (i >= 5) return [0, r, -(i - 5) * GAP];
+    const bend = (0.5 - 0.5 * Math.cos(t * 3)) * 1.7;
+    let y = r, z = 0;
+    for (let j = 4; j >= i; j--) { const a = (bend * (5 - j)) / 5; y += Math.cos(a) * GAP; z += Math.sin(a) * GAP; }
+    return [0, y, z];
+  },
+  // Squirmt: bounces on the spot like a spring, stiff as a board.
+  (i, t, r) => [(i - 4.5) * GAP, r + Math.abs(Math.sin(t * 6 - i * 0.08)) * 2.2, 0],
+  // Flopple: flops over one way, then the other.
+  (i, t, r) => { const u = (t * 1.5) % 1, side = Math.floor(t * 1.5) % 2 ? 1 : -1; return [(i - 4.5) * GAP, r + Math.sin(Math.PI * u) * 1.6 * Math.sin((Math.PI * i) / 9), side * (0.9 - 1.8 * u) * Math.sin((Math.PI * i) / 9)]; },
+  // Wyrm: takes off and circles overhead like the dragon it thinks it is.
+  (i, t, r) => { const a = t * 3 - i * 0.45, up = Math.min(1, t / 1.5); return [1.3 * Math.cos(a), r + up * (2.4 + 0.7 * Math.sin(t * 2)) - i * 0.1 * up, 1.3 * Math.sin(a)]; },
+  // Morm: does the worm. Obviously.
+  (i, t, r) => [(i - 4.5) * GAP, r + 0.9 * (1 + Math.sin(t * 7 - i * 0.9)), 0],
+  // Green Morm: spins flat like a helicopter blade, hopping.
+  (i, t, r) => { const a = t * 7, d = (i - 4.5) * GAP; return [d * Math.cos(a), r + 0.3 + 0.7 * Math.abs(Math.sin(t * 3.5)), d * Math.sin(a)]; },
+];
+
 export class WormView {
   constructor(char, scene) {
+    this.kind = Math.max(0, CHARS.indexOf(char));
     const lam = (color) => new THREE.MeshLambertMaterial({ color, flatShading: true });
     const base = new THREE.Color(char.color);
     const mats = [lam(base), lam(base.clone().multiplyScalar(0.82)), lam(base.clone().lerp(new THREE.Color(0xffffff), 0.35))];
@@ -90,14 +119,33 @@ export class WormView {
   // Lays the body out in a straight line behind the head.
   reset(w) {
     this.at = ANIM; this.hopT = 0; this.seen = w.count; this.act = null; this.hopMul = 1; this.lastT = null;
-    this.taps = w.taps; this.tw = 0; this.hurts = w.hurts || 0; this.flash = 0;
+    this.taps = w.taps; this.tw = 0; this.hurts = w.hurts || 0; this.flash = 0; this.winT = 0;
     for (let i = 0; i < SEGS; i++) { this.px[i] = w.x - Math.sin(w.aim) * GAP * i; this.pz[i] = w.z - Math.cos(w.aim) * GAP * i; }
+  }
+
+  // A worm that has finished stops where it is and does its own victory dance until the race ends.
+  celebrate(w, time) {
+    const dt = this.lastT === null ? 0 : Math.min(0.1, Math.max(0, time - this.lastT));
+    this.lastT = time; this.winT += dt;
+    for (const m of this.mats) m.emissive.setRGB(0, 0, 0);
+    const pose = VICTORY[this.kind];
+    let hx = 0, hz = 1;
+    for (let i = 0; i < SEGS; i++) {
+      const [x, y, z] = pose(i, this.winT, this.rad[i]), m = this.meshes[i], sh = this.shadows[i];
+      m.position.set(w.x + x, y, w.z + z); m.scale.setScalar(this.rad[i]);
+      this.px[i] = w.x + x; this.pz[i] = w.z + z;
+      if (i === 1) { hx = this.px[0] - this.px[1]; hz = this.pz[0] - this.pz[1]; }
+      sh.visible = true; sh.position.set(w.x + x, 0.04, w.z + z); sh.scale.setScalar(this.rad[i] * Math.max(0.35, 1 - (y - this.rad[i]) * 0.25));
+    }
+    // The head faces the way the body leads, or the camera's usual side when it's standing straight up.
+    this.meshes[0].rotation.y = Math.hypot(hx, hz) > 0.05 ? Math.atan2(hx, hz) : 0;
   }
 
   update(w, time) {
     // A worm the bird has taken isn't there any more.
     this.group.visible = !w.out;
     if (w.out) return;
+    if (w.finished) return this.celebrate(w, time);
     const small = w.shrunk > 0 ? 0.55 : 1, flat = w.flat > 0, gap = GAP * small;
     const px = this.px, pz = this.pz;
     px[0] = w.x; pz[0] = w.z;
