@@ -6,7 +6,7 @@ export const ACTIONS = ['SQUIRM', 'WIGGLE', 'UNDULATE', 'FLOP', 'WRITHE', 'THRAS
 export const TUNE = {
   // A spasm and the pause after it average a quarter of a second, so four presses a second is
   // the most that ever counts. Pressing faster than that changes nothing.
-  distMin: 0.6, distMax: 2.3,    // how far one spasm travels
+  distMin: 1.1, distMax: 4.2,    // how far one spasm travels (sets the race length: about a minute and a half)
   durMin: 0.14, durMax: 0.22,    // how long it takes
   restMin: 0.04, restMax: 0.10,  // the pause after, when presses do nothing but queue
   // Aim assist, in degrees off the way the track goes. Looking within assistFull counts as dead on.
