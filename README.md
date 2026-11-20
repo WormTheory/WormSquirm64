@@ -29,7 +29,7 @@ python3 -m http.server 8000   # then open http://localhost:8000
 ## Checking a change
 
 ```bash
-node tools/simstats.mjs 200   # runs 200 races per pressing style; mashing and steady pressing should place the same
+node tools/simstats.mjs 200   # runs 200 races per pressing style; nothing should beat four presses a second, roughly forwards
 ```
 
 `tools/playtest.cjs` opens the game in a headless browser (needs Playwright), plays a little and saves screenshots.

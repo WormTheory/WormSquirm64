@@ -49,8 +49,11 @@ export function buildWorld(tr) {
     c.fillStyle = '#4cb843'; c.fillRect(0, 0, 8, 8); c.fillRect(8, 8, 8, 8);
   });
   grassTex.repeat.set(50, 50);
-  const grass = new THREE.Mesh(new THREE.PlaneGeometry(700, 700), lam({ map: grassTex }));
-  grass.rotation.x = -Math.PI / 2; grass.position.y = -0.03;
+  // The grass sits well below the road, in many pieces and nudged back in depth: as one huge square just
+  // under the road it could win the depth test from some angles and paint over the whole track.
+  const grass = new THREE.Mesh(new THREE.PlaneGeometry(700, 700, 28, 28),
+    lam({ map: grassTex, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 4 }));
+  grass.rotation.x = -Math.PI / 2; grass.position.y = -0.15;
   scene.add(grass);
 
   const roadTex = canvasTex(32, 32, (c) => {
@@ -77,7 +80,7 @@ export function buildWorld(tr) {
   const wallMat = lam({ map: wallTex });
   for (const s of [-1, 1]) {
     scene.add(ribbon(tr, s * tr.hw, s * (tr.hw + 1), 0.01, 0.01, 3, kerbMat));
-    scene.add(ribbon(tr, s * (tr.hw + 1), s * (tr.hw + 1), 0, 0.9, 4, wallMat));
+    scene.add(ribbon(tr, s * (tr.hw + 1), s * (tr.hw + 1), -0.2, 0.9, 4, wallMat));
   }
 
   // Start line and the banner over it.

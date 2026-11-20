@@ -1,7 +1,7 @@
 // One race: the worms, the countdown, laps, places and when it's over.
 import { makeRng } from './rng.js';
 import { buildTrack, locate, pointAt } from './track.js';
-import { makeWorm, pressAction, stepWorm } from './worm.js';
+import { makeWorm, pressAction, stepWorm, TUNE } from './worm.js';
 import { makeAi, stepAi } from './ai.js';
 
 export const STEP = 1 / 60;
@@ -21,7 +21,7 @@ export class Race {
     this.worms = racers.map((r, i) => {
       const p = pointAt(this.track, -3 - 2.2 * i, i % 2 ? -3 : 3);
       const w = makeWorm(i, r.char, !!r.human, p.x, p.z);
-      w.aim = Math.atan2(p.tx, p.tz);
+      w.aim = w.look = Math.atan2(p.tx, p.tz);
       const loc = locate(this.track, w.x, w.z, -1);
       w.hint = loc.i; w.s = loc.s; w.prog = -3 - 2.2 * i;
       w.ai = r.human ? null : makeAi(this.rng);
@@ -32,7 +32,8 @@ export class Race {
   get time() { return Math.max(0, this.clock); }
 
   press(i, action) { if (this.state !== 'countdown') pressAction(this.worms[i], action); }
-  setAim(i, yaw) { this.worms[i].aim = yaw; }
+  // Where a player's camera is looking. The step turns this into where the worm aims.
+  setAim(i, yaw) { this.worms[i].look = yaw; }
 
   step(dt = STEP) {
     this.clock += dt;
@@ -43,9 +44,14 @@ export class Race {
     }
     const tr = this.track, L = tr.length, n = this.worms.length;
     for (const w of this.worms) {
-      if (w.ai) stepAi(w.ai, w, locate(tr, w.x, w.z, w.hint), tr.hw, dt, this.rng);
+      const here = locate(tr, w.x, w.z, w.hint);
+      if (w.ai) stepAi(w.ai, w, here, dt, this.rng);
+      // Looking generally the right way is as good as looking exactly the right way:
+      // within the assist angle the worm aims straight along the track.
+      const fwd = Math.atan2(here.tx, here.tz), off = w.look - fwd;
+      w.aim = Math.abs(Math.atan2(Math.sin(off), Math.cos(off))) < TUNE.assist ? fwd : w.look;
       const a = stepWorm(w, dt, this.rng, n > 1 ? w.rank / (n - 1) : 0.5);
-      if (a) this.events.push({ type: 'spasm', idx: w.idx, action: a });
+      if (a) this.events.push({ type: 'spasm', idx: w.idx, action: a, tired: w.wasTired });
     }
     // Worms shove each other apart.
     for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {

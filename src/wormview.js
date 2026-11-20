@@ -3,6 +3,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 
 const SEGS = 10, GAP = 0.5;
+const ANIM = 0.65; // seconds one press's wobble lasts, however short the lunge under it
 const BALL = new THREE.SphereGeometry(1, 7, 5);
 const DISC = new THREE.CircleGeometry(1, 8);
 const SHADOW = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false });
@@ -87,6 +88,7 @@ export class WormView {
 
   // Lays the body out in a straight line behind the head.
   reset(w) {
+    this.at = ANIM; this.hopT = 0; this.seen = w.count; this.act = null; this.hopMul = 1; this.lastT = null;
     for (let i = 0; i < SEGS; i++) { this.px[i] = w.x - Math.sin(w.aim) * GAP * i; this.pz[i] = w.z - Math.cos(w.aim) * GAP * i; }
   }
 
@@ -98,9 +100,22 @@ export class WormView {
       if (l < 1e-5) { dx = 0; dz = -1; l = 1; }
       px[i] = px[i - 1] + (dx / l) * GAP; pz[i] = pz[i - 1] + (dz / l) * GAP;
     }
-    const sp = w.spasm, st = sp ? STYLES[sp.action] : null, u = sp ? sp.t / sp.dur : 0, env = sp ? Math.sin(Math.PI * Math.min(1, u)) : 0;
-    // Each spasm hops a different amount, picked from its number so it needs no stored state.
-    const q = Math.sin(w.count * 12.9898 + w.idx * 78.233) * 43758.5453, hopMul = 0.6 + 0.8 * (q - Math.floor(q));
+    // The wobble runs on its own clock. A press starts it; pressing again while it's still going
+    // changes its style and keeps it going (and bouncing) rather than starting it over.
+    const dt = this.lastT === null ? 0 : Math.min(0.1, Math.max(0, time - this.lastT));
+    this.lastT = time;
+    this.at += dt; this.hopT += dt / ANIM;
+    if (w.count !== this.seen) {
+      this.seen = w.count; this.act = w.action;
+      if (this.at < ANIM) this.at = Math.min(this.at, 0.35 * ANIM);
+      else {
+        this.at = 0; this.hopT = 0;
+        const q = Math.sin(w.count * 12.9898 + w.idx * 78.233) * 43758.5453;
+        this.hopMul = 0.6 + 0.8 * (q - Math.floor(q));
+      }
+    }
+    const on = this.at < ANIM && this.act, st = on ? STYLES[this.act] : null, u = on ? this.at / ANIM : 0;
+    const env = on ? Math.sin(Math.PI * u) : 0, hopMul = this.hopMul;
     for (let i = 0; i < SEGS; i++) {
       const a = Math.max(i, 1);
       let dx = px[a - 1] - px[a], dz = pz[a - 1] - pz[a];
@@ -109,8 +124,8 @@ export class WormView {
       let lat = 0.05 * Math.sin(time * 3 - i * 0.8 + w.idx), y = this.rad[i];
       if (st) {
         lat += env * st.lat * Math.sin(time * st.latF - i * 0.9);
-        const ph = u - i * st.lag;
-        if (ph > 0 && ph < 1) y += st.hop * hopMul * Math.sin(Math.PI * ph);
+        const ph = this.hopT - i * st.lag;
+        if (ph > 0) y += st.hop * hopMul * Math.abs(Math.sin(Math.PI * ph)) * Math.min(1, env * 3);
         y += env * st.vert * (0.5 + 0.5 * Math.sin(time * st.vertF - i * 1.1));
         if (st.jit) { lat += env * st.jit * Math.sin(time * 91 + i * 7.3); y += env * st.jit * (0.5 + 0.5 * Math.sin(time * 77 + i * 5.1)); }
       }

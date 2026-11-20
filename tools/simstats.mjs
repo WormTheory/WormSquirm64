@@ -1,5 +1,6 @@
 // Runs whole races without drawing anything and prints how different ways of pressing compare.
-// The point: a masher, a steady presser and a computer worm should all finish about the same.
+// The point: pressing faster than four times a second, or aiming better than roughly forwards, should gain nothing,
+// and leaning on one button should lose.
 //   node tools/simstats.mjs [races]
 import { Race, STEP } from '../src/sim/race.js';
 import { TRACKS } from '../src/sim/track.js';
@@ -8,26 +9,31 @@ import { ACTIONS } from '../src/sim/worm.js';
 
 const RACES = +process.argv[2] || 200;
 const styles = {
-  'mash (60/s), perfect aim': { every: 0, aim: 'perfect' },
-  'steady (1 per 0.7s), perfect aim': { every: 0.7, aim: 'perfect' },
-  'slow (1 per 1.5s), perfect aim': { every: 1.5, aim: 'perfect' },
-  'mash, never turns camera': { every: 0, aim: 'fixed' },
+  'mash 60/s, all buttons': { every: 0, aim: 0, keys: 8 },
+  'press 6/s, all buttons': { every: 1 / 6, aim: 0, keys: 8 },
+  'press 4/s, all buttons': { every: 1 / 4, aim: 0, keys: 8 },
+  'press 4/s, two buttons in turn': { every: 1 / 4, aim: 0, keys: 2 },
+  'press 4/s, one button only': { every: 1 / 4, aim: 0, keys: 1 },
+  'press 4/s, looking 50 deg off': { every: 1 / 4, aim: 50, keys: 8 },
+  'press 4/s, looking 70 deg off': { every: 1 / 4, aim: 70, keys: 8 },
+  'press 3/s, all buttons': { every: 1 / 3, aim: 0, keys: 8 },
+  'press 2/s, all buttons': { every: 1 / 2, aim: 0, keys: 8 },
 };
 for (const [name, st] of Object.entries(styles)) {
   let rankSum = 0, wins = 0, timeSum = 0, winTime = 0, dnf = 0;
   for (let r = 0; r < RACES; r++) {
     const race = new Race({ trackDef: TRACKS[0], seed: 1000 + r, racers: Array.from({ length: 8 }, (_, i) => ({ char: i, human: i === 7 })) });
     const me = race.worms[7];
-    let next = 0;
+    let next = 0, k = 0;
     while (race.state !== 'done' && race.clock < 900) {
-      if (st.aim === 'perfect') { const l = locate(race.track, me.x, me.z, me.hint); race.setAim(7, Math.atan2(l.tx, l.tz)); }
-      if (race.clock >= next) { race.press(7, ACTIONS[r % 8]); next = race.clock + st.every; }
+      { const l = locate(race.track, me.x, me.z, me.hint); race.setAim(7, Math.atan2(l.tx, l.tz) + st.aim * Math.PI / 180); }
+      if (race.clock >= next) { race.press(7, ACTIONS[k++ % st.keys]); next = race.clock + st.every; }
       race.step(STEP);
     }
     rankSum += me.rank + 1; if (me.rank === 0) wins++;
     if (me.finished) timeSum += me.finishTime; else dnf++;
     winTime += race.firstFinish;
   }
-  console.log(`${name.padEnd(34)} avg place ${(rankSum / RACES).toFixed(2)}  wins ${(100 * wins / RACES).toFixed(0)}%  ` +
+  console.log(`${name.padEnd(32)} avg place ${(rankSum / RACES).toFixed(2)}  wins ${(100 * wins / RACES).toFixed(0)}%  ` +
     `own time ${(timeSum / Math.max(1, RACES - dnf)).toFixed(0)}s  unfinished ${dnf}  winner's time ${(winTime / RACES).toFixed(0)}s`);
 }

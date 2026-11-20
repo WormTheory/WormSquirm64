@@ -16,8 +16,15 @@ const { chromium } = require('playwright');
     await page.screenshot({ path: `${out}/${name}-title.png` });
     await page.keyboard.press('KeyJ');
     await page.waitForTimeout(4200);
-    for (let i = 0; i < 40; i++) { await page.keyboard.press('KeyK'); await page.waitForTimeout(250); }
+    const keys = ['KeyJ', 'KeyK', 'KeyL', 'KeyI'];
+    for (let i = 0; i < 40; i++) { await page.keyboard.press(keys[i % 4]); await page.waitForTimeout(250); }
     await page.screenshot({ path: `${out}/${name}-race.png` });
+    // Look around from where the worm has got to: the road should be there from every angle.
+    for (let a = 0; a < 4; a++) {
+      await page.evaluate((a) => { window.__ws.cam.yaw += Math.PI / 2; window.__ws.cam.pitch = 0.25 + a * 0.2; }, a);
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${out}/${name}-look${a}.png` });
+    }
     console.log(name, await page.evaluate(() => {
       const r = window.__ws.race, w = r.worms[7];
       return JSON.stringify({ mode: window.__ws.mode, state: r.state, t: r.time.toFixed(1), prog: w.prog.toFixed(1), rank: w.rank, spasms: w.count });

@@ -14,7 +14,7 @@ const canvas = document.createElement('canvas');
 canvas.className = 'game';
 root.appendChild(canvas);
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'low-power' });
-const camera = new THREE.PerspectiveCamera(62, 4 / 3, 0.3, 500);
+const camera = new THREE.PerspectiveCamera(62, 4 / 3, 0.5, 500);
 const input = new Input(canvas);
 const hud = new Hud(root, input);
 
@@ -80,7 +80,7 @@ function frame(now) {
     acc += dt;
     while (acc >= STEP) { race.step(STEP); acc -= STEP; }
     for (const e of race.events) {
-      if (e.type === 'spasm') { sfx.squelch(e.idx === ME ? 0.2 : 0.04); if (e.idx === ME) hud.popAction(e.action); }
+      if (e.type === 'spasm') { sfx.squelch(e.idx === ME ? 0.2 : 0.04); if (e.idx === ME) hud.popAction(e.action, e.tired); }
       else if (e.type === 'go') sfx.beep(true);
       else if (e.type === 'lap' && e.idx === ME) sfx.lapJingle();
       else if (e.type === 'finish' && e.idx === ME) sfx.finishJingle();
