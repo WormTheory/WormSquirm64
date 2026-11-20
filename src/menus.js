@@ -1,8 +1,8 @@
-// The screens before and between races: title, game mode, who's playing, worm select, track select,
-// and plain button dialogs (pause, results). Everything can be clicked or tapped, and steered from
-// any joined keyboard half or controller.
-import { CHARS, hex } from './characters.js';
-import { DEVICE_NAMES } from './input.js';
+// The screens before and between races: title, game mode, who's playing on what, worm select,
+// track select, and plain button dialogs (pause, results). Everything can be clicked or tapped,
+// and steered from the keyboard or any controller.
+import { CHARS } from './characters.js';
+import { DEVICE_NAMES, devsOf } from './input.js';
 import { drawTrackMap } from './hud.js';
 import { buildTrack, CUP } from './sim/track.js';
 
@@ -26,34 +26,50 @@ export const CSS = `
 #ws .btn{font:inherit;font-size:clamp(13px,3.2vmin,26px);padding:.4em 1.1em;border:3px solid #000;border-radius:10px;color:#fff;
   background:linear-gradient(#5a6a90,#2a3658);box-shadow:0 5px 0 #000;cursor:pointer}
 #ws .btn.foc{background:linear-gradient(#ff7a3a,#d82818);outline:3px solid #fff}
-#ws .slots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.4vmin;width:min(92%,30em)}
-#ws .slot{border:3px solid #000;border-radius:10px;padding:.5em;background:rgba(0,0,0,.45);font-size:clamp(11px,2.6vmin,20px);min-width:0}
-#ws .slot small{display:block;font-size:.7em;font-style:normal;font-weight:700;color:#b8c4e0}
+#ws .assign{display:grid;grid-template-columns:minmax(0,2.2fr) repeat(4,minmax(0,1fr));gap:1vmin;width:min(94%,36em);align-items:stretch;
+  font-size:clamp(10px,2.5vmin,19px)}
+#ws .assign .hd{padding:.2em 0}
+#ws .assign .dev{display:flex;align-items:center;justify-content:center;border:3px solid #000;border-radius:10px;padding:.4em .3em;background:rgba(0,0,0,.45);min-width:0}
+#ws .assign .dev.out{background:linear-gradient(#5a6a90,#2a3658)}
+#ws .assign .cell{font:inherit;color:#fff;border:3px dashed rgba(255,255,255,.35);border-radius:10px;background:rgba(0,0,0,.3);cursor:pointer;
+  min-height:2.4em;padding:0;min-width:0}
+#ws .assign .cell.on{border-style:solid;border-color:#000;box-shadow:0 4px 0 #000}
 #ws .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1.4vmin;width:min(94%,44em)}
 #ws .card{position:relative;border:3px solid #000;border-radius:10px;background:rgba(0,0,0,.45);padding:.6em .2em .4em;cursor:pointer;
   font:inherit;color:#fff;font-size:clamp(9px,2.2vmin,17px);min-width:0;display:flex;flex-direction:column;align-items:center;gap:.4em}
-#ws .card.taken{opacity:.45}
+#ws .card.taken{background:rgba(0,0,0,.75)}
+#ws .card.taken .pic{opacity:.45}
 #ws .card.foc{outline:3px solid #fff;background:rgba(216,40,24,.55)}
-#ws .face{width:clamp(34px,9vmin,72px);aspect-ratio:1;border-radius:50%;border:3px solid #000;position:relative;box-sizing:border-box}
-#ws .face::before,#ws .face::after{content:"";position:absolute;top:26%;width:24%;aspect-ratio:1;border-radius:50%;background:#fff;border:2px solid #000;
-  box-sizing:border-box;box-shadow:inset 0 0 0 2px #fff,inset 0 0 0 99px #111}
-#ws .face::before{left:18%}#ws .face::after{right:18%}
-#ws .tags{position:absolute;top:-.7em;left:0;right:0;display:flex;gap:2px;justify-content:center}
-#ws .tag{border:2px solid #000;border-radius:6px;padding:0 .3em;font-size:.85em}
+#ws .pic{width:clamp(44px,12vmin,96px);aspect-ratio:1;border:3px solid #000;border-radius:6px;image-rendering:pixelated;display:block;background:#1c2c50}
+#ws .tags{position:absolute;top:-.7em;left:0;right:0;display:flex;gap:2px;justify-content:center;flex-wrap:wrap}
+#ws .tag{border:2px solid #000;border-radius:6px;padding:0 .3em;font-size:.85em;background:#444c60}
 #ws .card canvas{width:clamp(60px,15vmin,120px);aspect-ratio:1}
 @media (max-width:520px){#ws .grid.tracks{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (prefers-reduced-motion:reduce){#ws .blink{animation:none}}
 `;
 export const PCOL = ['#e03020', '#2868e8', '#e0a010', '#2f9a38'];
 
+// One card of a worm select grid: the worm's picture and name, and tags over it (who's on it, who has it).
+export function wormCard(i, pic, tags, taken) {
+  return `<button class="card ${taken ? 'taken' : ''}" type="button" data-a="pick" data-v="${i}"><span class="tags">${tags}</span>
+    <img class="pic" src="${pic}" alt="">${CHARS[i].name}</button>`;
+}
+// Moves a cursor around the four-by-two grid of worms.
+export function moveCursor(cur, n) {
+  const col = (((cur % 4) + Math.sign(n.dx)) + 4) % 4, row = (Math.floor(cur / 4) + (n.dy ? 1 : 0)) % 2;
+  return row * 4 + col;
+}
+
 export class Menus {
-  // onRace(session) is called when everything's chosen. session: {mode, cpu, players: [{devs, char}], track}
+  // onRace(session) is called when everything's chosen. session: {mode, cpu, players: [{dev, devs, char}], track}
   constructor(panel, inputs, tracks, onRace) {
     this.panel = panel; this.inputs = inputs; this.tracks = tracks; this.onRace = onRace;
     this.touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     this.session = { mode: 'gp', cpu: true, players: [], track: 0 };
+    this.assign = {};      // which player slot (0 to 3) each input has taken
+    this.portraits = [];   // a picture of each worm, set by the game once it can draw them
     this.screen = null; this.focus = 0; this.btns = []; this.tickFn = null;
-    this.onOnline = () => {}; // set by the game: what ONLINE leads to once the players have joined
+    this.onOnline = () => {}; // set by the game: what ONLINE leads to once the players are settled
     panel.addEventListener('click', (e) => {
       const t = e.target.closest('[data-a]');
       if (t && this.acts[t.dataset.a]) this.acts[t.dataset.a](t.dataset.v);
@@ -64,7 +80,7 @@ export class Menus {
   get active() { return this.screen !== null; }
   hide() { this.screen = null; this.panel.hidden = true; }
 
-  // Puts a screen up. acts: what each data-a button does. Buttons with class "btn" or "card" can be steered between.
+  // Puts a screen up. acts: what each data-a button does. Buttons with class "btn" (or "card pick") can be steered between.
   put(screen, html, acts, focus = 0) {
     this.screen = screen; this.acts = acts; this.panel.hidden = false; this.tickFn = null;
     this.panel.innerHTML = html;
@@ -94,7 +110,7 @@ export class Menus {
   title() {
     this.put('title', `<div class="logo">WORM<br>SQUIRM <span>64</span></div><div class="blink t">PRESS ANY BUTTON</div>
       <div class="help">Controller: left stick turns the camera. Every face and shoulder button does something.<br>
-      Keyboard: A/D or the arrow keys turn the camera. Q E R F Z X C V and J K L I U O N M do something.<br>
+      Keyboard: A/D or the arrow keys turn the camera (or drag with the mouse). Q E R F Z X C V and J K L I U O N M do something.<br>
       ${this.touch ? 'Touch: drag to turn the camera. Tap the buttons to squirm, wiggle, undulate or flop.<br>' : ''}
       Your worm heads roughly where the camera points. Roughly.</div>`, {});
     this.panel.onclick = () => { if (this.screen === 'title') this.mode(); };
@@ -111,54 +127,66 @@ export class Menus {
     { gp: () => go('gp'), vs: () => go('vs'), online: () => go('online') }, ['gp', 'vs', 'online'].indexOf(this.session.mode));
   }
 
+  // Who's playing on what: a row for every input there is, and a column for each player slot.
+  // An input moves itself left and right between the slots; clicking or tapping a square does the same.
   players() {
-    const s = this.session, slot = (i) => {
-      const p = s.players[i];
-      return `<div class="slot" style="border-color:${p ? PCOL[i] : '#000'}">PLAYER ${i + 1}<small>${p ? DEVICE_NAMES[p.devs[0]] : 'not playing'}</small></div>`;
-    };
-    this.put('players', `<div class="head">WHO'S PLAYING?</div><div class="slots">${[0, 1, 2, 3].map(slot).join('')}</div>
-      <div class="help">To join: press any button on a controller, F on the left of the keyboard, or J on the right.
-      Up to four, sharing the screen. Press your back button (B, Q or Backspace) to drop out.</div>
-      <div class="row">${this.touch ? `<button class="btn" type="button" data-a="touch">${s.players.some((p) => p.devs[0] === 'touch') ? 'LEAVE' : 'JOIN'} (TOUCH)</button>` : ''}
-      ${s.mode === 'online' ? '' : `<button class="btn" type="button" data-a="cpu">COMPUTER WORMS: ${s.cpu ? 'ON' : 'OFF'}</button>`}
+    const s = this.session, devs = this.inputs.devices(this.touch);
+    for (const d in this.assign) if (!devs.includes(d)) delete this.assign[d];
+    this.devList = devs.join();
+    const rows = devs.map((d) => {
+      const at = this.assign[d];
+      return `<div class="dev ${at === undefined ? 'out' : ''}">${DEVICE_NAMES[d]}</div>` + [0, 1, 2, 3].map((k) =>
+        `<button class="cell ${at === k ? 'on' : ''}" type="button" data-a="slot" data-v="${d}:${k}" aria-label="${DEVICE_NAMES[d]} as player ${k + 1}"
+          style="${at === k ? 'background:' + PCOL[k] : ''}">${at === k ? 'P' + (k + 1) : ''}</button>`).join('');
+    }).join('');
+    const keep = this.screen === 'players' ? this.focus : (s.mode === 'online' ? 0 : 1);
+    this.put('players', `<div class="head">WHO'S PLAYING?</div>
+      <div class="assign"><div class="hd">INPUT</div>${[1, 2, 3, 4].map((k) => `<div class="hd" style="color:${PCOL[k - 1]}">P${k}</div>`).join('')}${rows}</div>
+      <div class="help">Each input picks a player: move left or right (or click a square), up to four sharing the screen.
+      A controller shows up here once you press one of its buttons.</div>
+      <div class="row">${s.mode === 'online' ? '' : `<button class="btn" type="button" data-a="cpu">COMPUTER WORMS: ${s.cpu ? 'ON' : 'OFF'}</button>`}
       <button class="btn" type="button" data-a="go">START</button>
       <button class="btn" type="button" data-a="back">BACK</button></div>`,
     {
-      touch: () => this.toggle('touch'),
+      slot: (v) => { const [d, k] = v.split(':'); this.setSlot(d, this.assign[d] === +k ? undefined : +k); },
       cpu: () => { s.cpu = !s.cpu; this.players(); },
       go: () => this.playersDone(),
       back: () => this.mode(),
-    }, (this.touch ? 1 : 0) + (s.mode === 'online' ? 0 : 1));
+    }, keep);
   }
-  toggle(dev) {
-    const ps = this.session.players, i = ps.findIndex((p) => p.devs[0] === dev);
-    if (i >= 0) ps.splice(i, 1); else if (ps.length < 4) ps.push({ devs: [dev], char: -1 });
+  // Gives an input a slot (undefined: none). A slot someone else has is refused.
+  setSlot(dev, slot) {
+    if (slot !== undefined && Object.entries(this.assign).some(([d, k]) => d !== dev && k === slot)) return;
+    if (slot === undefined) delete this.assign[dev]; else this.assign[dev] = slot;
     this.players();
+  }
+  // The next slot nobody has, going left or right from where an input is now. Off the left end is "not playing".
+  nextSlot(dev, dir) {
+    const used = new Set(Object.entries(this.assign).filter(([d]) => d !== dev).map(([, k]) => k));
+    for (let k = (this.assign[dev] === undefined ? -1 : this.assign[dev]) + dir; k >= 0 && k <= 3; k += dir) if (!used.has(k)) return k;
+    return dir < 0 ? undefined : this.assign[dev];
   }
   playersDone() {
     const s = this.session;
-    if (!s.players.length) s.players.push({ devs: [this.touch ? 'touch' : 'kbR'], char: -1 });
+    // Nobody chose: whoever is most likely at the controls plays.
+    if (!Object.keys(this.assign).length) this.assign[this.touch ? 'touch' : 'kb'] = 0;
+    s.players = Object.entries(this.assign).sort((a, b) => a[1] - b[1]).map(([dev], i) => ({ dev, devs: devsOf(dev), char: -1, cur: i }));
     if (!s.cpu && s.players.length < 2) s.cpu = true; // a race needs someone to race
-    // Someone alone on the keyboard gets all of it.
-    const kb = s.players.filter((p) => p.devs[0].startsWith('kb'));
-    if (kb.length === 1) kb[0].devs = [kb[0].devs[0], kb[0].devs[0] === 'kbL' ? 'kbR' : 'kbL'];
-    s.players.forEach((p, i) => { p.char = -1; p.cur = i; });
     if (s.mode === 'online') this.onOnline(s); else this.worms();
   }
 
   worms() {
-    const s = this.session, taken = (c) => s.players.findIndex((p) => p.char === c);
+    const s = this.session;
     const card = (c, i) => {
-      const who = taken(i), tags = s.players.map((p, k) => (p.char < 0 && p.cur === i) || p.char === i
+      const tags = s.players.map((p, k) => (p.char < 0 && p.cur === i) || p.char === i
         ? `<span class="tag" style="background:${PCOL[k]}">${p.char === i ? 'P' + (k + 1) + ' OK' : 'P' + (k + 1)}</span>` : '').join('');
-      return `<button class="card ${who >= 0 ? 'taken' : ''}" type="button" data-a="pick" data-v="${i}"><span class="tags">${tags}</span>
-        <span class="face" style="background:${hex(c.color)}"></span>${c.name}</button>`;
+      return wormCard(i, this.portraits[i], tags, s.players.some((p) => p.char === i));
     };
     this.put('worms', `<div class="head">SELECT WORM</div><div class="grid">${CHARS.map(card).join('')}</div>
       <div class="help">Move with your stick or keys, then press a button to choose. Back un-chooses.</div>`,
     {
       pick: (v) => {
-        const ps = s.players, p = ps.find((q) => q.devs[0] === 'touch' && q.char < 0) || ps.find((q) => q.char < 0);
+        const ps = s.players, p = ps.find((q) => q.dev === 'touch' && q.char < 0) || ps.find((q) => q.char < 0);
         if (p) this.lock(p, +v);
       },
     });
@@ -190,17 +218,17 @@ export class Menus {
       return;
     }
     if (this.screen === 'players') {
-      for (const dev of Object.keys(inp.ev)) {
-        if (dev === 'touch') continue;
-        const e = inp.ev[dev], joined = s.players.some((p) => p.devs[0] === dev);
-        if (!joined && e.any) return this.toggle(dev);
-        if (joined && e.back) return this.toggle(dev);
-        if (!joined && e.back) return this.mode();
-        if (e.ok || e.start) {
-          // Enter or Space with nobody in yet brings that half of the keyboard in first.
-          if (!s.players.length && dev.startsWith('kb')) return this.toggle(dev);
-          return this.playersDone();
-        }
+      const devs = inp.devices(this.touch);
+      if (devs.join() !== this.devList) return this.players(); // a controller arrived or left
+      for (const d of devs) {
+        if (d === 'touch') continue; // (touch works the screen by tapping it)
+        const n = inp.nav(devsOf(d)), at = this.assign[d];
+        if (n.dx) return this.setSlot(d, this.nextSlot(d, Math.sign(n.dx)));
+        if (n.back) return at === undefined ? this.mode() : this.setSlot(d, undefined);
+        if (at === undefined) { if (n.ok || n.start || n.any) return this.setSlot(d, this.nextSlot(d, 1)); continue; }
+        if (n.start) return this.playersDone();
+        if (n.dy || n.ok) this.steer({ dx: 0, dy: n.dy, ok: n.ok });
+        if (this.screen !== 'players') return;
       }
       if (inp.esc) this.mode();
       return;
@@ -208,19 +236,14 @@ export class Menus {
     if (this.screen === 'worms') {
       for (const p of s.players) {
         const n = inp.nav(p.devs);
-        if (p.char < 0 && (n.dx || n.dy)) {
-          const col = (((p.cur % 4) + Math.sign(n.dx)) + 4) % 4, row = (Math.floor(p.cur / 4) + (n.dy ? 1 : 0)) % 2;
-          p.cur = row * 4 + col;
-          return this.worms();
-        }
+        if (p.char < 0 && (n.dx || n.dy)) { p.cur = moveCursor(p.cur, n); return this.worms(); }
         if (n.ok && p.char < 0) return this.lock(p, p.cur);
         if (n.back) {
           if (p.char >= 0) { p.char = -1; return this.worms(); }
-          s.players.forEach((q) => { q.devs = [q.devs[0]]; });
           return this.players();
         }
       }
-      if (inp.esc) { s.players.forEach((q) => { q.devs = [q.devs[0]]; }); this.players(); }
+      if (inp.esc) this.players();
     }
   }
 }

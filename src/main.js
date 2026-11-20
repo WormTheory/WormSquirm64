@@ -12,6 +12,7 @@ import { PlayerHud, CSS as HUD_CSS, ORD, fmtTime } from './hud.js';
 import { Menus, CSS as MENU_CSS } from './menus.js';
 import { Online, CSS as ONLINE_CSS } from './online.js';
 import { MirrorRace, snapshot } from './net/mirror.js';
+import { makePortraits } from './portraits.js';
 import * as sfx from './audio.js';
 
 const root = document.getElementById('ws');
@@ -45,6 +46,7 @@ function resize() {
 }
 addEventListener('resize', resize);
 resize();
+menus.portraits = makePortraits(renderer, bufW, bufH);
 
 // How the screen is shared: [left, top, width, height] as fractions, one per player.
 const LAYOUTS = [
@@ -68,11 +70,13 @@ function setupRace(trackIdx, racers, locals, mirror) {
   const scene = buildWorld(race.track);
   const views = race.worms.map((w) => { const v = new WormView(CHARS[w.char], scene); v.reset(w); return v; });
   const rects = LAYOUTS[Math.max(1, locals.length) - 1];
-  const touchOwner = locals.findIndex((h) => h.devs.includes('touch'));
+  // Dragging on the picture turns the camera of whoever has the touch screen, or else the mouse.
+  let dragOwner = locals.findIndex((h) => h.devs.includes('touch'));
+  if (dragOwner < 0) dragOwner = Math.max(0, locals.findIndex((h) => h.devs.includes('kbL')));
   const players = locals.map((h, i) => {
     const w = race.worms[h.me];
     return {
-      devs: h.devs, me: h.me, rect: rects[i], drag: touchOwner >= 0 ? i === touchOwner : i === 0,
+      devs: h.devs, me: h.me, rect: rects[i], drag: i === dragOwner,
       cam: { yaw: w.aim, pitch: 0.4, fx: w.x, fz: w.z },
       camera: new THREE.PerspectiveCamera(62, 4 / 3, 0.5, 500),
       hud: new PlayerHud(huds, rects[i], { split: locals.length > 1, showOrder: locals.length <= 2, inputs: h.devs.includes('touch') ? inputs : null }),
@@ -153,7 +157,7 @@ const online = new Online(menus, inputs, TRACKS, {
   },
   ended() { backdrop(); },
 });
-menus.onOnline = (s) => online.open(s.players.map((p) => ({ devs: [...p.devs] })));
+menus.onOnline = (s) => online.open(s.players.map((p) => ({ dev: p.dev, devs: [...p.devs] })));
 
 function pause(on) {
   if (!on) { if (phase === 'paused') phase = 'race'; return menus.hide(); }

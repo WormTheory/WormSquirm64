@@ -63,7 +63,7 @@ const { chromium } = require('playwright');
         await ws((n) => { window.__ws.quick(n, n - 1); const r = window.__ws.race; while (r.clock < 3) { r.worms.forEach((w, i) => r.press(i, 'FLOP')); r.step(1 / 60); } }, n);
         await page.waitForTimeout(500); await shot('split' + n);
       }
-      await ws(() => { window.__ws.menus.session.players = [{ devs: ['kbR'], char: 0 }]; window.__ws.menus.session.mode = 'vs'; window.__ws.menus.trackSel(); });
+      await ws(() => { window.__ws.menus.session.players = [{ dev: 'kb', devs: ['kbL', 'kbR'], char: 0 }]; window.__ws.menus.session.mode = 'vs'; window.__ws.menus.trackSel(); });
       await page.waitForTimeout(200); await shot('tracksel');
     }
     await ctx.close();

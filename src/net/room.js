@@ -3,14 +3,14 @@
 // A browser can bring several players (its split screen), and a room holds eight racers at most.
 // Nothing here touches the page, so the same code would run in Node. Every message is a plain
 // object with a type `t`:
-//   guest -> host   hello {v, want: [worm each of its players would like]}
-//                   pick {l: which of its players, d: -1 or 1}     (change worm, in the lobby)
+//   guest -> host   hello {v, n: how many players it brings}
+//                   pick {l: which of its players, c: worm number, or -1 to put it back}
 //                   in {p: [[look, [action numbers]], ...]}        (controls, one entry per player it brought)
 //   host -> guests  room {room}                                    (the whole lobby state, whenever it changes)
 //                   deny {why}
 //                   start {track, racers: [{char, human}], seats, seatIdx: [worm number for each seat]}
 //                   s {c, st, w}                                   (a snapshot of the race; see net/mirror.js)
-export const PROTO = 1, MAX_RACERS = 8;
+export const PROTO = 2, MAX_RACERS = 8;
 const LOBBY = 'open-games-v' + PROTO; // (a new protocol gets its own list, so nobody's shown a game they can't join)
 
 // A room code: four letters, no look-alikes.
@@ -22,19 +22,19 @@ export function roomCode() {
 }
 
 export class Room {
-  // want: the worm each local player would like. cb: { onRoom(), onStart(msg), onSnap(msg), onInput(peer, p), onPeerLeft(peer), onEnd(why) }
-  constructor(tr, role, code, want, cb) {
+  // n: how many players this browser brings. Everyone starts with no worm (char -1) and picks one. cb: { onRoom(), onStart(msg), onSnap(msg), onInput(peer, p), onPeerLeft(peer), onEnd(why) }
+  constructor(tr, role, code, n, cb) {
     this.tr = tr; this.role = role; this.cb = cb; this.self = tr.self; this.code = code;
     this.hostPeer = role === 'host' ? tr.self : null;
     this.state = null;
     if (role === 'host') {
       this.state = { code, priv: false, track: 0, cpu: true, phase: 'lobby', seats: [] };
-      want.forEach((c, i) => this.state.seats.push({ peer: this.self, local: i, char: this.free(c, 1) }));
+      for (let i = 0; i < n; i++) this.state.seats.push({ peer: this.self, local: i, char: -1 });
     } else {
       this.waiting = setTimeout(() => { if (!this.state) this.end("Couldn't find that game."); }, 25000);
     }
     tr.on.msg = (p, m) => this.msg(p, m);
-    tr.on.join = (p) => { if (role === 'guest' && !this.state) tr.send({ t: 'hello', v: PROTO, want }, p); };
+    tr.on.join = (p) => { if (role === 'guest' && !this.state) tr.send({ t: 'hello', v: PROTO, n }, p); };
     tr.on.leave = (p) => this.left(p);
   }
 
@@ -57,12 +57,12 @@ export class Room {
       const st = this.state;
       if (m.t === 'hello') {
         if (st.seats.some((s) => s.peer === p)) return;
-        const want = Array.isArray(m.want) ? m.want.slice(0, 4) : [];
+        const n = Math.max(0, Math.min(4, m.n | 0));
         if (m.v !== PROTO) return this.tr.send({ t: 'deny', why: 'That game is on a different version. Reload the page and try again.' }, p);
-        if (!want.length || st.seats.length + want.length > MAX_RACERS) return this.tr.send({ t: 'deny', why: 'That game is full.' }, p);
-        want.forEach((c, i) => st.seats.push({ peer: p, local: i, char: this.free(c | 0, 1) }));
+        if (!n || st.seats.length + n > MAX_RACERS) return this.tr.send({ t: 'deny', why: 'That game is full.' }, p);
+        for (let i = 0; i < n; i++) st.seats.push({ peer: p, local: i, char: -1 });
         this.sync();
-      } else if (m.t === 'pick') this.applyPick(p, m.l | 0, m.d < 0 ? -1 : 1);
+      } else if (m.t === 'pick') this.applyPick(p, m.l | 0, m.c | 0);
       else if (m.t === 'in' && Array.isArray(m.p)) this.cb.onInput(p, m.p);
     } else if (m.t === 'room' && m.room && (!this.hostPeer || p === this.hostPeer)) {
       clearTimeout(this.waiting);
@@ -83,14 +83,12 @@ export class Room {
     } else if (p === this.hostPeer) this.end('The host left.');
   }
 
-  // One of this browser's players changes worm.
-  pick(local, dir) { if (this.isHost) this.applyPick(this.self, local, dir); else this.tr.send({ t: 'pick', l: local, d: dir }, this.hostPeer); }
-  applyPick(peer, local, dir) {
-    const seat = this.state.seats.find((s) => s.peer === peer && s.local === local);
-    if (!seat || this.state.phase !== 'lobby') return;
-    const was = seat.char;
-    seat.char = -1;
-    seat.char = this.free(was + dir, dir);
+  // One of this browser's players takes a worm (or, with -1, puts theirs back). The host says no to one that's taken.
+  pick(local, c) { if (this.isHost) this.applyPick(this.self, local, c); else this.tr.send({ t: 'pick', l: local, c }, this.hostPeer); }
+  applyPick(peer, local, c) {
+    const st = this.state, seat = st.seats.find((s) => s.peer === peer && s.local === local);
+    if (!seat || st.phase !== 'lobby' || c < -1 || c > 7 || (c >= 0 && st.seats.some((s) => s.char === c))) return;
+    seat.char = c;
     this.sync();
   }
 
@@ -99,6 +97,7 @@ export class Room {
   start() {
     const st = this.state;
     if (st.seats.length < 2) st.cpu = true; // a race needs someone to race
+    for (const s of st.seats) if (s.char < 0) s.char = this.free(0, 1); // anyone still choosing gets what's left
     const used = new Set(st.seats.map((s) => s.char));
     const ai = st.cpu ? [0, 1, 2, 3, 4, 5, 6, 7].filter((c) => !used.has(c)) : [];
     const msg = {

@@ -31,6 +31,8 @@ const path = require('path');
 
   const host = await open('host');
   await host.key('Enter', 800); // HOST A GAME
+  await host.shot('select');
+  await host.key('Enter', 400); // the host takes the first worm
   const code = await host.ws(() => window.__ws.online.room && window.__ws.online.room.code);
   check('host opens a room with a four-letter code', /^[A-Z]{4}$/.test(code || ''));
 
@@ -41,14 +43,15 @@ const path = require('path');
   await guest.page.click(`#ws-games button:has-text("${code}")`);
   await guest.page.waitForTimeout(1500);
   const seats = () => Promise.all([host, guest].map((t) => t.ws(() => window.__ws.online.room && window.__ws.online.room.state && window.__ws.online.room.state.seats.map((s) => s.char))));
+  await guest.key('Enter', 500); // reaches for the worm the host already has
   let [hs, gs] = await seats();
-  check('both see two seats on different worms', !!hs && !!gs && hs.length === 2 && hs[0] !== hs[1] && JSON.stringify(hs) === JSON.stringify(gs));
-  await guest.key('ArrowRight', 500);
-  const before = hs; [hs, gs] = await seats();
-  check('the guest can change worm, and the host sees it', hs[1] !== before[1] && hs[1] !== hs[0] && JSON.stringify(hs) === JSON.stringify(gs));
+  check('the guest is refused the host\'s worm', !!hs && hs.length === 2 && hs[0] === 0 && hs[1] === -1 && await guest.ws(() => window.__ws.menus.screen) === 'room-select');
+  await guest.shot('select');
+  await guest.key('ArrowRight'); await guest.key('Enter', 500);
+  [hs, gs] = await seats();
+  check('the guest picks another, and both sides agree on who has what', hs[1] === 1 && JSON.stringify(hs) === JSON.stringify(gs));
   await host.shot('lobby'); await guest.shot('lobby');
 
-  for (let i = 0; i < 3; i++) await host.key('ArrowDown');
   await host.key('Enter', 6200); // START, then wait out the countdown
   check('both are racing', await host.ws(() => window.__ws.phase) === 'race' && await guest.ws(() => window.__ws.phase) === 'race');
   const keys = ['KeyJ', 'KeyK', 'KeyL', 'KeyI'];

@@ -17,11 +17,12 @@ python3 -m http.server 8000   # then open http://localhost:8000
 ```
 
 - **Controller:** left stick turns the camera; the four face buttons and four shoulder buttons are the eight actions.
-- **Keyboard, left half:** A/D turn the camera; Q E R F Z X C V are the actions.
-- **Keyboard, right half:** arrow keys turn the camera; J K L I U O N M are the actions.
-  Someone alone on the keyboard gets both halves; two people can share it.
+- **Keyboard and mouse:** A/D or the arrow keys turn the camera, or drag with the mouse;
+  Q E R F Z X C V and J K L I U O N M are the actions.
 - **Touch:** drag to turn the camera; tap the on-screen buttons.
 - Escape or Start pauses.
+- On the "Who's playing?" screen every input (the keyboard and mouse, each controller, the touch screen) has a row
+  and moves itself into a player slot. A controller appears once one of its buttons has been pressed.
 
 ## Layout
 

@@ -2,7 +2,8 @@
 // ('kbL', 'kbR'), or the touch screen ('touch'). A player owns one device, or both keyboard halves
 // when they're the only one on the keyboard.
 //   Gamepad: left stick turns the camera; the four face and four shoulder buttons are the eight actions.
-//   Keyboard left: A/D (W/S) camera; Q E R F Z X C V actions.   Right: arrow keys camera; J K L I U O N M actions.
+//   Keyboard: A/D or the arrow keys (W/S, up/down) camera, or drag with the mouse; Q E R F Z X C V and J K L I U O N M actions.
+//   (Inside, the keyboard is two halves, 'kbL' and 'kbR'; one player always has both.)
 //   Touch: drag to turn the camera; on-screen buttons for actions.
 import { ACTIONS } from './sim/worm.js';
 
@@ -10,7 +11,9 @@ const KB = {
   kbL: { cam: ['KeyA', 'KeyD', 'KeyW', 'KeyS'], act: ['KeyQ', 'KeyE', 'KeyR', 'KeyF', 'KeyZ', 'KeyX', 'KeyC', 'KeyV'], ok: ['Space', 'KeyF'], back: ['KeyQ'] },
   kbR: { cam: ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'], act: ['KeyJ', 'KeyK', 'KeyL', 'KeyI', 'KeyU', 'KeyO', 'KeyN', 'KeyM'], ok: ['Enter', 'KeyJ'], back: ['Backspace'] },
 };
-export const DEVICE_NAMES = { kbL: 'Keyboard (left)', kbR: 'Keyboard (right)', touch: 'Touch screen', pad0: 'Controller 1', pad1: 'Controller 2', pad2: 'Controller 3', pad3: 'Controller 4' };
+// What a player can be given to play with: the keyboard and mouse together ('kb'), a controller, or the touch screen.
+export const DEVICE_NAMES = { kb: 'Keyboard + mouse', touch: 'Touch screen', pad0: 'Controller 1', pad1: 'Controller 2', pad2: 'Controller 3', pad3: 'Controller 4' };
+export const devsOf = (d) => (d === 'kb' ? ['kbL', 'kbR'] : [d]);
 const blank = () => ({ acts: [], dx: 0, dy: 0, ok: false, back: false, start: false, any: false });
 
 export class Inputs {
@@ -49,6 +52,15 @@ export class Inputs {
   }
 
   of(dev) { return this.ev[dev] || (this.ev[dev] = blank()); }
+
+  // Every input there is to hand out right now. (A browser only shows a controller once one of its buttons has been pressed.)
+  devices(touch) {
+    const out = ['kb'];
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    for (const p of pads) if (p && p.index <= 3) out.push('pad' + p.index);
+    if (touch) out.push('touch');
+    return out;
+  }
 
   // For on-screen action buttons.
   tap(action) { const ev = this.of('touch'); ev.acts.push(action); ev.any = true; this.anyKey = true; }
