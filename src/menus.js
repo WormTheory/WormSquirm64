@@ -172,6 +172,8 @@ export class Menus {
       this.acts[t.dataset.a](t.dataset.v);
     });
     this.acts = {};
+    // The full-screen button says ON or OFF for however the screen is now, whoever changed it (Escape leaves full screen too).
+    for (const e of ['fullscreenchange', 'webkitfullscreenchange']) document.addEventListener(e, () => { const b = panel.querySelector('[data-a="fs"]'); if (b) b.textContent = `FULLSCREEN: ${this.fsOn() ? 'ON' : 'OFF'}`; });
   }
 
   get active() { return this.screen !== null; }
@@ -227,8 +229,23 @@ export class Menus {
     const acts = {};
     buttons.forEach((b, i) => { acts['b' + i] = b.fn; });
     this.onBack = onBack || null;
-    this.put('dialog', `${html}${withOptions ? this.optionsHtml() : ''}<div class="row">${buttons.map((b, i) => `<button class="btn" type="button" data-a="b${i}">${b.label}</button>`).join('')}</div>`, acts, withOptions ? 4 : 0);
+    acts.fs = () => this.toggleFs();
+    this.put('dialog', `${html}${withOptions ? this.optionsHtml() : ''}<div class="row">${buttons.map((b, i) => `<button class="btn" type="button" data-a="b${i}">${b.label}</button>`).join('')}${withOptions ? this.fsButton() : ''}</div>`, acts, withOptions ? 4 : 0);
     if (withOptions) this.bindOptions();
+  }
+
+  // Full screen. The button is only offered where the browser can do it (an iPhone can't), and it says which way it is now.
+  fsOn() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+  fsButton() {
+    const el = this.panel.parentElement;
+    return el.requestFullscreen || el.webkitRequestFullscreen ? `<button class="btn" type="button" data-a="fs">FULLSCREEN: ${this.fsOn() ? 'ON' : 'OFF'}</button>` : '';
+  }
+  toggleFs() {
+    const el = this.panel.parentElement;
+    try {
+      const p = this.fsOn() ? (document.exitFullscreen || document.webkitExitFullscreen).call(document) : (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+      if (p && p.catch) p.catch(() => {}); // (a browser may refuse, for one, when it was a controller button that asked)
+    } catch (e) { /* refused: nothing to do */ }
   }
 
   // The main menu.
@@ -270,9 +287,9 @@ export class Menus {
     const debug = settings.debug ? `<div class="row">${Object.entries(EVENT_NAMES).map(([k, name]) => sw(k, name, !(settings.off && settings.off[k]))).join('')}</div>
       <div class="row">${sw('auto', 'AUTO MODE', settings.auto)}</div>` : '';
     this.put('options', `<div class="head">OPTIONS</div>${this.optionsHtml(true)}
-      <div class="row">${sw('events', 'RANDOM EVENTS', settings.events)}${sw('debug', 'DEBUG', settings.debug)}
+      <div class="row">${sw('events', 'RANDOM EVENTS', settings.events)}${sw('debug', 'DEBUG', settings.debug)}${this.fsButton()}
       <button class="btn" type="button" data-a="back">BACK</button></div>${debug}`,
-    { back: () => this.title(), sw: flip });
+    { back: () => this.title(), sw: flip, fs: () => this.toggleFs() });
     this.bindOptions();
     this.tickFn = (nav) => { if (nav.back) this.title(); else this.steer(nav); };
   }
