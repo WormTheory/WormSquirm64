@@ -62,6 +62,11 @@ export class Race {
     for (const w of this.worms) {
       for (const k of TIMERS) if (w[k] > 0) w[k] = Math.max(0, w[k] - dt);
       if (w.out) continue;
+      if (w.finished && w.spot) {
+        // A finished worm slides over to its dancing spot.
+        const dx = w.spot.x - w.x, dz = w.spot.z - w.z, d = Math.hypot(dx, dz), go = Math.min(d, 7 * dt);
+        if (d > 1e-3) { w.x += (dx / d) * go; w.z += (dz / d) * go; }
+      }
       const here = locate(tr, w.x, w.z, w.hint);
       if (w.ai) stepAi(w.ai, w, here, dt, this.rng);
       // Looking generally the right way is as good as looking exactly the right way.
@@ -119,6 +124,9 @@ export class Race {
       if (lap > w.lap) { w.lap = lap; this.events.push({ type: 'lap', idx: w.idx, lap }); }
       if (w.prog >= this.laps * L) {
         w.finished = true; w.finishTime = this.clock;
+        // Each finisher gets a spot of its own to dance on, spread in rows across the road just past the line.
+        const k = this.worms.filter((o) => o.finished).length - 1, row = Math.floor(k / 3), col = k % 3;
+        w.spot = pointAt(tr, 4.5 + row * 5.2, [0, -1, 1][col] * 4.7 * (tr.hw / 7)); // (three across, the winner in the middle at the front)
         if (this.firstFinish < 0) this.firstFinish = this.clock;
         this.events.push({ type: 'finish', idx: w.idx });
       }

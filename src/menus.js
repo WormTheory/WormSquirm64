@@ -260,8 +260,7 @@ export class Menus {
     this.titleFocus = 2;
     this.put('options', `<div class="head">OPTIONS</div>${this.optionsHtml(true)}
       <div class="row"><button class="btn" type="button" data-a="events">RANDOM EVENTS: ${settings.events ? 'ON' : 'OFF'}</button>
-      <button class="btn" type="button" data-a="back">BACK</button></div>
-      <div class="help">Random events: rain, heatwaves, a hungry bird and somebody's feet.</div>`,
+      <button class="btn" type="button" data-a="back">BACK</button></div>`,
     { back: () => this.title(), events: () => { settings.events = !settings.events; saveSettings(); const f = this.focus; this.options(); this.setFocus(f); } });
     this.bindOptions();
     this.tickFn = (nav) => { if (nav.back) this.title(); else this.steer(nav); };
