@@ -2,7 +2,7 @@
 // 60 steps a second, each player's camera, and the run of screens around a race.
 import * as THREE from '../vendor/three.module.min.js';
 import { Race, STEP } from './sim/race.js';
-import { TRACKS, CUPS, POINTS, pointAt, centreNear } from './sim/track.js';
+import { TRACKS, CUPS, POINTS, pointAt, centreNear, locate } from './sim/track.js';
 import { ACTIONS } from './sim/worm.js';
 import { CHARS, hex } from './characters.js';
 import { buildWorld, disposeWorld } from './view.js';
@@ -15,7 +15,7 @@ import { Online, CSS as ONLINE_CSS } from './online.js';
 import { MirrorRace, snapshot } from './net/mirror.js';
 import { makePortraits } from './portraits.js';
 import { DomPainter } from './dompaint.js';
-import { settings } from './settings.js';
+import { settings, allowedEvents, autoMode } from './settings.js';
 import { playSong, songSpeed, raceSong } from './music.js';
 import { begin as beginEvent } from './sim/events.js';
 import * as sfx from './audio.js';
@@ -82,7 +82,7 @@ let eaten = new Set(), nest = null;
 function setupRace(trackIdx, racers, locals, mirror) {
   if (G) { disposeWorld(G.scene); G.players.forEach((p) => p.hud.remove()); }
   const race = mirror ? new MirrorRace({ trackDef: TRACKS[trackIdx], racers })
-    : new Race({ trackDef: TRACKS[trackIdx], seed: (Date.now() ^ (Math.random() * 1e9)) >>> 0, racers, events: !!settings.events && locals.length > 0, eventFreq: settings.eventFreq || 5 });
+    : new Race({ trackDef: TRACKS[trackIdx], seed: (Date.now() ^ (Math.random() * 1e9)) >>> 0, racers, events: !!settings.events && locals.length > 0, eventFreq: settings.eventFreq || 5, eventKinds: allowedEvents() });
   const scene = buildWorld(race.track);
   const views = race.worms.map((w) => { const v = new WormView(CHARS[w.char], scene); v.reset(w); return v; });
   const fx = new FxView(scene, race);
@@ -263,6 +263,15 @@ function stepRace(dt, live, now) {
     if (!live) continue;
     p.cam.yaw += inp.yaw;
     p.cam.pitch = Math.max(0.08, Math.min(1.1, p.cam.pitch + inp.pitch));
+    if (autoMode()) {
+      // Auto mode (a debug switch): the worm plays as well as it can by itself. It looks dead along the road and
+      // presses a different button every frame, which is faster than counts and never tires a button out.
+      const w = race.worms[p.me], l = locate(race.track, w.x, w.z, -1), fwd = Math.atan2(l.tx, l.tz), off = Math.atan2(Math.sin(fwd - p.cam.yaw), Math.cos(fwd - p.cam.yaw));
+      p.cam.yaw += off * Math.min(1, dt * 5);
+      race.setAim(p.me, fwd);
+      if (race.state !== 'countdown' && !w.out) race.press(p.me, ACTIONS[(p.autoN = (p.autoN || 0) + 1) % ACTIONS.length]);
+      continue;
+    }
     race.setAim(p.me, p.cam.yaw);
     // Every press makes a small noise (and the worm shiver), whether or not it ends up moving the worm.
     if (race.state !== 'countdown' && !race.worms[p.me].out) for (const a of inp.presses) { race.press(p.me, a); sfx.squelch(0.05); }

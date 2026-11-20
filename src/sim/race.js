@@ -17,8 +17,8 @@ export const gridSlot = (track, i) => pointAt(track, -3 - 2.2 * i, i % 2 ? -3 : 
 
 export class Race {
   // racers: [{char, human, out}], in grid order (first is on pole). out: already taken by the bird in an earlier race.
-  // events: whether random events happen, and eventFreq how often (1 to 10).
-  constructor({ trackDef, seed = 1, racers, events = false, eventFreq = 5 }) {
+  // events: whether random events happen, eventFreq how often (1 to 10), and eventKinds which ones (all if not given).
+  constructor({ trackDef, seed = 1, racers, events = false, eventFreq = 5, eventKinds = null }) {
     this.track = buildTrack(trackDef);
     this.laps = trackDef.laps;
     this.rng = makeRng(seed);
@@ -38,7 +38,7 @@ export class Race {
     });
     this.order = [...this.worms];
     this.items = makeItems(this.track);
-    this.weather = makeEvents(this, events, eventFreq);
+    this.weather = makeEvents(this, events, eventFreq, eventKinds);
   }
 
   get time() { return Math.max(0, this.clock); }

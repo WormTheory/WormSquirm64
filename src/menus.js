@@ -5,7 +5,7 @@ import { CHARS } from './characters.js';
 import { DEVICE_NAMES, devsOf } from './input.js';
 import { drawTrackMap } from './hud.js';
 import { buildTrack, CUPS } from './sim/track.js';
-import { settings, saveSettings, renderPx, uiPx } from './settings.js';
+import { settings, saveSettings, renderPx, uiPx, EVENT_NAMES } from './settings.js';
 
 export const CSS = `
 #ws .panel{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2.2vmin;
@@ -258,10 +258,21 @@ export class Menus {
 
   options() {
     this.titleFocus = 2;
+    // A switch: a button that says ON or OFF, flips when chosen, and leaves you where you were.
+    const sw = (key, label, on) => `<button class="btn" type="button" data-a="sw" data-v="${key}">${label}: ${on ? 'ON' : 'OFF'}</button>`;
+    const flip = (key) => {
+      if (key in EVENT_NAMES) { settings.off = { ...(settings.off || {}), [key]: !(settings.off && settings.off[key]) }; } else settings[key] = !settings[key];
+      saveSettings();
+      const f = this.focus;
+      this.options(); this.setFocus(f);
+    };
+    // Debug shows two more rows: a switch for each random event, and auto mode.
+    const debug = settings.debug ? `<div class="row">${Object.entries(EVENT_NAMES).map(([k, name]) => sw(k, name, !(settings.off && settings.off[k]))).join('')}</div>
+      <div class="row">${sw('auto', 'AUTO MODE', settings.auto)}</div>` : '';
     this.put('options', `<div class="head">OPTIONS</div>${this.optionsHtml(true)}
-      <div class="row"><button class="btn" type="button" data-a="events">RANDOM EVENTS: ${settings.events ? 'ON' : 'OFF'}</button>
-      <button class="btn" type="button" data-a="back">BACK</button></div>`,
-    { back: () => this.title(), events: () => { settings.events = !settings.events; saveSettings(); const f = this.focus; this.options(); this.setFocus(f); } });
+      <div class="row">${sw('events', 'RANDOM EVENTS', settings.events)}${sw('debug', 'DEBUG', settings.debug)}
+      <button class="btn" type="button" data-a="back">BACK</button></div>${debug}`,
+    { back: () => this.title(), sw: flip });
     this.bindOptions();
     this.tickFn = (nav) => { if (nav.back) this.title(); else this.steer(nav); };
   }

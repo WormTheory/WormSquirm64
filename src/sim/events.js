@@ -16,17 +16,23 @@ const BIRD_HIGH = 34;
 const STEP_EVERY = 0.75, FOOT_R = 5;
 
 // freq: how often, 1 (rarely) to 10 (one after another); 5 is a gap of ten to twenty seconds.
-export function makeEvents(race, on, freq = 5) {
+// kinds: which events may happen (all of them if not given).
+export function makeEvents(race, on, freq = 5, kinds = null) {
   const wait = 5 / Math.max(1, Math.min(10, freq));
-  return { on, wait, type: 'none', t: 0, next: on ? race.rng.range(8, 14) * wait : Infinity, bird: null, stomp: null, wolf: -1 };
+  const may = ['rain', 'heat', 'stomp', 'moon', 'rain', 'heat', 'stomp', 'moon', 'bird'].filter((k) => !kinds || kinds.includes(k)); // (the bird is rarer: it's for keeps)
+  return { on, wait, may, type: 'none', t: 0, next: on && may.length ? race.rng.range(8, 14) * wait : Infinity, bird: null, stomp: null, wolf: -1 };
 }
 
 // (kind can be given, to start a particular event: the tests do.)
 export function begin(race, ev, force) {
   const rng = race.rng, tr = race.track, live = race.worms.filter((w) => !w.out && !w.finished);
-  let kind = force || rng.pick(['rain', 'heat', 'stomp', 'moon', 'rain', 'heat', 'stomp', 'moon', 'bird']); // (the bird is rarer: it's for keeps)
-  if (kind === 'moon' && live.length < 2) kind = 'rain'; // (a wolf needs someone to hunt)
-  if (kind === 'bird' && live.length < 2) kind = 'rain'; // (always leave someone to race)
+  let kind = force || rng.pick(ev.may);
+  // (A wolf needs someone to hunt, and the bird always leaves someone to race: failing that, whatever else is allowed, or nothing.)
+  if ((kind === 'moon' || kind === 'bird') && live.length < 2) {
+    const other = ev.may.filter((k) => k !== 'moon' && k !== 'bird');
+    if (!other.length) { ev.next = rng.range(GAP[0], GAP[1]) * ev.wait; return; }
+    kind = rng.pick(other);
+  }
   ev.type = kind; ev.t = 0;
   if (kind === 'moon') { ev.len = MOON.len; ev.wolf = -1; }
   else if (kind === 'rain' || kind === 'heat') {
