@@ -14,14 +14,15 @@ const r2 = (v) => Math.round(v * 100) / 100;
 
 // Host side: a race as a snapshot message.
 //   w: per worm: x, z, spasm count, action, taps, progress, lap, place, finish time (-1: still going),
-//      what's wrong with it (a bit each for stunned, boosted, starred, shrunk, flat; 32 for eaten; 64 for baked to death; 128 for fallen into a pit),
+//      what's wrong with it (a bit each for stunned, boosted, starred, shrunk, flat; 32 for eaten; 64 for baked to death; 128 for fallen into a pit;
+//      256 a were-wolf-worm; 512 rearing up to change; 1024 bitten; 2048 wearing a plaster),
 //      seconds of fall left, height it's being carried at, how baked, times hurt, items had, last item.
 //   b: which item boxes are there (a 1 or 0 each).   e: things lying or flying about: kind, x, z.
 //   ev: the random event: kind, seconds in, then the bird's x, z and height, or the feet's x, z and time each.
 export function snapshot(race) {
   const w = [];
   for (const o of race.worms) {
-    let flags = (o.out ? 32 : 0) | (o.dead ? 64 : 0) | (o.pit ? 128 : 0);
+    let flags = (o.out ? 32 : 0) | (o.dead ? 64 : 0) | (o.pit ? 128 : 0) | (o.wolf > 0 ? 256 : 0) | (o.howl > 0 ? 512 : 0) | (o.bit ? 1024 : 0) | (o.patch > 0 ? 2048 : 0);
     FLAGS.forEach((k, i) => { if (o[k] > 0) flags |= 1 << i; });
     w.push(r2(o.x), r2(o.z), o.count, Math.max(0, ACTIONS.indexOf(o.action)), o.taps, Math.round(o.prog * 10) / 10, o.lap, o.rank,
       o.finished ? r2(o.finishTime) : -1, flags, r2(o.fall), r2(o.lift), r2(o.heat), o.hurts, o.items, o.item);
@@ -105,7 +106,9 @@ export class MirrorRace {
       FLAGS.forEach((name, bit) => { w[name] = fl & (1 << bit) ? 1 : 0; });
       if ((fl & 32) && !w.out) ev.push({ type: 'eaten', idx: i });
       w.out = !!(fl & 32);
-      if (A[k + 10] > 0 && !(w.fall > 0)) ev.push({ type: fl & 64 ? 'die' : 'fall', idx: i });
+      if (A[k + 10] > 0 && !(w.fall > 0)) ev.push({ type: fl & 64 ? 'die' : fl & 1024 ? 'bitten' : 'fall', idx: i });
+      if ((fl & 512) && !(w.howl > 0)) ev.push({ type: fl & 256 ? 'unwolf' : 'howl', idx: i });
+      w.wolf = fl & 256 ? 1 : 0; w.howl = fl & 512 ? 1 : 0; w.bit = !!(fl & 1024); w.patch = fl & 2048 ? 1 : 0;
       if (!(A[k + 10] > 0) && w.fall > 0) ev.push({ type: 'respawn', idx: i, revived: w.dead });
       w.fall = A[k + 10]; w.dead = !!(fl & 64); w.pit = !!(fl & 128);
       if (A[k + 11] > 0 && !(w.lift > 0)) ev.push({ type: 'grab', idx: i });

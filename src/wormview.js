@@ -3,14 +3,14 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { CHARS } from './characters.js';
 import { centreNear } from './sim/track.js';
-import { FALL_TIME, DROP_PART, OUT_TIME, LIE_PART, carried } from './sim/events.js';
+import { FALL_TIME, DROP_PART, OUT_TIME, LIE_PART, BITE_TIME, PLASTER_PART, carried } from './sim/events.js';
 
 const SEGS = 10, GAP = 0.5;
 const ANIM = 0.65; // seconds one press's wobble lasts, however short the lunge under it
 const BALL = new THREE.SphereGeometry(1, 7, 5);
 const DISC = new THREE.CircleGeometry(1, 8);
 const SPARK = new THREE.OctahedronGeometry(1, 0);
-const BROWN = new THREE.Color(0x7a4a22);
+const BROWN = new THREE.Color(0x7a4a22), FUR = new THREE.Color(0x2e2420);
 const SHADOW = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false });
 
 // lat: side-to-side wave (size, speed). vert: up-and-down wave. hop: how high it leaves the ground.
@@ -87,7 +87,7 @@ export class WormView {
     this.mats = mats; this.base = mats.map((m) => m.color.clone()); this.burnt = 0;
     this.group = new THREE.Group();
     this.px = new Float32Array(SEGS); this.pz = new Float32Array(SEGS);
-    this.rad = []; this.meshes = []; this.shadows = [];
+    this.rad = []; this.meshes = []; this.shadows = []; this.eyes = [];
     for (let i = 0; i < SEGS; i++) {
       const r = 0.46 * (i === 0 ? 1.08 : 1 - 0.03 * i) * (i >= SEGS - 2 ? 0.8 - 0.2 * (i - SEGS + 2) : 1);
       this.rad.push(r);
@@ -102,14 +102,35 @@ export class WormView {
           const pupil = new THREE.Mesh(BALL, new THREE.MeshBasicMaterial({ color: 0x101010 }));
           pupil.scale.setScalar(0.15); pupil.position.set(s * 0.4, 0.46, 0.95);
           m.add(eye, pupil);
+          this.eyes.push(eye);
         }
         // Accessories are built at world size, so undo the head's own scale for them.
         const accG = new THREE.Group();
         accG.scale.setScalar(1 / r);
         accessory(char.acc, accG, lam);
         m.add(accG);
+        // What the blood moon gives it: ears, a snout with fangs, and a clawed paw each side. Hidden until then.
+        const kit = this.wolfKit = new THREE.Group(), fur = lam(0x2e2420), bone = lam(0xf4f0e0);
+        const put = (geo, mat, x, y, z, rx = 0, rz = 0) => { const p = new THREE.Mesh(geo, mat); p.position.set(x, y, z); p.rotation.set(rx, 0, rz); kit.add(p); };
+        for (const s of [-1, 1]) {
+          put(new THREE.ConeGeometry(0.16, 0.42, 4), fur, s * 0.26, 0.52, -0.08, 0, -s * 0.25);            // ear
+          put(new THREE.ConeGeometry(0.05, 0.2, 4), bone, s * 0.1, -0.12, 0.72, Math.PI);                   // fang
+          put(new THREE.BoxGeometry(0.2, 0.2, 0.55), fur, s * 0.6, -0.1, 0.3);                              // paw
+          for (const c of [-0.07, 0, 0.07]) put(new THREE.ConeGeometry(0.035, 0.22, 4), bone, s * 0.6 + c, -0.1, 0.66, Math.PI / 2); // claws
+        }
+        put(new THREE.ConeGeometry(0.22, 0.5, 5), fur, 0, 0.02, 0.6, Math.PI / 2);                           // snout
+        kit.scale.setScalar(1 / r); kit.visible = false;
+        m.add(kit);
       } else {
         m = new THREE.Mesh(BALL, mats[i === 3 ? 2 : i % 2]);
+        if (i === 4) {
+          // The plaster the hand sticks on a bitten worm.
+          const strip = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.2, 0.8), new THREE.MeshLambertMaterial({ color: 0xe8c090 }));
+          const pad = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.24, 0.7), new THREE.MeshLambertMaterial({ color: 0xf8f0e0 }));
+          this.plaster = new THREE.Group();
+          this.plaster.add(strip, pad); this.plaster.position.y = 0.92; this.plaster.visible = false;
+          m.add(this.plaster);
+        }
       }
       m.scale.setScalar(r);
       this.group.add(m); this.meshes.push(m);
@@ -137,6 +158,7 @@ export class WormView {
     this.lastT = time; this.winT += dt;
     for (const m of this.mats) m.emissive.setRGB(0, 0, 0);
     for (const m of this.aura) m.visible = false;
+    this.wolfKit.visible = false; this.plaster.visible = w.patch > 0; this.meshes[0].rotation.x = 0; this.meshes[0].rotation.z = 0;
     const pose = VICTORY[this.kind];
     let hx = 0, hz = 1;
     for (let i = 0; i < SEGS; i++) {
@@ -156,9 +178,15 @@ export class WormView {
     this.group.visible = !w.out;
     if (w.out) return;
     if (w.finished) return this.celebrate(w, time);
-    const small = w.shrunk > 0 ? 0.55 : 1, flat = w.flat > 0 || (w.fall > 0 && w.dead), gap = GAP * small;
-    const back = w.fall > 0 && !w.dead && track ? centreNear(track, w.x, w.z) : null;
-    let held = false, onBack = false, hx = back ? back.x : 0, hz = back ? back.z : 0;
+    // (A were-wolf-worm is bigger. While it's changing, to or from, it flickers between the two.)
+    const wolf = w.wolf > 0 ? !(w.howl > 0) || Math.floor(time * 14) % 2 === 0 : w.howl > 0 && Math.floor(time * 14) % 2 === 0;
+    const small = (w.shrunk > 0 ? 0.55 : 1) * (wolf ? 1.3 : 1), flat = w.flat > 0 || (w.fall > 0 && w.dead), gap = GAP * small;
+    const bitten = w.fall > 0 && w.bit;
+    this.wolfKit.visible = wolf;
+    this.plaster.visible = (bitten && BITE_TIME - w.fall >= PLASTER_PART) || w.patch > 0;
+    for (const e of this.eyes) e.material.color.setHex(wolf ? 0xff2020 : 0xffffff);
+    const back = w.fall > 0 && !w.dead && !w.bit && track ? centreNear(track, w.x, w.z) : null;
+    let held = false, onBack = false, rear = false, hx = back ? back.x : 0, hz = back ? back.z : 0;
     const px = this.px, pz = this.pz;
     px[0] = w.x; pz[0] = w.z;
     for (let i = 1; i < SEGS; i++) {
@@ -184,8 +212,9 @@ export class WormView {
     else if (w.shrunk > 0) glow.setRGB(0.05, 0.12, 0.4); // (struck by lightning: small and a bit blue)
     else glow.setRGB(0.18 * Math.min(1, w.heat || 0), 0, 0);
     // Sun-baked worms go browner the more baked they are, and browner still once it's killed them.
-    const burnt = w.fall > 0 && w.dead ? 0.75 : Math.round(0.5 * Math.min(1, w.heat || 0) * 20) / 20;
-    if (burnt !== this.burnt) { this.burnt = burnt; this.mats.forEach((m, k) => m.color.copy(this.base[k]).lerp(BROWN, burnt)); }
+    // (And a wolf's coat is dark fur.)
+    const burnt = wolf ? 2 : w.fall > 0 && w.dead ? 0.75 : Math.round(0.5 * Math.min(1, w.heat || 0) * 20) / 20;
+    if (burnt !== this.burnt) { this.burnt = burnt; this.mats.forEach((m, k) => m.color.copy(this.base[k]).lerp(burnt === 2 ? FUR : BROWN, burnt === 2 ? 0.82 : burnt)); }
     this.mats[1].emissive.copy(glow); this.mats[2].emissive.copy(glow);
     if (w.count !== this.seen) {
       this.seen = w.count; this.act = w.action;
@@ -214,7 +243,11 @@ export class WormView {
       // What's happened to it shows: shrunk by lightning, squashed flat, dropping out of sight, or dangling from a bird.
       const big = small * this.rad[i];
       if (flat) y = big * 0.2; else y = y * small;
-      if (w.fall > 0 && !w.dead) {
+      if (bitten) { y = big; lat = 0.04 * Math.sin(time * 30 + i); onBack = true; }   // bitten: it lies there, quivering
+      else if (w.wolf > 0 && !(w.howl > 0)) y += 0.4 * Math.abs(Math.sin(time * 14 - i * 0.7)); // the wolf bounds along
+      // Rearing up to change: the front of it stands straight up off the fifth blob, head thrown back, shaking.
+      if (w.howl > 0 && i < 4) { rear = true; y = big + (4 - i) * gap * 0.92; lat = 0.06 * Math.sin(time * 45 + i * 2); }
+      if (w.fall > 0 && !w.dead && !w.bit) {
         // Fallen: it drops away, then comes back down pinched in a hand, hanging by its head over the middle of the road.
         if (w.pit) {
           const e = FALL_TIME - w.fall;
@@ -231,9 +264,10 @@ export class WormView {
       let x = px[i] + dz * lat, z = pz[i] - dx * lat;
       const m = this.meshes[i];
       if (held && back) { x = hx + 0.1 * Math.sin(time * 9 + i); z = hz; }
+      if (rear && i < 4) { x = px[4] + lat; z = pz[4]; }
       m.position.set(x, y, z);
       m.scale.set(big * (flat ? 1.5 : 1), big * (flat ? 0.2 : 1), big * (flat ? 1.5 : 1));
-      if (i === 0) { m.rotation.y = Math.atan2(dx, dz) + (w.stun > 0 ? time * 18 : 0); m.rotation.z = onBack ? 2.5 : 0; }
+      if (i === 0) { m.rotation.y = Math.atan2(dx, dz) + (w.stun > 0 ? time * 18 : 0); m.rotation.z = onBack ? 2.5 : 0; m.rotation.x = rear ? -1.1 : 0; }
       const sh = this.shadows[i], k = big * Math.max(0.4, 1 - (y - big) * 0.3);
       sh.visible = !(w.fall > 0) && !(w.lift > 0);
       sh.position.set(x, 0.04, z); sh.scale.setScalar(k);

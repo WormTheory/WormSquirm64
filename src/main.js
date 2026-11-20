@@ -236,6 +236,9 @@ function react(e, mine) {
     case 'fall': sfx.fallWhistle(me ? 0.12 : 0.03); break;
     case 'die': sfx.sizzle(me ? 0.16 : 0.05); break;
     case 'respawn': if (e.revived) sfx.splash(me ? 0.2 : 0.06); break;
+    case 'howl': sfx.howl(); break;
+    case 'unwolf': sfx.howl(true); break;
+    case 'bitten': sfx.bite(me ? 0.22 : 0.09); break;
     case 'hurt': sfx.hurt(me ? 0.12 : 0.025); break;
     case 'stomp': sfx.stomp(); break;
     case 'squash': sfx.squash(); break;

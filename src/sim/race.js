@@ -6,7 +6,7 @@ import { makeAi, stepAi } from './ai.js';
 import { makeItems, stepItems, stun, STUN } from './items.js';
 import { makeEvents, stepEvents, wash, drop } from './events.js';
 
-const TIMERS = ['stun', 'boost', 'star', 'shrunk', 'flat'];
+const TIMERS = ['stun', 'boost', 'star', 'shrunk', 'flat', 'howl', 'safe', 'patch'];
 
 export const STEP = 1 / 60;
 const COUNTDOWN = 5;       // seconds before GO (the track's name shows for the first of them)
@@ -93,8 +93,10 @@ export class Race {
         // Fallen off (or dead): gone for a moment, then back in the middle of the road where it left.
         w.fall -= dt;
         if (w.fall <= 0) {
-          if (!w.dead) { const p = pointAt(tr, w.s, 0); w.x = p.x; w.z = p.z; } // (a baked worm is revived where it lies)
+          if (!w.dead && !w.bit) { const p = pointAt(tr, w.s, 0); w.x = p.x; w.z = p.z; } // (a baked or bitten worm is revived where it lies)
           this.events.push({ type: 'respawn', idx: w.idx, revived: w.dead });
+          if (w.bit) w.patch = 9; // (it wears its plaster for a while)
+          w.bit = false;
           w.fall = 0; w.dead = false; w.stun = 0.4; w.heat = 0;
         }
         continue;

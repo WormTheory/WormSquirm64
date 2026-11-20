@@ -6,7 +6,7 @@ import { CHARS, hex } from './characters.js';
 import { uiPx } from './settings.js';
 import { ITEM_NAMES } from './sim/items.js';
 
-const EVENT_WORDS = { rain: 'RAIN!', heat: 'HEATWAVE!', bird: 'BIRD!', stomp: 'LOOK OUT!' };
+const EVENT_WORDS = { rain: 'RAIN!', heat: 'HEATWAVE!', bird: 'BIRD!', stomp: 'LOOK OUT!', moon: 'BLOOD MOON!' };
 
 export const CSS = `
 html,body{height:100%;margin:0;background:#101820;overflow:hidden;overscroll-behavior:none}
@@ -135,9 +135,9 @@ export class PlayerHud {
     }
     // Lightning: the whole picture flashes white for a moment.
     if (this.flash > 0) { c.fillStyle = `rgba(255,255,255,${Math.min(0.8, this.flash * 3)})`; c.fillRect(X, Y, W, H); this.flash -= dt; }
-    // Weather colours the whole picture: grey-blue in rain, hot orange in a heatwave.
+    // Weather colours the whole picture: grey-blue in rain, hot orange in a heatwave, red under a blood moon.
     const kind = race.weather.type;
-    if (kind === 'rain' || kind === 'heat') { c.fillStyle = kind === 'rain' ? 'rgba(20,40,90,.16)' : 'rgba(255,110,0,.22)'; c.fillRect(X, Y, W, H); }
+    if (kind === 'rain' || kind === 'heat' || kind === 'moon') { c.fillStyle = kind === 'rain' ? 'rgba(20,40,90,.16)' : kind === 'heat' ? 'rgba(255,110,0,.22)' : 'rgba(170,0,10,.3)'; c.fillRect(X, Y, W, H); }
     if (kind !== this.kind) { this.kind = kind; this.bannerT = kind === 'none' ? 0 : 2.6; }
     if (w.items !== this.items) { this.items = w.items; this.itemT = w.items ? 2 : 0; }
     this.bannerT = Math.max(0, (this.bannerT || 0) - dt); this.itemT = Math.max(0, (this.itemT || 0) - dt);

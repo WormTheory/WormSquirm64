@@ -45,7 +45,8 @@ python3 -m http.server 8000   # then open http://localhost:8000
 - **Random events** (`src/sim/events.js`), switched on in the options: rain washes worms about and sometimes off
   the road; a heatwave bakes them, slowing them and killing some; a bird takes one worm for good (for the rest of
   a cup, or of an online room), and that player watches the nest from then on; a pair of legs walks across and
-  flattens whoever is underfoot for five to ten seconds.
+  flattens whoever is underfoot for five to ten seconds. Under a blood moon one worm turns into a
+  were-wolf-worm and hunts the rest, biting them, until the curse lifts; the hand sticks a plaster on each victim.
 - **The hand.** A worm that falls off is lowered back onto the road by a giant hand, and one that bakes to death
   has a jug of water poured over it. How often events come is a slider in the options.
 - **Wormbow Road** has no walls: a worm that goes over the edge falls and comes back in the middle of the road.

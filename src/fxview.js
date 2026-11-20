@@ -3,7 +3,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { canvasTex } from './view.js';
 import { centreNear } from './sim/track.js';
-import { FALL_TIME, DEAD_TIME, DROP_PART, OUT_TIME, LIE_PART, carried } from './sim/events.js';
+import { FALL_TIME, DEAD_TIME, DROP_PART, OUT_TIME, LIE_PART, BITE_TIME, PLASTER_PART, PAT_END, carried } from './sim/events.js';
 
 const lam = (color, o) => new THREE.MeshLambertMaterial({ color, flatShading: true, ...o });
 const RAIN_BOX = 26;
@@ -48,7 +48,10 @@ function makeHand() {
   jug.position.set(1.4, 0.4, 0.4);
   const water = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1, 0.4), new THREE.MeshBasicMaterial({ color: 0x48a0f0, transparent: true, opacity: 0.8 }));
   g.add(jug, water);
-  g.userData = { jug, water };
+  // A sticking plaster, held ready in the fingers.
+  const plaster = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.12, 0.55), lam(0xe8c090)); plaster.position.set(0, -1.15, 0.35);
+  g.add(plaster);
+  g.userData = { jug, water, plaster };
   g.scale.setScalar(0.8);
   return g;
 }
@@ -93,15 +96,25 @@ export class FxView {
     // The legs: trousers and a shoe each, tall enough that the top is out of sight.
     this.legs = [0, 1].map(() => {
       const g = new THREE.Group();
-      const leg = new THREE.Mesh(new THREE.BoxGeometry(2.6, 600, 2.6), lam(0x3050a0)); leg.position.y = 301.4;
-      const shoe = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.4, 6), lam(0x5a3418)); shoe.position.set(0, 0.7, 1.2);
-      const sole = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.3, 6.2), lam(0x201810)); sole.position.set(0, 0.15, 1.2);
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(2.6, 600, 2.6), lam(0x3050a0)); leg.position.y = 301.7;
+      const shoe = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.4, 6), lam(0x5a3418)); shoe.position.set(0, 1.06, 1.2);
+      // (The sole sits just clear of the road, and the shoe just clear of the sole: faces lying in the same plane flicker.)
+      const sole = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.3, 6.2), lam(0x201810)); sole.position.set(0, 0.2, 1.2);
       g.add(leg, shoe, sole); g.visible = false;
       g.scale.setScalar(1.5); // (big enough that the shoe covers what it flattens)
       scene.add(g);
       return g;
     });
-    this.tint = 0; this.tintTo = new THREE.Color();
+    this.tint = 0; this.tintTo = new THREE.Color(); this.deep = 0.6; this.dir = new THREE.Vector3();
+    // The blood moon: a big red disc with darker seas on it, hung in the same part of the sky for every camera.
+    const moonTex = canvasTex(32, 32, (c) => {
+      c.clearRect(0, 0, 32, 32);
+      c.fillStyle = '#d81818'; c.beginPath(); c.arc(16, 16, 15, 0, 7); c.fill();
+      c.fillStyle = '#a00c10'; for (const [x, y, r] of [[11, 11, 4], [20, 9, 2.5], [21, 20, 5], [10, 21, 2.5], [15, 16, 1.5]]) { c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); }
+    });
+    this.moon = new THREE.Sprite(new THREE.SpriteMaterial({ map: moonTex, fog: false, alphaTest: 0.5 }));
+    this.moon.scale.set(34, 34, 1); this.moon.visible = false;
+    scene.add(this.moon);
   }
 
   update(race, time, dt) {
@@ -127,10 +140,16 @@ export class FxView {
       const busy = w.fall > 0 && !w.out;
       if (!busy && !(h && h.visible)) return;
       if (!h) { h = this.hands[i] = makeHand(); this.scene.add(h); }
-      const { jug, water } = h.userData;
+      const { jug, water, plaster } = h.userData;
+      plaster.visible = false;
       if (!busy) { h.position.y += dt * 26; water.visible = false; if (h.position.y > 40) h.visible = false; return; } // job done: away
       jug.visible = w.dead;
-      if (w.dead) {
+      if (w.bit) {
+        // Down with a plaster, stick it on, three gentle pats, and away.
+        const e = BITE_TIME - w.fall, down = Math.min(1, e / PLASTER_PART), pat = e > PLASTER_PART && e < PAT_END ? Math.abs(Math.sin(((e - PLASTER_PART) / (PAT_END - PLASTER_PART)) * Math.PI * 3)) : 0;
+        h.visible = true; water.visible = false; plaster.visible = e < PLASTER_PART;
+        h.position.set(w.x, 1.75 + 26 * (1 - down) ** 2 + pat * 0.9 + Math.max(0, e - PAT_END) * 6, w.z - 0.3);
+      } else if (w.dead) {
         // Down beside the worm, tip the jug, pour, and straighten up again.
         const e = DEAD_TIME - w.fall, down = Math.min(1, e / 0.7), tip = Math.max(0, Math.min(1, (e - 0.7) / 0.4)) - Math.max(0, Math.min(1, (e - 2.1) / 0.4));
         h.visible = true;
@@ -158,12 +177,14 @@ export class FxView {
     const wx = race.weather, kind = wx.type;
     this.time = time;
     this.rain.visible = kind === 'rain';
+    this.moon.visible = kind === 'moon';
     // Rain darkens the sky and a heatwave turns it a hot orange, each fading in and out.
-    const want = kind === 'rain' || kind === 'heat' ? 1 : 0;
+    const want = kind === 'rain' || kind === 'heat' || kind === 'moon' ? 1 : 0;
     this.tint += Math.sign(want - this.tint) * Math.min(Math.abs(want - this.tint), dt * 0.8);
-    if (kind === 'rain') this.tintTo.set(0x4a5868); else if (kind === 'heat') this.tintTo.set(0xf8a040);
+    if (kind === 'rain') this.tintTo.set(0x4a5868); else if (kind === 'heat') this.tintTo.set(0xf8a040); else if (kind === 'moon') this.tintTo.set(0x6a0810);
+    if (kind !== 'none') this.deep = kind === 'moon' ? 0.9 : 0.6; // (the blood moon turns the sky nearly all the way red)
     const u = this.scene.userData;
-    if (u.sky) { this.scene.background.copy(u.sky).lerp(this.tintTo, this.tint * 0.6); this.scene.fog.color.copy(u.fog).lerp(this.tintTo, this.tint * 0.6); }
+    if (u.sky) { this.scene.background.copy(u.sky).lerp(this.tintTo, this.tint * this.deep); this.scene.fog.color.copy(u.fog).lerp(this.tintTo, this.tint * this.deep); }
 
     const b = wx.bird;
     this.bird.visible = !!b;
@@ -191,6 +212,11 @@ export class FxView {
 
   // Call before drawing each player's view: the rain goes wherever that camera is.
   around(camera) {
+    // (The moon hangs up and to the right of wherever this camera is looking, so nobody can miss it. It rises as the sky turns.)
+    if (this.moon.visible) {
+      camera.getWorldDirection(this.dir); this.dir.y = 0; this.dir.normalize();
+      this.moon.position.set(camera.position.x + this.dir.x * 120 - this.dir.z * 52, camera.position.y + 32 * Math.min(1, this.tint * 1.3) - 16, camera.position.z + this.dir.z * 120 + this.dir.x * 52);
+    }
     if (!this.rain.visible) return;
     this.rain.position.set(camera.position.x, camera.position.y - RAIN_BOX / 2 - ((this.time * 34) % RAIN_BOX), camera.position.z);
   }

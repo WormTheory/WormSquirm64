@@ -40,6 +40,14 @@ const { chromium } = require('playwright');
   await ws(() => { const r = window.__ws.race, p = window.__ws.G.players[0]; r.worms.forEach((w) => { w.prog = r.laps * r.track.length - 0.5; w.x = 0; w.z = -19 + (w.idx % 4); }); for (let n = 0; n < 240; n++) { r.worms.forEach((w) => r.press(w.idx, 'FLOP')); r.step(1 / 60); } p.cam.yaw = Math.PI / 2 + 0.2; p.cam.pitch = 0.75; });
   console.log('finished:', await ws(() => window.__ws.race.worms.filter((w) => w.finished).length), 'closest two dancers:', await ws(() => { const f = window.__ws.race.worms.filter((w) => w.finished); let m = 99; f.forEach((a, i) => f.forEach((b, j) => { if (j > i) m = Math.min(m, Math.hypot(a.x - b.x, a.z - b.z)); })); return m.toFixed(1); }));
   for (const n of [1, 2]) { await page.waitForTimeout(650); await shot('victory' + n); }
+  // The blood moon: the sky turns, one worm rears up and changes, hunts, and its victims get a plaster.
+  await race(1, 0);
+  await ws(() => window.__ws.event('moon'));
+  await page.waitForTimeout(3500); await shot('moon-rear');
+  await ws(() => { const r = window.__ws.race, wolf = r.worms[r.weather.wolf], p = window.__ws.G.players[0], me = r.worms[p.me]; me.x = wolf.x + 2.5; me.z = wolf.z; p.cam.yaw += 0.6; });
+  await page.waitForTimeout(1700); await shot('moon-wolf');
+  await page.waitForTimeout(1500); await shot('moon-plaster');
+  console.log('wolf:', await ws(() => window.__ws.race.weather.wolf), 'bitten so far:', await ws(() => window.__ws.race.worms.filter((w) => w.bit || w.patch > 0).length));
   // The bird takes player one of two; player two races on.
   await race(2, 1);
   await ws(() => window.__ws.event('bird', window.__ws.G.players[0].me));

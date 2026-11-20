@@ -64,7 +64,7 @@ export const stomp = (vol = 0.3) => { burst(220, 0.45, vol); tone('sine', 90, 35
 export const squash = () => tone('sawtooth', 500, 60, 0.35, 0.16);
 export const caw = () => [0, 0.22].forEach((w) => tone('sawtooth', 1100, 620, 0.16, 0.12, w));
 export const gulp = () => { tone('sine', 260, 90, 0.25, 0.2); tone('sine', 180, 320, 0.15, 0.15, 0.28); };
-export const eventSting = (kind) => ({ rain: [392, 330, 262], heat: [523, 554, 587], bird: [880, 660, 880], stomp: [196, 147, 98] }[kind] || [])
+export const eventSting = (kind) => ({ rain: [392, 330, 262], heat: [523, 554, 587], bird: [880, 660, 880], stomp: [196, 147, 98], moon: [220, 208, 147, 139] }[kind] || [])
   .forEach((f, i) => tone('square', f, f, 0.16, 0.1, i * 0.14));
 
 // Menu noises: moving between things, choosing one, going back, and a slider's click.
@@ -83,4 +83,14 @@ export function itemUse(item, k = 1) {
   else if (item === 2 || item === 3) { tone('square', 240, 520, 0.12, 0.1 * k); if (item === 3) tone('square', 700, 900, 0.3, 0.06 * k, 0.12); }
   else if (item === 4) [659, 784, 988, 1319, 1568].forEach((f, i) => tone('square', f, f, 0.09, 0.1 * k, i * 0.07));
   else if (item === 6) { burst(300, 0.4, 0.14 * k); tone('sine', 140, 60, 0.4, 0.12 * k); }
+}
+// The wolf's howl (or, back: true, a whimper as the curse lifts), its bite with the victim's yelp, and the hand's three pats after.
+export function howl(back) {
+  if (back) { tone('sine', 620, 300, 0.7, 0.12); return; }
+  tone('sine', 300, 760, 0.7, 0.16); tone('sine', 760, 700, 0.9, 0.16, 0.7); tone('sine', 700, 380, 0.5, 0.12, 1.6);
+}
+export function bite(vol = 0.15) {
+  burst(700, 0.16, vol); tone('sawtooth', 160, 70, 0.22, vol * 0.8);
+  tone('square', 1100, 520, 0.2, vol * 0.6, 0.12);
+  for (const w of [1.1, 1.65, 2.2]) tone('sine', 190, 120, 0.09, vol * 0.7, w);
 }

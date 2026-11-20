@@ -30,6 +30,8 @@ export function makeWorm(idx, char, human, x, z) {
     heat: 0, hurts: 0,      // how baked it is (0 to 1), and how many times it's been hurt
     items: 0, item: -1,     // how many items it's had, and the last one
     dead: false, pit: false, // whether its "fall" is a death by baking, or a real fall into nothing (otherwise it just lies off the road)
+    wolf: 0, howl: 0,       // whether the blood moon has made it a were-wolf-worm, and seconds left of rearing up to change
+    bit: false, safe: 0, patch: 0, // bitten by the wolf (and lying there); seconds before it can be bitten again; seconds its plaster stays on
     lift: 0, out: false };  // how high a bird is carrying it, and whether it's out of the race for good
 }
 
@@ -80,7 +82,7 @@ export function speedOf(w) {
 export function stepWorm(w, dt, rng, rankFrac) {
   let started = null;
   // Stunned, falling, carried off, gone or finished (and busy celebrating): it does nothing.
-  if (w.stun > 0 || w.fall > 0 || w.lift > 0 || w.out || w.finished) { w.spasm = null; w.queued = null; return null; }
+  if (w.stun > 0 || w.fall > 0 || w.lift > 0 || w.out || w.finished || w.wolf > 0 || w.howl > 0) { w.spasm = null; w.queued = null; return null; } // (a wolf goes where the curse takes it)
   if (!w.spasm) {
     if (w.rest > 0) w.rest -= dt;
     else if (w.queued) { startSpasm(w, w.queued, rng, rankFrac); started = w.queued; w.queued = null; }
