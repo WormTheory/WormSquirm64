@@ -11,10 +11,12 @@ export const CSS = `
 #ws .panel{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2.2vmin;
   background:rgba(8,16,40,.6);pointer-events:auto;text-align:center;box-sizing:border-box;overflow:auto;
   padding:var(--pt) var(--pr) var(--pb) var(--pl)}
-#ws .logo{font-size:clamp(34px,11vmin,110px);line-height:.92;padding:0 .15em;background:linear-gradient(#fff36a 20%,#ff8a1c 60%,#e02818);
-  -webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:3px #1a0a40;filter:drop-shadow(5px 5px 0 #1a0a40)}
+#ws .logo{display:flex;align-items:center;justify-content:center;gap:.04em;font-size:clamp(34px,11vmin,110px);padding:0 .15em;
+  -webkit-text-stroke:3px #1a0a40;filter:drop-shadow(5px 5px 0 #1a0a40)}
 #ws:not(.ghost) [data-tilt]{transform:rotate(-3deg)}
-#ws .logo span{font-size:1.5em;background:linear-gradient(#7cf0ff,#2860e8);-webkit-background-clip:text;background-clip:text}
+#ws .logo span{-webkit-background-clip:text;background-clip:text;color:transparent}
+#ws .logo .ws{line-height:.76;background-image:linear-gradient(#fff36a 20%,#ff8a1c 60%,#e02818)}
+#ws .logo .n64{font-size:2.08em;line-height:.8;background-image:linear-gradient(#7cf0ff,#2860e8)}
 #ws .head{font-size:clamp(22px,6vmin,54px);padding:0 .15em;background:linear-gradient(#fff36a,#ff8a1c);-webkit-background-clip:text;background-clip:text;
   color:transparent;-webkit-text-stroke:2px #1a0a40;filter:drop-shadow(3px 3px 0 #1a0a40)}
 #ws .blink{font-size:clamp(14px,3.6vmin,30px);animation:wsb 1s steps(2) infinite}
@@ -146,7 +148,7 @@ export class Menus {
 
   // The main menu.
   title() {
-    this.put('title', `<div class="logo" data-tilt="-3">WORM<br>SQUIRM <span>64</span></div>
+    this.put('title', `<div class="logo" data-tilt="-3"><span class="ws">WORM<br>SQUIRM</span><span class="n64">64</span></div>
       <div class="col"><button class="btn" type="button" data-a="start">START</button>
       <button class="btn" type="button" data-a="controls">CONTROLS</button>
       <button class="btn" type="button" data-a="options">OPTIONS</button></div>`,
