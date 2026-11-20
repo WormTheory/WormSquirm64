@@ -35,7 +35,7 @@ export function flap(bird, time, rate = 9) { bird.userData.wings.forEach((w, i) 
 // It can also be holding a jug, with water to pour from it.
 function makeHand() {
   const g = new THREE.Group(), skin = lam(0xe8b890), box = (w, h, d, x, y, z, mat = skin) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); g.add(m); return m; };
-  box(1.7, 46, 1.4, 0, 25.4, 0);                       // arm
+  box(1.7, 600, 1.4, 0, 302.4, 0);                     // arm (far taller than any camera can see the top of)
   box(2.4, 2.2, 1.1, 0, 1.4, 0);                       // palm
   for (let i = 0; i < 4; i++) box(0.5, 1.5, 0.5, -0.95 + i * 0.63, -0.3, 0.35); // fingers
   box(0.55, 1.3, 0.55, -1.5, 0.2, -0.3).rotation.z = 0.5; // thumb
@@ -93,7 +93,7 @@ export class FxView {
     // The legs: trousers and a shoe each, tall enough that the top is out of sight.
     this.legs = [0, 1].map(() => {
       const g = new THREE.Group();
-      const leg = new THREE.Mesh(new THREE.BoxGeometry(2.6, 60, 2.6), lam(0x3050a0)); leg.position.y = 31.4;
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(2.6, 600, 2.6), lam(0x3050a0)); leg.position.y = 301.4;
       const shoe = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.4, 6), lam(0x5a3418)); shoe.position.set(0, 0.7, 1.2);
       const sole = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.3, 6.2), lam(0x201810)); sole.position.set(0, 0.15, 1.2);
       g.add(leg, shoe, sole); g.visible = false;
