@@ -55,7 +55,19 @@ export class DomPainter {
     return alphaOf(color) > 0 ? color : null;
   }
 
+  // An element marked data-tilt="degrees" is painted turned about its middle. (The real element is left
+  // straight while it's invisible: once turned, the browser only reports the box around it, not where each word is.)
   walk(el, alpha) {
+    const tilt = el.dataset && +el.dataset.tilt;
+    if (!tilt) return this.paint(el, alpha);
+    const c = this.c, r = el.getBoundingClientRect(), cx = (r.left + r.width / 2 - this.ox) / this.n, cy = (r.top + r.height / 2 - this.oy) / this.n;
+    c.save();
+    c.translate(cx, cy); c.rotate((tilt * Math.PI) / 180); c.translate(-cx, -cy);
+    this.paint(el, alpha);
+    c.restore();
+  }
+
+  paint(el, alpha) {
     const cs = getComputedStyle(el);
     if (cs.display === 'none' || cs.visibility === 'hidden') return;
     const a = alpha * (el.matches(GHOSTS) ? 1 : parseFloat(cs.opacity));

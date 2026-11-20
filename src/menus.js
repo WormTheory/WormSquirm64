@@ -13,6 +13,7 @@ export const CSS = `
   padding:var(--pt) var(--pr) var(--pb) var(--pl)}
 #ws .logo{font-size:clamp(34px,11vmin,110px);line-height:.92;padding:0 .15em;background:linear-gradient(#fff36a 20%,#ff8a1c 60%,#e02818);
   -webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:3px #1a0a40;filter:drop-shadow(5px 5px 0 #1a0a40)}
+#ws:not(.ghost) [data-tilt]{transform:rotate(-3deg)}
 #ws .logo span{font-size:1.5em;background:linear-gradient(#7cf0ff,#2860e8);-webkit-background-clip:text;background-clip:text}
 #ws .head{font-size:clamp(22px,6vmin,54px);padding:0 .15em;background:linear-gradient(#fff36a,#ff8a1c);-webkit-background-clip:text;background-clip:text;
   color:transparent;-webkit-text-stroke:2px #1a0a40;filter:drop-shadow(3px 3px 0 #1a0a40)}
@@ -92,9 +93,11 @@ export class Menus {
 
   // Puts a screen up. acts: what each data-a button does. Buttons with class "btn" (or "card pick") can be steered between.
   put(screen, html, acts, focus = 0) {
-    this.screen = screen; this.acts = acts; this.panel.hidden = false; this.tickFn = null;
+    this.screen = screen; this.acts = acts; this.panel.hidden = false; this.tickFn = null; this.onFocus = null;
     this.panel.innerHTML = html;
     this.btns = [...this.panel.querySelectorAll('.btn:not(:disabled),.card.pick,.rng')];
+    // Pointing at a button with the mouse picks it out, as steering to it does.
+    this.btns.forEach((b, i) => b.addEventListener('pointerenter', () => { if (this.btns[i] === b) this.setFocus(i); }));
     this.setFocus(focus);
   }
   setFocus(i) {
@@ -102,6 +105,7 @@ export class Menus {
     if (!n) return;
     this.focus = ((i % n) + n) % n;
     this.btns.forEach((b, k) => b.classList.toggle('foc', k === this.focus));
+    if (this.onFocus) this.onFocus();
   }
   // Moves between buttons by where they are on the screen: left and right along a row, up and down
   // between rows. So up and down do nothing to a single row of buttons, and left and right nothing to a column.
@@ -142,7 +146,7 @@ export class Menus {
 
   // The main menu.
   title() {
-    this.put('title', `<div class="logo">WORM<br>SQUIRM <span>64</span></div>
+    this.put('title', `<div class="logo" data-tilt="-3">WORM<br>SQUIRM <span>64</span></div>
       <div class="col"><button class="btn" type="button" data-a="start">START</button>
       <button class="btn" type="button" data-a="controls">CONTROLS</button>
       <button class="btn" type="button" data-a="options">OPTIONS</button></div>`,
@@ -192,12 +196,16 @@ export class Menus {
 
   mode() {
     const go = (m) => { this.session.mode = m; this.players(); };
+    const about = [`The four races of the ${CUP.name}, with points.`, 'One race on a track you pick.',
+      'Race people elsewhere, with a room code or from the list of open games.'];
     this.put('mode', `<div class="head">SELECT GAME</div><div class="row">
       <button class="btn" type="button" data-a="gp">GRAND PRIX</button><button class="btn" type="button" data-a="vs">VS RACE</button>
       <button class="btn" type="button" data-a="online">ONLINE</button></div>
-      <div class="help">Grand Prix: the four races of the ${CUP.name}, with points. VS Race: one race on a track you pick.
-      Online: race people elsewhere, with a room code or from the list of open games.</div>`,
+      <div class="help" id="ws-about"></div>`,
     { gp: () => go('gp'), vs: () => go('vs'), online: () => go('online') }, ['gp', 'vs', 'online'].indexOf(this.session.mode));
+    // The line underneath describes whichever one is picked out.
+    this.onFocus = () => { this.panel.querySelector('#ws-about').textContent = about[this.focus]; };
+    this.onFocus();
   }
 
   // Who's playing on what: a row for every input there is, and a column for each player slot.
@@ -217,8 +225,6 @@ export class Menus {
     if (this.screen !== 'players') this.pFocus = s.mode === 'online' ? 0 : 1; // START
     this.put('players', `<div class="head">WHO'S PLAYING?</div>
       <div class="assign"><div class="hd">INPUT</div>${[1, 2, 3, 4].map((k) => `<div class="hd" style="color:${PCOL[k - 1]}">P${k}</div>`).join('')}${rows}</div>
-      <div class="help">Each input picks a player: move left or right to a number, then press a button to confirm it (or click a square).
-      Up to four share the screen. A controller shows up here once you press one of its buttons.</div>
       <div class="row">${s.mode === 'online' ? '' : `<button class="btn" type="button" data-a="cpu" ${off}>COMPUTER WORMS: ${s.cpu ? 'ON' : 'OFF'}</button>`}
       <button class="btn" type="button" data-a="go" ${off}>START</button>
       <button class="btn" type="button" data-a="back" ${off}>BACK</button></div>`,
@@ -263,8 +269,7 @@ export class Menus {
         ? `<span class="tag" style="background:${PCOL[k]}">${p.char === i ? 'P' + (k + 1) + ' OK' : 'P' + (k + 1)}</span>` : '').join('');
       return wormCard(i, this.portraits[i], tags, s.players.some((p) => p.char === i));
     };
-    this.put('worms', `<div class="head">SELECT WORM</div><div class="grid">${CHARS.map(card).join('')}</div>
-      <div class="help">Move with your stick or keys, then press a button to choose. Back un-chooses.</div>`,
+    this.put('worms', `<div class="head">SELECT WORM</div><div class="grid">${CHARS.map(card).join('')}</div>`,
     {
       pick: (v) => {
         const ps = s.players, p = ps.find((q) => q.dev === 'touch' && q.char < 0) || ps.find((q) => q.char < 0);

@@ -140,8 +140,7 @@ export class Online {
       return wormCard(i, m.portraits[i], tags, !!owner);
     };
     m.put('room-select', `<div class="head">SELECT WORM</div><div class="help">ROOM ${st.code} · ${st.seats.length}/${MAX_RACERS} here</div>
-      <div class="grid">${CHARS.map(card).join('')}</div>
-      <div class="help">Move with your stick or keys, then press a button to choose. Back leaves the room.</div>`,
+      <div class="grid">${CHARS.map(card).join('')}</div>`,
     {
       pick: (v) => {
         const s = mine.find((q) => q.char < 0 && this.humans[q.local].dev === 'touch') || mine.find((q) => q.char < 0);
