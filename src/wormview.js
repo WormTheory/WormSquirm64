@@ -51,6 +51,7 @@ export class WormView {
     const lam = (color) => new THREE.MeshLambertMaterial({ color, flatShading: true });
     const base = new THREE.Color(char.color);
     const mats = [lam(base), lam(base.clone().multiplyScalar(0.82)), lam(base.clone().lerp(new THREE.Color(0xffffff), 0.35))];
+    this.mats = mats;
     this.group = new THREE.Group();
     this.px = new Float32Array(SEGS); this.pz = new Float32Array(SEGS);
     this.rad = []; this.meshes = []; this.shadows = [];
@@ -89,17 +90,21 @@ export class WormView {
   // Lays the body out in a straight line behind the head.
   reset(w) {
     this.at = ANIM; this.hopT = 0; this.seen = w.count; this.act = null; this.hopMul = 1; this.lastT = null;
-    this.taps = w.taps; this.tw = 0;
+    this.taps = w.taps; this.tw = 0; this.hurts = w.hurts || 0; this.flash = 0;
     for (let i = 0; i < SEGS; i++) { this.px[i] = w.x - Math.sin(w.aim) * GAP * i; this.pz[i] = w.z - Math.cos(w.aim) * GAP * i; }
   }
 
   update(w, time) {
+    // A worm the bird has taken isn't there any more.
+    this.group.visible = !w.out;
+    if (w.out) return;
+    const small = w.shrunk > 0 ? 0.55 : 1, flat = w.flat > 0, gap = GAP * small;
     const px = this.px, pz = this.pz;
     px[0] = w.x; pz[0] = w.z;
     for (let i = 1; i < SEGS; i++) {
       let dx = px[i] - px[i - 1], dz = pz[i] - pz[i - 1], l = Math.hypot(dx, dz);
       if (l < 1e-5) { dx = 0; dz = -1; l = 1; }
-      px[i] = px[i - 1] + (dx / l) * GAP; pz[i] = pz[i - 1] + (dz / l) * GAP;
+      px[i] = px[i - 1] + (dx / l) * gap; pz[i] = pz[i - 1] + (dz / l) * gap;
     }
     // The wobble runs on its own clock. A press starts it; pressing again while it's still going
     // changes its style and keeps it going (and bouncing) rather than starting it over.
@@ -110,6 +115,14 @@ export class WormView {
     if (w.taps !== this.taps) { this.taps = w.taps; this.tw = 1; }
     this.tw = Math.max(0, this.tw - dt * 5);
     const tw = this.tw * this.tw;
+    // Colour: a star cycles through the rainbow, being hurt flashes red, and a baked worm stays reddened.
+    if ((w.hurts || 0) !== this.hurts) { this.hurts = w.hurts || 0; this.flash = 0.3; }
+    this.flash = Math.max(0, this.flash - dt);
+    const glow = this.mats[0].emissive;
+    if (w.star > 0) glow.setHSL((time * 2) % 1, 1, 0.45);
+    else if (this.flash > 0 && Math.floor(this.flash * 20) % 2 === 0) glow.setRGB(1, 0, 0);
+    else glow.setRGB(0.45 * Math.min(1, w.heat || 0), 0, 0);
+    this.mats[1].emissive.copy(glow); this.mats[2].emissive.copy(glow);
     if (w.count !== this.seen) {
       this.seen = w.count; this.act = w.action;
       if (this.at < ANIM) this.at = Math.min(this.at, 0.35 * ANIM);
@@ -126,7 +139,7 @@ export class WormView {
       let dx = px[a - 1] - px[a], dz = pz[a - 1] - pz[a];
       const l = Math.hypot(dx, dz) || 1;
       dx /= l; dz /= l;
-      let lat = 0.05 * Math.sin(time * 3 - i * 0.8 + w.idx) + tw * 0.13 * Math.sin(time * 55 - i * 1.7), y = this.rad[i] + tw * 0.07 * (1 + Math.sin(time * 47 - i * 2.1));
+      let lat = 0.05 * Math.sin(time * 3 - i * 0.8 + w.idx) + tw * 0.13 * Math.sin(time * 55 - i * 1.7) + (w.stun > 0 ? 0.4 * Math.sin(time * 26 - i * 1.4) : 0), y = this.rad[i] + tw * 0.07 * (1 + Math.sin(time * 47 - i * 2.1));
       if (st) {
         lat += env * st.lat * Math.sin(time * st.latF - i * 0.9);
         const ph = this.hopT - i * st.lag;
@@ -134,10 +147,17 @@ export class WormView {
         y += env * st.vert * (0.5 + 0.5 * Math.sin(time * st.vertF - i * 1.1));
         if (st.jit) { lat += env * st.jit * Math.sin(time * 91 + i * 7.3); y += env * st.jit * (0.5 + 0.5 * Math.sin(time * 77 + i * 5.1)); }
       }
+      // What's happened to it shows: shrunk by lightning, squashed flat, dropping out of sight, or dangling from a bird.
+      const big = small * this.rad[i];
+      if (flat) y = big * 0.2; else y = y * small;
+      if (w.fall > 0) y -= (1.4 - w.fall) ** 2 * 9;
+      if (w.lift > 0) y = Math.max(y, w.lift - i * 0.45 * Math.min(1, w.lift / 3));
       const x = px[i] + dz * lat, z = pz[i] - dx * lat, m = this.meshes[i];
       m.position.set(x, y, z);
-      if (i === 0) m.rotation.y = Math.atan2(dx, dz);
-      const sh = this.shadows[i], k = this.rad[i] * Math.max(0.4, 1 - (y - this.rad[i]) * 0.3);
+      m.scale.set(big * (flat ? 1.5 : 1), big * (flat ? 0.2 : 1), big * (flat ? 1.5 : 1));
+      if (i === 0) m.rotation.y = Math.atan2(dx, dz) + (w.stun > 0 ? time * 18 : 0);
+      const sh = this.shadows[i], k = big * Math.max(0.4, 1 - (y - big) * 0.3);
+      sh.visible = !(w.fall > 0) && !(w.lift > 0);
       sh.position.set(x, 0.04, z); sh.scale.setScalar(k);
     }
   }

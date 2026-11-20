@@ -1,0 +1,207 @@
+// Everything in a race that isn't the scenery or a worm: item boxes and the things items leave about,
+// rain, the heat's glare, the bird, and the giant legs. It only shows what the race says is there.
+import * as THREE from '../vendor/three.module.min.js';
+import { canvasTex } from './view.js';
+
+const lam = (color, o) => new THREE.MeshLambertMaterial({ color, flatShading: true, ...o });
+const RAIN_BOX = 26;
+
+// A bird, built facing +z, with wings that can be flapped. size: about its length.
+export function makeBird(size, body = 0x283a70, belly = 0xd8dce8) {
+  const g = new THREE.Group(), s = size;
+  const part = (geo, mat, x, y, z, sx = 1, sy = 1, sz = 1) => { const m = new THREE.Mesh(geo, mat); m.position.set(x * s, y * s, z * s); m.scale.set(sx * s, sy * s, sz * s); g.add(m); return m; };
+  const ball = new THREE.SphereGeometry(1, 7, 5);
+  part(ball, lam(body), 0, 0, 0, 0.28, 0.24, 0.5);
+  part(ball, lam(belly), 0, -0.07, 0.05, 0.22, 0.18, 0.4);
+  part(ball, lam(body), 0, 0.2, 0.42, 0.18, 0.18, 0.18);
+  part(new THREE.ConeGeometry(0.07, 0.26, 4), lam(0xf0a020), 0, 0.17, 0.66, 1, 1, 1).rotation.x = Math.PI / 2;
+  for (const x of [-0.08, 0.08]) part(ball, new THREE.MeshBasicMaterial({ color: 0x101010 }), x, 0.28, 0.54, 0.035, 0.035, 0.035);
+  part(new THREE.ConeGeometry(0.16, 0.5, 4), lam(body), 0, 0.02, -0.6, 1, 1, 1).rotation.x = -Math.PI / 2;
+  g.userData.wings = [-1, 1].map((side) => {
+    const pivot = new THREE.Group();
+    pivot.position.set(side * 0.2 * s, 0.1 * s, 0);
+    const w = new THREE.Mesh(new THREE.BoxGeometry(0.9 * s, 0.04 * s, 0.42 * s), lam(body));
+    w.position.x = side * 0.45 * s;
+    pivot.add(w); g.add(pivot);
+    return pivot;
+  });
+  return g;
+}
+export function flap(bird, time, rate = 9) { bird.userData.wings.forEach((w, i) => { w.rotation.z = (i ? -1 : 1) * Math.sin(time * rate) * 0.7; }); }
+
+export class FxView {
+  constructor(scene, race) {
+    this.scene = scene;
+    // Item boxes: a spinning cube with a question mark on it.
+    const tex = canvasTex(16, 16, (c) => {
+      const g = c.createLinearGradient(0, 0, 16, 16);
+      ['#f03030', '#f8e030', '#40c840', '#30a0f0', '#b050e0'].forEach((col, i) => g.addColorStop(i / 4, col));
+      c.fillStyle = g; c.fillRect(0, 0, 16, 16);
+      c.fillStyle = '#fff'; c.font = '900 14px "Arial Black",sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('?', 8, 9);
+    });
+    const boxMat = new THREE.MeshLambertMaterial({ map: tex, transparent: true, opacity: 0.9 }), boxGeo = new THREE.BoxGeometry(1.2, 1.2, 1.2);
+    this.boxes = race.items.boxes.map((b) => { const m = new THREE.Mesh(boxGeo, boxMat); m.position.set(b.x, 1, b.z); scene.add(m); return m; });
+    // What items leave lying or flying about. Models are made as they're needed and kept for next time.
+    const ball = new THREE.IcosahedronGeometry(1, 0);
+    this.make = {
+      peel: () => { const m = new THREE.Mesh(new THREE.ConeGeometry(0.55, 0.3, 5), lam(0xf0d830)); m.position.y = 0.15; return m; },
+      pebble: () => { const m = new THREE.Mesh(ball, lam(0x9a9aa4)); m.scale.setScalar(0.36); m.position.y = 0.4; return m; },
+      homing: () => { const m = new THREE.Mesh(ball, lam(0xe03828)); m.scale.setScalar(0.4); m.position.y = 0.45; return m; },
+      mole: () => { const m = new THREE.Mesh(new THREE.ConeGeometry(0.75, 0.6, 6), lam(0x6a4424)); m.position.y = 0.3; return m; },
+    };
+    this.pool = { peel: [], pebble: [], homing: [], mole: [] };
+    // Rain: two stacked boxes of streaks that fall through each other, kept round whichever camera is drawing.
+    const pts = [];
+    for (let i = 0; i < 420; i++) { const x = (Math.random() - 0.5) * 44, y = Math.random() * RAIN_BOX, z = (Math.random() - 0.5) * 44; pts.push(x, y, z, x + 0.15, y - 1.3, z); }
+    const rg = new THREE.BufferGeometry();
+    rg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    const rm = new THREE.LineBasicMaterial({ color: 0xc8dcff, transparent: true, opacity: 0.6, fog: false });
+    this.rain = new THREE.Group();
+    for (const y of [0, RAIN_BOX]) { const l = new THREE.LineSegments(rg, rm); l.position.y = y; this.rain.add(l); }
+    this.rain.visible = false;
+    scene.add(this.rain);
+    // The bird that carries worms off.
+    this.bird = makeBird(9);
+    this.bird.visible = false;
+    scene.add(this.bird);
+    this.birdAt = null;
+    // The legs: trousers and a shoe each, tall enough that the top is out of sight.
+    this.legs = [0, 1].map(() => {
+      const g = new THREE.Group();
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(2.6, 60, 2.6), lam(0x3050a0)); leg.position.y = 31.4;
+      const shoe = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.4, 6), lam(0x5a3418)); shoe.position.set(0, 0.7, 1.2);
+      const sole = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.3, 6.2), lam(0x201810)); sole.position.set(0, 0.15, 1.2);
+      g.add(leg, shoe, sole); g.visible = false;
+      scene.add(g);
+      return g;
+    });
+    this.tint = 0; this.tintTo = new THREE.Color();
+  }
+
+  update(race, time, dt) {
+    this.boxes.forEach((m, i) => {
+      m.visible = race.items.boxes[i].t <= 0;
+      m.rotation.set(time * 1.3, time * 1.9 + i, 0); m.position.y = 1 + 0.15 * Math.sin(time * 3 + i);
+    });
+    const used = { peel: 0, pebble: 0, homing: 0, mole: 0 };
+    for (const e of race.items.ents) {
+      const pool = this.pool[e.type];
+      if (!pool) continue;
+      let m = pool[used[e.type]++];
+      if (!m) { m = this.make[e.type](); pool.push(m); this.scene.add(m); }
+      m.visible = true; m.position.x = e.x; m.position.z = e.z;
+      if (e.type !== 'peel') m.rotation.set(time * 9, time * 7, 0);
+    }
+    for (const k in this.pool) for (let i = used[k]; i < this.pool[k].length; i++) this.pool[k][i].visible = false;
+
+    const wx = race.weather, kind = wx.type;
+    this.time = time;
+    this.rain.visible = kind === 'rain';
+    // Rain darkens the sky and a heatwave turns it a hot orange, each fading in and out.
+    const want = kind === 'rain' || kind === 'heat' ? 1 : 0;
+    this.tint += Math.sign(want - this.tint) * Math.min(Math.abs(want - this.tint), dt * 0.8);
+    if (kind === 'rain') this.tintTo.set(0x4a5868); else if (kind === 'heat') this.tintTo.set(0xf8a040);
+    const u = this.scene.userData;
+    if (u.sky) { this.scene.background.copy(u.sky).lerp(this.tintTo, this.tint * 0.6); this.scene.fog.color.copy(u.fog).lerp(this.tintTo, this.tint * 0.6); }
+
+    const b = wx.bird;
+    this.bird.visible = !!b;
+    if (b) {
+      if (this.birdAt) { const dx = b.x - this.birdAt[0], dz = b.z - this.birdAt[1]; if (dx * dx + dz * dz > 1e-4) this.bird.rotation.y = Math.atan2(dx, dz); }
+      this.birdAt = [b.x, b.z];
+      this.bird.position.set(b.x, b.h + 2.2, b.z);
+      flap(this.bird, time);
+    } else this.birdAt = null;
+
+    const st = wx.stomp;
+    this.legs.forEach((g, k) => {
+      g.visible = !!st;
+      if (!st) return;
+      // Each foot stands where it last came down, and swings to its next place while the other is planted.
+      const steps = st.steps, mine = steps.filter((_, i) => i % 2 === k), t = wx.t;
+      const dirx = steps[steps.length - 1].x - steps[0].x, dirz = steps[steps.length - 1].z - steps[0].z, dl = Math.hypot(dirx, dirz) || 1;
+      let from = { x: mine[0].x - (dirx / dl) * 6, z: mine[0].z - (dirz / dl) * 6, t: mine[0].t - 0.75 }, to = mine[0];
+      for (let i = 0; i < mine.length; i++) if (t >= mine[i].t) { from = mine[i]; to = mine[i + 1] || mine[i]; }
+      const start = Math.max(from.t, to.t - 0.75), f = to === from ? 1 : Math.max(0, Math.min(1, (t - start) / Math.max(0.01, to.t - start)));
+      g.position.set(from.x + (to.x - from.x) * f, Math.sin(Math.PI * f) * 7 * (to === from ? 0 : 1), from.z + (to.z - from.z) * f);
+      g.rotation.y = Math.atan2(dirx, dirz);
+    });
+  }
+
+  // Call before drawing each player's view: the rain goes wherever that camera is.
+  around(camera) {
+    if (!this.rain.visible) return;
+    this.rain.position.set(camera.position.x, camera.position.y - RAIN_BOX / 2 - ((this.time * 34) % RAIN_BOX), camera.position.z);
+  }
+}
+
+// The nest. A worm the bird has taken is brought here and fed to a chick, and the player whose worm it was
+// watches that in place of the race, and then goes on watching the nest. Every feeding plays for everyone watching.
+export class NestView {
+  constructor() {
+    const scene = this.scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x88c8f0);
+    scene.add(new THREE.AmbientLight(0xffffff, 2.2));
+    const sun = new THREE.DirectionalLight(0xfff0d0, 1.6); sun.position.set(3, 8, 5); scene.add(sun);
+    this.camera = new THREE.PerspectiveCamera(46, 4 / 3, 0.2, 200);
+    this.camera.position.set(0, 4.2, 9.5); this.camera.lookAt(0, 1.6, 0);
+    const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); scene.add(m); return m; };
+    add(new THREE.CylinderGeometry(0.9, 1.4, 14, 7), lam(0x5a3a20), -1, -7.4, -1);                 // the tree
+    const branch = add(new THREE.CylinderGeometry(0.5, 0.7, 16, 6), lam(0x5a3a20), 2, -0.6, -0.4); branch.rotation.z = Math.PI / 2 - 0.08;
+    for (const [x, y, z, r] of [[-5, 3, -4, 3], [5, 4, -5, 3.6], [0, 6, -6, 4], [-7, -2, -3, 2.6], [7, -1, -4, 2.8]]) add(new THREE.IcosahedronGeometry(r, 0), lam(0x2f8a40), x, y, z);
+    add(new THREE.TorusGeometry(2.1, 0.6, 5, 9), lam(0x8a6a3a), 0, 0.5, 0).rotation.x = Math.PI / 2;
+    add(new THREE.CylinderGeometry(2.1, 1.6, 0.5, 9), lam(0x6a4e28), 0, 0.2, 0);
+    // Three chicks, all mouth.
+    const ball = new THREE.SphereGeometry(1, 7, 5);
+    this.chicks = [-1.1, 0, 1.1].map((x, i) => {
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(ball, lam(0xf0d048)); body.scale.set(0.62, 0.7, 0.62);
+      const top = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.5, 4), lam(0xf08020)), bottom = top.clone();
+      top.position.set(0, 0.55, 0.3); bottom.position.set(0, 0.45, 0.3); bottom.rotation.x = Math.PI;
+      for (const ex of [-0.22, 0.22]) { const e = new THREE.Mesh(ball, new THREE.MeshBasicMaterial({ color: 0x101010 })); e.scale.setScalar(0.07); e.position.set(ex, 0.3, 0.52); g.add(e); }
+      g.add(body, top, bottom);
+      g.position.set(x, 1.1, i === 1 ? 0.5 : 0);
+      g.userData = { top, bottom };
+      scene.add(g);
+      return g;
+    });
+    this.parent = makeBird(5.5);
+    this.parent.visible = false;
+    scene.add(this.parent);
+    // The worm in the parent's beak: a short string of blobs, coloured for whoever it was.
+    this.wormMat = lam(0xe88aa0);
+    this.worm = Array.from({ length: 7 }, (_, i) => { const m = new THREE.Mesh(ball, this.wormMat); m.scale.setScalar(0.2 - i * 0.012); m.visible = false; scene.add(m); return m; });
+    this.queue = []; this.now = null; this.fed = 0; this.onGulp = null;
+  }
+
+  // Another worm for the chicks.
+  feed(color) { this.queue.push(color); }
+
+  update(time, dt) {
+    if (!this.now && this.queue.length) { this.now = { t: 0, chick: this.fed++ % 3 }; this.wormMat.color.setHex(this.queue.shift()); }
+    const f = this.now;
+    this.chicks.forEach((c, i) => {
+      // They cheep (beaks opening and shutting) all the time, and gape wide when food's coming.
+      const eating = f && f.chick === i, open = eating && f.t < 3.4 ? 0.9 : 0.25 + 0.25 * Math.sin(time * 7 + i * 2);
+      c.userData.top.rotation.x = -open; c.userData.bottom.rotation.x = Math.PI + open;
+      c.position.y = 1.1 + 0.08 * Math.sin(time * 9 + i * 1.7) + (eating && f.t > 3.4 && f.t < 3.9 ? 0.25 * Math.sin((f.t - 3.4) * Math.PI * 2) : 0);
+    });
+    this.parent.visible = !!f;
+    this.worm.forEach((m) => { m.visible = !!f && f.t < 3.4; });
+    if (!f) return;
+    f.t += dt;
+    // The parent flies in, hovers over a chick, drops the worm in, and leaves.
+    const c = this.chicks[f.chick].position, inK = Math.min(1, f.t / 2), outK = Math.max(0, (f.t - 4) / 2), e = 1 - (1 - inK) ** 2;
+    const px = c.x - 9 * (1 - e) + 10 * outK * outK, py = 3.6 + 5 * (1 - e) + 5 * outK * outK;
+    this.parent.position.set(px, py + 0.15 * Math.sin(time * 12), c.z - 0.2);
+    this.parent.rotation.y = Math.PI / 2 - 0.5;
+    flap(this.parent, time, 14);
+    const drop = Math.max(0, Math.min(1, (f.t - 2.6) / 0.8));
+    this.worm.forEach((m, i) => {
+      const hang = 0.26 * i;
+      m.position.set(px + 1.6 + 0.12 * Math.sin(time * 11 + i), py + 0.4 - hang - drop * (py - c.y - 0.2 - hang * 0.5), c.z + 0.1);
+    });
+    if (f.t > 3.4 && !f.gulped) { f.gulped = true; if (this.onGulp) this.onGulp(); }
+    if (f.t > 6.2) this.now = null;
+  }
+}

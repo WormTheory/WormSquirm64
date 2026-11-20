@@ -30,7 +30,8 @@ const { chromium } = require('playwright');
       await page.tap('text=GRAND PRIX'); await page.waitForTimeout(200);
       await page.tap('[data-v="touch:0"]'); await page.waitForTimeout(200); await shot('players');
       await page.tap('text=START'); await page.waitForTimeout(200); await shot('worms');
-      await page.tap('text=Flopple');
+      await page.tap('text=Flopple'); await page.waitForTimeout(200); await shot('cups');
+      await page.tap('text=WORMROOM CUP');
       await page.waitForTimeout(5500);
       const pads = ['SQUIRM', 'WIGGLE', 'UNDULATE', 'FLOP'];
       for (let i = 0; i < 40; i++) { await page.tap(`.pads button:text-is("${pads[i % 4]}")`); await page.waitForTimeout(220); }
@@ -41,7 +42,8 @@ const { chromium } = require('playwright');
       await key('ArrowDown'); await key('ArrowUp');     // (up and down do nothing here)
       await key('Enter'); await shot('confirmed');      // ...and confirms it
       await key('Enter'); await key('ArrowRight'); await shot('worms'); // START
-      await key('Enter');                               // choose a worm: the race starts
+      await key('Enter'); await shot('cups');           // choose a worm
+      await key('Enter');                               // the first cup: the race starts
       await page.waitForTimeout(1200); await shot('trackname');
       await page.waitForTimeout(4300);
       const keys = ['KeyJ', 'KeyK', 'KeyL', 'KeyI'];

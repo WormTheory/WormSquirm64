@@ -4,7 +4,7 @@
 import { CHARS } from './characters.js';
 import { DEVICE_NAMES, devsOf } from './input.js';
 import { drawTrackMap } from './hud.js';
-import { buildTrack, CUP } from './sim/track.js';
+import { buildTrack, CUPS } from './sim/track.js';
 import { settings, saveSettings, renderPx, uiPx } from './settings.js';
 
 export const CSS = `
@@ -60,6 +60,8 @@ export const CSS = `
 #ws .pic{width:clamp(44px,12vmin,96px);aspect-ratio:1;border:3px solid #000;border-radius:6px;image-rendering:pixelated;display:block;background:#1c2c50}
 #ws .tags{position:absolute;top:-.7em;left:0;right:0;display:flex;gap:2px;justify-content:center;flex-wrap:wrap}
 #ws .tag{border:2px solid #000;border-radius:6px;padding:0 .3em;font-size:.85em;background:#444c60}
+#ws .card.cup{padding:.7em 1.2em;gap:.25em;font-size:clamp(11px,2.3vmin,18px)}
+#ws .card.cup b{font-size:1.3em;font-style:italic;color:#ffe24a}
 #ws .card canvas{width:clamp(60px,15vmin,120px);aspect-ratio:1}
 @media (max-width:520px){#ws .grid.tracks{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (prefers-reduced-motion:reduce){#ws .blink,#ws .assign .cell.maybe{animation:none}}
@@ -154,7 +156,7 @@ export class Menus {
   constructor(panel, inputs, tracks, onRace) {
     this.panel = panel; this.inputs = inputs; this.tracks = tracks; this.onRace = onRace;
     this.touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    this.session = { mode: 'gp', cpu: true, players: [], track: 0 };
+    this.session = { mode: 'gp', cpu: true, players: [], track: 0, cup: 0 };
     this.assign = {};      // which player slot (0 to 3) each input is on
     this.conf = new Set(); // the inputs that have confirmed theirs
     this.portraits = [];   // a picture of each worm, set by the game once it can draw them
@@ -220,7 +222,7 @@ export class Menus {
     const acts = {};
     buttons.forEach((b, i) => { acts['b' + i] = b.fn; });
     this.onBack = onBack || null;
-    this.put('dialog', `${html}${withOptions ? this.optionsHtml() : ''}<div class="row">${buttons.map((b, i) => `<button class="btn" type="button" data-a="b${i}">${b.label}</button>`).join('')}</div>`, acts, withOptions ? 2 : 0);
+    this.put('dialog', `${html}${withOptions ? this.optionsHtml() : ''}<div class="row">${buttons.map((b, i) => `<button class="btn" type="button" data-a="b${i}">${b.label}</button>`).join('')}</div>`, acts, withOptions ? 4 : 0);
     if (withOptions) this.bindOptions();
   }
 
@@ -253,22 +255,26 @@ export class Menus {
   options() {
     this.titleFocus = 2;
     this.put('options', `<div class="head">OPTIONS</div>${this.optionsHtml()}
-      <div class="row"><button class="btn" type="button" data-a="back">BACK</button></div>`, { back: () => this.title() });
+      <div class="row"><button class="btn" type="button" data-a="events">RANDOM EVENTS: ${settings.events ? 'ON' : 'OFF'}</button>
+      <button class="btn" type="button" data-a="back">BACK</button></div>
+      <div class="help">Random events: rain, heatwaves, a hungry bird and somebody's feet.</div>`,
+    { back: () => this.title(), events: () => { settings.events = !settings.events; saveSettings(); const f = this.focus; this.options(); this.setFocus(f); } });
     this.bindOptions();
     this.tickFn = (nav) => { if (nav.back) this.title(); else this.steer(nav); };
   }
 
-  // The two pixel-size sliders, shown in the options and in the pause menu. Both read and write the
+  // The sliders (two pixel sizes, two volumes), shown in the options and in the pause menu. Both read and write the
   // same saved settings, so a change in one place is there in the other.
   optionsHtml() {
     const el = this.panel.parentElement, w = el.clientWidth || 640, h = el.clientHeight || 480;
     const row = (id, label, min, max, step, val) => `<label class="opt"><span>${label}</span>
       <input class="rng" type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}" aria-label="${label}"><b id="${id}-v">${val}</b></label>`;
     return `<div class="opts">${row('ws-rpx', 'PICTURE PIXEL SIZE', 1, 8, 0.5, Math.min(8, renderPx(w, h)))}
-      ${row('ws-upx', 'MENU AND HUD PIXEL SIZE', 1, 5, 1, uiPx(w, h))}</div>`;
+      ${row('ws-upx', 'MENU AND HUD PIXEL SIZE', 1, 5, 1, uiPx(w, h))}
+      ${row('ws-mus', 'MUSIC', 0, 10, 1, settings.music ?? 6)}${row('ws-sfx', 'SOUND', 0, 10, 1, settings.sfx ?? 8)}</div>`;
   }
   bindOptions() {
-    for (const [id, key] of [['ws-rpx', 'renderPx'], ['ws-upx', 'uiPx']]) {
+    for (const [id, key] of [['ws-rpx', 'renderPx'], ['ws-upx', 'uiPx'], ['ws-mus', 'music'], ['ws-sfx', 'sfx']]) {
       const sl = this.panel.querySelector('#' + id);
       if (!sl) continue;
       sl.addEventListener('input', () => {
@@ -281,7 +287,7 @@ export class Menus {
 
   mode() {
     const go = (m) => { this.session.mode = m; this.players(); };
-    const about = [`The four races of the ${CUP.name}, with points.`, 'One race on a track you pick.',
+    const about = ['Four races for a cup, with points.', 'One race on a track you pick.',
       'Race people elsewhere, with a room code or from the list of open games.'];
     this.put('mode', `<div class="head">SELECT GAME</div><div class="row">
       <button class="btn" type="button" data-a="gp">GRAND PRIX</button><button class="btn" type="button" data-a="vs">VS RACE</button>
@@ -366,7 +372,15 @@ export class Menus {
     const s = this.session;
     if (s.players.some((q) => q.char === c)) return;
     p.char = c; p.cur = c;
-    if (s.players.every((q) => q.char >= 0)) { if (s.mode === 'vs') this.trackSel(); else this.onRace(s); } else this.worms();
+    if (s.players.every((q) => q.char >= 0)) { if (s.mode === 'vs') this.trackSel(); else this.cupSel(); } else this.worms();
+  }
+
+  cupSel() {
+    const s = this.session;
+    this.put('cups', `<div class="head">SELECT CUP</div><div class="row">${CUPS.map((cup, i) =>
+      `<button class="card pick cup" type="button" data-a="c" data-v="${i}"><b>${cup.name.toUpperCase()}</b>${cup.tracks.map((t) => `<span>${this.tracks[t].name}</span>`).join('')}</button>`).join('')}</div>`,
+    { c: (v) => { s.cup = +v; this.onRace(s); } }, s.cup || 0);
+    this.tickFn = (nav) => { if (nav.back) { s.players.forEach((p) => { p.char = -1; }); this.worms(); } else this.steer(nav); };
   }
 
   trackSel() {

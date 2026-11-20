@@ -27,8 +27,37 @@ export const TRACKS = [
     theme: { sky: 0xf8c890, fog: 0xf8d8b0, ground: ['#d89048', '#e09a50'], road: ['#7a6a62', '#6e5e56', '#86766e'], line: '#f0e0b0',
       kerb: ['#e8e8e8', '#c85020'], wall: ['#8a4a28', '#c87838'], hill: 0xb85a30, mesa: true, props: [['cactus', 50], ['rock', 22]] },
   },
+  {
+    id: 'frappe-wormland', name: 'Frappe Wormland', width: 14, laps: 3,
+    pts: [[-29.7, -12.2], [-9.3, -22.3], [14.5, -23.8], [32.7, -21.2], [38.9, -7.5], [29.1, 6.4], [11, 12.9], [-7.6, 20.9], [-26.7, 20.5], [-36.9, 6.2]],
+    theme: { sky: 0xb8d8f8, fog: 0xe0f0ff, ground: ['#f0f4fa', '#e2eaf4'], road: ['#c8d8e8', '#b8cce0', '#d8e6f2'], line: null,
+      kerb: ['#f8f8f8', '#4890d8'], wall: ['#e8f0f8', '#80b0e0'], hill: 0xd0dcec, mesa: false, props: [['pine', 45], ['snowman', 16]] },
+  },
+  {
+    id: 'choco-squirmtain', name: 'Choco Squirmtain', width: 14, laps: 3,
+    pts: [[-0.3, -29.1], [20.1, -22.8], [31.2, -6.8], [30.9, 11.9], [25.1, 26.7], [9, 32.2], [-11.1, 28.5], [-28.1, 21.6], [-34, 7.1], [-29.1, -9.6], [-19.7, -23.7]],
+    theme: { sky: 0xe8b078, fog: 0xe0b888, ground: ['#7a4a28', '#84522e'], road: ['#5a3418', '#4e2c12', '#663c1e'], line: null,
+      kerb: ['#e8d8b8', '#8a5a30'], wall: ['#4a2810', '#9a6a3a'], hill: 0x6a3c1c, mesa: true, props: [['rock', 40], ['tree', 12]] },
+  },
+  {
+    id: 'banshee-wormwalk', name: 'Banshee Wormwalk', width: 14, laps: 3,
+    pts: [[-34.1, -3.5], [-22.7, -20.1], [-1.5, -26.6], [20.5, -24.5], [36.1, -18.3], [39.8, -3.4], [33.1, 13.8], [23.8, 27.1], [6.1, 29.8], [-14.5, 23.5], [-30.6, 14.2]],
+    theme: { sky: 0x101830, fog: 0x182040, ground: ['#28303c', '#2c3440'], road: ['#8a6038', '#7a5430', '#966a40'], line: null,
+      kerb: ['#5a3c20', '#3a2410'], wall: ['#6a4828', '#2a1a0c'], hill: 0x1c2438, mesa: false, sea: 0x0c1c3c, dark: true, props: [['deadtree', 40]] },
+  },
+  {
+    id: 'wormbow-road', name: 'Wormbow Road', width: 17, laps: 3, open: true,
+    pts: [[-35, -10.1], [-16.3, -26.3], [8, -31.7], [28.7, -28.9], [40, -13], [38.9, 8.5], [32.8, 26.9], [15.7, 33.4], [-6.1, 29.8], [-27.2, 24.9], [-39.4, 10.4]],
+    theme: { sky: 0x08041c, fog: 0x08041c, ground: null, road: null, rainbow: true, line: null,
+      kerb: ['#ffffff', '#ffe24a'], wall: null, hill: 0, mesa: false, space: true, props: [] },
+  },
 ];
-export const CUP = { name: 'Wormroom Cup', tracks: [0, 1, 2, 3], points: [9, 6, 3, 1] };
+// The cups: four races each, with points for the first four home.
+export const CUPS = [
+  { name: 'Wormroom Cup', tracks: [0, 1, 2, 3] },
+  { name: 'Squirm Cup', tracks: [4, 5, 6, 7] },
+];
+export const POINTS = [9, 6, 3, 1];
 
 function cr(p0, p1, p2, p3, t) {
   const t2 = t * t, t3 = t2 * t;

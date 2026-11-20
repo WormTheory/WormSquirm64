@@ -4,6 +4,9 @@
 // The menus, which are ordinary page elements, are copied onto the same canvas (dompaint.js).
 import { CHARS, hex } from './characters.js';
 import { uiPx } from './settings.js';
+import { ITEM_NAMES } from './sim/items.js';
+
+const EVENT_WORDS = { rain: 'RAIN!', heat: 'HEATWAVE!', bird: 'BIRD!', stomp: 'LOOK OUT!' };
 
 export const CSS = `
 html,body{height:100%;margin:0;background:#101820;overflow:hidden;overscroll-behavior:none}
@@ -102,7 +105,7 @@ export class PlayerHud {
 
   remove() { if (this.el) this.el.remove(); }
 
-  update(race, me) {
+  update(race, me, dt) {
     const L = this.layer, c = L.ctx, [rx, ry, rw, rh] = this.rect, w = race.worms[me];
     const X = Math.round(rx * L.W), Y = Math.round(ry * L.H), W = Math.round(rw * L.W), H = Math.round(rh * L.H), m = Math.min(W, H);
     const pad = Math.max(3, Math.round(m * 0.02));
@@ -122,6 +125,20 @@ export class PlayerHud {
       return c.measureText(str).width;
     };
     const fade = (y, size, a, b) => { const g = c.createLinearGradient(0, y, 0, y + size); g.addColorStop(0.15, a); g.addColorStop(0.9, b); return g; };
+    const border = () => { if (this.split) { c.lineWidth = 1; c.strokeStyle = '#000'; c.strokeRect(X + 0.5, Y + 0.5, W - 1, H - 1); } };
+
+    // A player whose worm the bird took has no race to follow: their part of the screen shows the nest.
+    if (w.out) {
+      text('EATEN', X + W / 2, bottom - Math.max(12, m * 0.08), Math.max(12, m * 0.08), fade(bottom - m * 0.08, m * 0.08, '#fff36a', '#ff5a1c'), 'center');
+      border(); c.restore();
+      return;
+    }
+    // Weather colours the whole picture: grey-blue in rain, hot orange in a heatwave.
+    const kind = race.weather.type;
+    if (kind === 'rain' || kind === 'heat') { c.fillStyle = kind === 'rain' ? 'rgba(20,40,90,.16)' : 'rgba(255,110,0,.22)'; c.fillRect(X, Y, W, H); }
+    if (kind !== this.kind) { this.kind = kind; this.bannerT = kind === 'none' ? 0 : 2.6; }
+    if (w.items !== this.items) { this.items = w.items; this.itemT = w.items ? 2 : 0; }
+    this.bannerT = Math.max(0, (this.bannerT || 0) - dt); this.itemT = Math.max(0, (this.itemT || 0) - dt);
 
     // Lap, top left.
     const s = Math.max(9, m * 0.05);
@@ -165,7 +182,18 @@ export class PlayerHud {
     else if (w.finished) big = 'FINISH!';
     if (big) { const bs = Math.min(m * 0.26, (W * 0.9) / Math.max(2, big.length * 0.62)), by = Y + H * 0.28; text(big, X + W / 2, by, bs, fade(by, bs, '#fff36a', '#ff5a1c'), 'center'); }
 
-    if (this.split) { c.lineWidth = 1; c.strokeStyle = '#000'; c.strokeRect(X + 0.5, Y + 0.5, W - 1, H - 1); }
+    // The item just picked up, named in a box at the top, and the name of an event as it starts.
+    if (this.itemT > 0 && w.item >= 0) {
+      const is = Math.max(8, m * 0.04), name = ITEM_NAMES[w.item], iw = width(name, is) + is * 1.4, ix = X + W / 2 - iw / 2, iy = top;
+      c.fillStyle = 'rgba(0,0,0,.6)'; c.fillRect(ix, iy, iw, is * 1.9);
+      c.lineWidth = 1; c.strokeStyle = '#ffe24a'; c.strokeRect(ix + 0.5, iy + 0.5, iw - 1, is * 1.9 - 1);
+      text(name, X + W / 2, iy + is * 0.45, is, '#fff', 'center');
+    }
+    if (this.bannerT > 0 && EVENT_WORDS[kind] && !big && Math.floor(this.bannerT * 6) % 2 === 0) {
+      const es = Math.min(m * 0.16, (W * 0.9) / (EVENT_WORDS[kind].length * 0.62)), ey = Y + H * 0.2;
+      text(EVENT_WORDS[kind], X + W / 2, ey, es, fade(ey, es, '#ffffff', '#ff5a1c'), 'center');
+    }
+    border();
     c.restore();
   }
 }

@@ -24,7 +24,12 @@ export const TUNE = {
 
 export function makeWorm(idx, char, human, x, z) {
   return { idx, char, human, x, z, look: 0, aim: 0, action: null, tired: {}, taps: 0, spasm: null, rest: 0, queued: null, count: 0,
-    hint: -1, s: 0, prog: 0, lap: 1, rank: idx, finished: false, finishTime: 0 };
+    hint: -1, s: 0, prog: 0, lap: 1, rank: idx, finished: false, finishTime: 0,
+    // What's happened to it. Timers count down in seconds: stunned, boosted, starred, shrunk, falling (or dead) and flattened.
+    stun: 0, boost: 0, star: 0, shrunk: 0, fall: 0, flat: 0,
+    heat: 0, hurts: 0,      // how baked it is (0 to 1), and how many times it's been hurt
+    items: 0, item: -1,     // how many items it's had, and the last one
+    lift: 0, out: false };  // how high a bird is carrying it, and whether it's out of the race for good
 }
 
 // A press never does more than ask for the next spasm. While one's under way (or the worm is
@@ -57,16 +62,24 @@ function startSpasm(w, action, rng, rankFrac) {
   w.spasm = {
     action, t: 0, dur: rng.range(TUNE.durMin, TUNE.durMax),
     dx: Math.sin(a), dz: Math.cos(a),
-    dist: rng.range(TUNE.distMin, TUNE.distMax) * (1 + TUNE.band * (rankFrac - 0.5)) * (1 - (1 - TUNE.tiredMul) * worn),
+    dist: rng.range(TUNE.distMin, TUNE.distMax) * (1 + TUNE.band * (rankFrac - 0.5)) * (1 - (1 - TUNE.tiredMul) * worn) * speedOf(w),
     rest: rng.range(TUNE.restMin, TUNE.restMax),
   };
   w.action = action;
   w.count++;
 }
 
+// How far a worm's lunges go just now, as a multiple of normal: items speed it up or shrink it,
+// baking slows it, and a flattened worm barely moves at all.
+export function speedOf(w) {
+  return (w.boost > 0 ? 1.8 : 1) * (w.star > 0 ? 1.5 : 1) * (w.shrunk > 0 ? 0.6 : 1) * (1 - 0.55 * Math.min(1, w.heat)) * (w.flat > 0 ? 0.12 : 1);
+}
+
 // Moves a worm on by dt. Returns the action if a new spasm started this step (for sound and the HUD).
 export function stepWorm(w, dt, rng, rankFrac) {
   let started = null;
+  // Stunned, falling, carried off or gone: it does nothing.
+  if (w.stun > 0 || w.fall > 0 || w.lift > 0 || w.out) { w.spasm = null; w.queued = null; return null; }
   if (!w.spasm) {
     if (w.rest > 0) w.rest -= dt;
     else if (w.queued) { startSpasm(w, w.queued, rng, rankFrac); started = w.queued; w.queued = null; }

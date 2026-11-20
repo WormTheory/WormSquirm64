@@ -8,6 +8,8 @@ import { locate } from '../src/sim/track.js';
 import { ACTIONS } from '../src/sim/worm.js';
 
 const RACES = +process.argv[2] || 200;
+// A track number and 'events' can follow: node tools/simstats.mjs 100 7 events
+const TRACK = +process.argv[3] || 0, EVENTS = process.argv[4] === 'events';
 const styles = {
   'mash 60/s, all buttons': { every: 0, aim: 0, keys: 8 },
   'press 6/s, all buttons': { every: 1 / 6, aim: 0, keys: 8 },
@@ -25,7 +27,7 @@ const styles = {
 for (const [name, st] of Object.entries(styles)) {
   let rankSum = 0, wins = 0, timeSum = 0, winTime = 0, dnf = 0;
   for (let r = 0; r < RACES; r++) {
-    const race = new Race({ trackDef: TRACKS[0], seed: 1000 + r, racers: Array.from({ length: 8 }, (_, i) => ({ char: i, human: i === 7 })) });
+    const race = new Race({ trackDef: TRACKS[TRACK], events: EVENTS, seed: 1000 + r, racers: Array.from({ length: 8 }, (_, i) => ({ char: i, human: i === 7 })) });
     const me = race.worms[7];
     let next = 0, k = 0;
     while (race.state !== 'done' && race.clock < 900) {

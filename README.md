@@ -2,8 +2,9 @@
 
 A kart racer without the karts. You are a worm. Every button does something; none of them does it well.
 
-What's here so far: four tracks (the Wormroom Cup), eight worms, Grand Prix and VS Race, computer worms
-filling the empty places, split screen for up to four, and online play with room codes and a list of open games.
+What's here so far: eight tracks in two cups (the Wormroom Cup and the Squirm Cup), eight worms, Grand Prix and
+VS Race, computer worms filling the empty places, items, optional random events, music, split screen for up to
+four, and online play with room codes and a list of open games.
 
 It's published at https://wormtheory.github.io/WormSquirm64/ on every push.
 
@@ -34,6 +35,21 @@ python3 -m http.server 8000   # then open http://localhost:8000
   each player's HUD (`hud.js`), the menus (`menus.js`), sound, and `main.js`, which runs the race and shares out the screen.
 - `vendor/` holds three.js r160, so the game depends on no other site.
 
+## Items, events and music
+
+- **Items** (`src/sim/items.js`). Three rows of boxes sit across each track. A worm that touches one gets an item
+  and uses it that instant: a Wormshroom (faster for a few seconds), a Squirmana Peel (left behind), a Pebble
+  (thrown ahead, bounces off walls), a Homing Pebble (goes for the worm in front), a Squirm Star (faster, can't be
+  stopped, bowls others over), Lightning (shrinks and slows everyone else) or a Mole (goes for the leader).
+  Worms at the back get the better ones.
+- **Random events** (`src/sim/events.js`), switched on in the options: rain washes worms about and sometimes off
+  the road; a heatwave bakes them, slowing them and killing some; a bird takes one worm for good (for the rest of
+  a cup, or of an online room), and that player watches the nest from then on; a pair of legs walks across and
+  flattens whoever is underfoot for five to ten seconds.
+- **Wormbow Road** has no walls: a worm that goes over the edge falls and comes back in the middle of the road.
+- **Music** (`src/music.js`) is made up by the game from a seed for each track, so there are no sound files.
+  The last lap plays faster. Music and sound each have a volume slider in the options.
+
 ## Online play
 
 There is no game server: GitHub Pages only serves files. Players' browsers talk to each other directly
@@ -56,9 +72,12 @@ There is no game server: GitHub Pages only serves files. Players' browsers talk 
 
 ```bash
 node tools/simstats.mjs 200   # runs 200 races per pressing style; nothing should beat four presses a second, roughly forwards
+node tools/simstats.mjs 100 7 events   # the same on track 7 (Wormbow Road) with random events on
 
 node tools/trackcheck.mjs      # each track's length and tightest bend; a bend tighter than the road is wide folds over itself
 ```
+
+`tools/fxtest.cjs` takes screenshots of the second cup's tracks, each random event and the nest.
 
 `tools/nettest.cjs` plays a whole online race between two tabs of a headless browser (host, join from the
 open games list, race, results, back to the lobby, host leaves) and says what passed.

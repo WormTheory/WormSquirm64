@@ -59,6 +59,19 @@ const PROPS = {
     c.fillStyle = '#e0b840'; c.beginPath(); c.arc(16, 30, 15, 0, 7); c.fill();
     c.strokeStyle = '#b89028'; c.lineWidth = 2; c.beginPath(); c.arc(16, 30, 9, 0, 7); c.stroke(); c.beginPath(); c.arc(16, 30, 3, 0, 7); c.stroke();
   }],
+  pine: [0.67, [6, 11], (c) => {
+    c.fillStyle = '#5a3a20'; c.fillRect(14, 38, 4, 10);
+    for (const [y, w] of [[4, 8], [14, 12], [26, 16]]) { c.fillStyle = '#1f6a40'; c.beginPath(); c.moveTo(16, y - 4); c.lineTo(16 - w, y + 14); c.lineTo(16 + w, y + 14); c.fill(); c.fillStyle = '#f4f8ff'; c.fillRect(16 - w / 3, y - 2, (w * 2) / 3, 3); }
+  }],
+  snowman: [0.67, [2.6, 3.6], (c) => {
+    c.fillStyle = '#f8fbff'; c.beginPath(); c.arc(16, 36, 11, 0, 7); c.fill(); c.beginPath(); c.arc(16, 18, 8, 0, 7); c.fill();
+    c.fillStyle = '#181818'; c.fillRect(12, 15, 2, 2); c.fillRect(18, 15, 2, 2); c.fillRect(15, 32, 2, 2); c.fillRect(15, 38, 2, 2);
+    c.fillStyle = '#f08030'; c.fillRect(15, 19, 6, 2);
+  }],
+  deadtree: [0.67, [6, 10], (c) => {
+    c.strokeStyle = '#3a3038'; c.lineWidth = 4; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(16, 48); c.lineTo(16, 16); c.moveTo(16, 30); c.lineTo(5, 16); c.moveTo(16, 24); c.lineTo(27, 8); c.moveTo(16, 16); c.lineTo(11, 3); c.stroke();
+  }],
   rock: [1.3, [2, 5], (c) => {
     c.fillStyle = '#9a5a38'; c.beginPath(); c.moveTo(1, 47); c.lineTo(6, 22); c.lineTo(16, 14); c.lineTo(27, 24); c.lineTo(31, 47); c.fill();
     c.fillStyle = '#b87048'; c.beginPath(); c.moveTo(6, 22); c.lineTo(16, 14); c.lineTo(15, 47); c.lineTo(1, 47); c.fill();
@@ -69,7 +82,8 @@ export function buildWorld(tr) {
   const th = tr.def.theme;
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(th.sky);
-  scene.fog = new THREE.Fog(th.fog, 50, 230);
+  scene.fog = new THREE.Fog(th.fog, th.space ? 90 : 50, th.space ? 330 : 230);
+  scene.userData.sky = scene.background.clone(); scene.userData.fog = scene.fog.color.clone(); // (the weather tints these and puts them back)
   scene.add(new THREE.AmbientLight(0xffffff, 2.2));
   const sun = new THREE.DirectionalLight(0xfff0d0, 1.6);
   sun.position.set(40, 80, 20);
@@ -80,6 +94,7 @@ export function buildWorld(tr) {
   // The ground, in the two-tone squares every racing game of the time had. It sits well below the
   // road, in many pieces and nudged back in depth: as one huge square just under the road it could
   // win the depth test from some angles and paint over the whole track.
+  if (th.ground) {
   const groundTex = canvasTex(16, 16, (c) => {
     c.fillStyle = th.ground[0]; c.fillRect(0, 0, 16, 16);
     c.fillStyle = th.ground[1]; c.fillRect(0, 0, 8, 8); c.fillRect(8, 8, 8, 8);
@@ -99,8 +114,14 @@ export function buildWorld(tr) {
   }
   ground.rotation.x = -Math.PI / 2; ground.position.y = -0.15;
   scene.add(ground);
+  }
 
-  const roadTex = canvasTex(32, 32, (c) => {
+  // (The rainbow road: bands of colour running along it, with a sparkle.)
+  const roadTex = th.rainbow ? canvasTex(28, 16, (c) => {
+    ['#f03030', '#f89020', '#f8e030', '#40c840', '#30a0f0', '#5050e0', '#b050e0'].forEach((col, i) => { c.fillStyle = col; c.fillRect(i * 4, 0, 4, 16); });
+    c.fillStyle = 'rgba(255,255,255,.55)';
+    for (let i = 0; i < 14; i++) c.fillRect(Math.floor(rng() * 28), Math.floor(rng() * 16), 1, 1);
+  }) : canvasTex(32, 32, (c) => {
     c.fillStyle = th.road[0]; c.fillRect(0, 0, 32, 32);
     for (let i = 0; i < 120; i++) {
       c.fillStyle = th.road[rng() < 0.5 ? 1 : 2];
@@ -116,6 +137,7 @@ export function buildWorld(tr) {
   });
   const kerbMat = lam({ map: kerbTex });
   const wallTex = canvasTex(16, 8, (c) => {
+    if (!th.wall) return;
     c.fillStyle = th.wall[0]; c.fillRect(0, 0, 16, 8);
     c.fillStyle = th.wall[1]; c.fillRect(0, 0, 16, 4);
     c.fillStyle = '#202020'; c.fillRect(0, 7, 16, 1);
@@ -124,7 +146,8 @@ export function buildWorld(tr) {
   const wallMat = lam({ map: wallTex });
   for (const s of [-1, 1]) {
     scene.add(ribbon(tr, s * tr.hw, s * (tr.hw + 1), 0.01, 0.01, 3, kerbMat));
-    scene.add(ribbon(tr, s * (tr.hw + 1), s * (tr.hw + 1), -0.2, 0.9, 4, wallMat));
+    // (A road with no walls has just its edge strip, and nothing to stop a worm going over it.)
+    if (th.wall) scene.add(ribbon(tr, s * (tr.hw + 1), s * (tr.hw + 1), -0.2, 0.9, 4, wallMat));
   }
 
   // Start line and the banner over it.
@@ -168,6 +191,15 @@ export function buildWorld(tr) {
       s.scale.set(h * aspect, h, 1); s.position.set(x, h / 2 - 0.1, z);
       scene.add(s); made++;
     }
+  }
+  if (th.space) {
+    // Out in space: no ground and no hills, only stars all round.
+    const pts = [];
+    for (let i = 0; i < 700; i++) { const a = rng() * Math.PI * 2, e = (rng() - 0.5) * Math.PI, r = 380; pts.push(Math.cos(a) * Math.cos(e) * r, Math.sin(e) * r, Math.sin(a) * Math.cos(e) * r); }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: 1.6, sizeAttenuation: false, fog: false })));
+    return scene;
   }
   const hillMat = new THREE.MeshLambertMaterial({ color: th.hill, flatShading: true });
   for (let i = 0; i < 14; i++) {

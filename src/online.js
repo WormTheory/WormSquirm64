@@ -180,7 +180,7 @@ export class Online {
       track: () => r.set('track', (st.track + 1) % this.tracks.length),
       cpu: () => r.set('cpu', !st.cpu),
       priv: () => r.set('priv', !st.priv),
-      go: () => r.start(),
+      go: () => r.start(this.hooks.eaten()),
       worm: () => r.mine().forEach((s) => r.pick(s.local, -1)),
       leave: () => this.leave(),
     }, m.screen === 'room' ? m.focus : 0);

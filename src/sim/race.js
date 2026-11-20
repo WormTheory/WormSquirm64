@@ -3,6 +3,10 @@ import { makeRng } from './rng.js';
 import { buildTrack, locate, pointAt } from './track.js';
 import { makeWorm, pressAction, stepWorm, assistedAim } from './worm.js';
 import { makeAi, stepAi } from './ai.js';
+import { makeItems, stepItems, stun, STUN } from './items.js';
+import { makeEvents, stepEvents, wash, drop } from './events.js';
+
+const TIMERS = ['stun', 'boost', 'star', 'shrunk', 'flat'];
 
 export const STEP = 1 / 60;
 const COUNTDOWN = 5;       // seconds before GO (the track's name shows for the first of them)
@@ -12,8 +16,9 @@ const AFTER_WINNER = 30;   // the race is called this long after the first worm 
 export const gridSlot = (track, i) => pointAt(track, -3 - 2.2 * i, i % 2 ? -3 : 3);
 
 export class Race {
-  // racers: [{char, human}], in grid order (first is on pole).
-  constructor({ trackDef, seed = 1, racers }) {
+  // racers: [{char, human, out}], in grid order (first is on pole). out: already taken by the bird in an earlier race.
+  // events: whether random events happen.
+  constructor({ trackDef, seed = 1, racers, events = false }) {
     this.track = buildTrack(trackDef);
     this.laps = trackDef.laps;
     this.rng = makeRng(seed);
@@ -28,8 +33,12 @@ export class Race {
       const loc = locate(this.track, w.x, w.z, -1);
       w.hint = loc.i; w.s = loc.s; w.prog = -3 - 2.2 * i;
       w.ai = r.human ? null : makeAi(this.rng);
+      w.out = !!r.out;
       return w;
     });
+    this.order = [...this.worms];
+    this.items = makeItems(this.track);
+    this.weather = makeEvents(this, events);
   }
 
   get time() { return Math.max(0, this.clock); }
@@ -48,8 +57,11 @@ export class Race {
       this.state = 'racing';
       this.events.push({ type: 'go' });
     }
-    const tr = this.track, L = tr.length, n = this.worms.length;
+    const tr = this.track, L = tr.length, n = this.worms.length, open = !!tr.def.open;
+    stepEvents(this, dt);
     for (const w of this.worms) {
+      for (const k of TIMERS) if (w[k] > 0) w[k] = Math.max(0, w[k] - dt);
+      if (w.out) continue;
       const here = locate(tr, w.x, w.z, w.hint);
       if (w.ai) stepAi(w.ai, w, here, dt, this.rng);
       // Looking generally the right way is as good as looking exactly the right way.
@@ -57,23 +69,37 @@ export class Race {
       const a = stepWorm(w, dt, this.rng, n > 1 ? w.rank / (n - 1) : 0.5);
       if (a) this.events.push({ type: 'spasm', idx: w.idx, action: a });
     }
-    // Worms shove each other apart.
+    // Worms shove each other apart, and one with a star bowls the others over.
+    const solid = (w) => !w.out && !(w.fall > 0) && !(w.lift > 0);
     for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
       const a = this.worms[i], b = this.worms[j];
+      if (!solid(a) || !solid(b)) continue;
       const dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz);
       if (d < 1.1 && d > 1e-4) {
         const p = (1.1 - d) / 2 / d;
         a.x -= dx * p; a.z -= dz * p; b.x += dx * p; b.z += dz * p;
+        if (a.star > 0 && !(b.stun > 0)) stun(this, b, STUN.star);
+        if (b.star > 0 && !(a.stun > 0)) stun(this, a, STUN.star);
       }
     }
     for (const w of this.worms) {
+      if (w.out || w.lift > 0) continue;
+      if (w.fall > 0) {
+        // Fallen off (or dead): gone for a moment, then back in the middle of the road where it left.
+        w.fall -= dt;
+        if (w.fall <= 0) { const p = pointAt(tr, w.s, 0); w.x = p.x; w.z = p.z; w.fall = 0; w.stun = 0.4; w.heat = 0; this.events.push({ type: 'respawn', idx: w.idx }); }
+        continue;
+      }
+      if (wash(this, w, dt)) { drop(this, w, 'fall'); continue; }
       let loc = locate(tr, w.x, w.z, w.hint);
-      // The walls: a worm can't leave the road.
       const lim = tr.hw + 0.4;
       if (Math.abs(loc.lat) > lim) {
-        const over = loc.lat - Math.sign(loc.lat) * lim;
-        w.x -= loc.tz * over; w.z += loc.tx * over;
-        loc = locate(tr, w.x, w.z, loc.i);
+        // A road with no walls can be fallen off. Otherwise the walls hold.
+        if (open) { if (Math.abs(loc.lat) > lim + 0.5) { drop(this, w, 'fall'); continue; } } else {
+          const over = loc.lat - Math.sign(loc.lat) * lim;
+          w.x -= loc.tz * over; w.z += loc.tx * over;
+          loc = locate(tr, w.x, w.z, loc.i);
+        }
       }
       let ds = loc.s - w.s;
       if (ds > L / 2) ds -= L; else if (ds < -L / 2) ds += L;
@@ -88,14 +114,18 @@ export class Race {
         this.events.push({ type: 'finish', idx: w.idx });
       }
     }
-    const order = [...this.worms].sort((a, b) =>
-      a.finished !== b.finished ? (a.finished ? -1 : 1) : a.finished ? a.finishTime - b.finishTime : b.prog - a.prog);
+    stepItems(this, dt);
+    // The order: finishers by time, then the rest by how far they've got, then any the bird took.
+    const cls = (w) => (w.finished ? 0 : w.out ? 2 : 1);
+    const order = [...this.worms].sort((a, b) => cls(a) - cls(b) || (a.finished ? a.finishTime - b.finishTime : b.prog - a.prog));
     order.forEach((w, r) => { w.rank = r; });
     this.order = order;
     if (this.state === 'racing') {
-      const humans = this.worms.filter((w) => w.human);
-      const humansDone = humans.length > 0 && humans.every((w) => w.finished);
-      if (humansDone || this.worms.every((w) => w.finished) || (this.firstFinish >= 0 && this.clock > this.firstFinish + AFTER_WINNER)) {
+      // Over when every player has finished (or been eaten) and somebody has won, when everyone left has finished,
+      // or half a minute after the winner.
+      const humans = this.worms.filter((w) => w.human), settled = (w) => w.finished || w.out;
+      const humansDone = humans.length > 0 && humans.every(settled) && (this.firstFinish >= 0 || humans.some((w) => w.finished));
+      if (humansDone || this.worms.every(settled) || (this.firstFinish >= 0 && this.clock > this.firstFinish + AFTER_WINNER)) {
         this.state = 'done';
         this.events.push({ type: 'done' });
       }
