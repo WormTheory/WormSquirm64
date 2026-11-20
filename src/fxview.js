@@ -2,6 +2,8 @@
 // rain, the heat's glare, the bird, and the giant legs. It only shows what the race says is there.
 import * as THREE from '../vendor/three.module.min.js';
 import { canvasTex } from './view.js';
+import { centreNear } from './sim/track.js';
+import { FALL_TIME, DEAD_TIME, DROP_PART } from './sim/events.js';
 
 const lam = (color, o) => new THREE.MeshLambertMaterial({ color, flatShading: true, ...o });
 const RAIN_BOX = 26;
@@ -29,9 +31,32 @@ export function makeBird(size, body = 0x283a70, belly = 0xd8dce8) {
 }
 export function flap(bird, time, rate = 9) { bird.userData.wings.forEach((w, i) => { w.rotation.z = (i ? -1 : 1) * Math.sin(time * rate) * 0.7; }); }
 
+// A crudely made human hand, fingers down, on the end of an arm that reaches up out of sight.
+// It can also be holding a jug, with water to pour from it.
+function makeHand() {
+  const g = new THREE.Group(), skin = lam(0xe8b890), box = (w, h, d, x, y, z, mat = skin) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); g.add(m); return m; };
+  box(1.7, 46, 1.4, 0, 25.4, 0);                       // arm
+  box(2.4, 2.2, 1.1, 0, 1.4, 0);                       // palm
+  for (let i = 0; i < 4; i++) box(0.5, 1.5, 0.5, -0.95 + i * 0.63, -0.3, 0.35); // fingers
+  box(0.55, 1.3, 0.55, -1.5, 0.2, -0.3).rotation.z = 0.5; // thumb
+  const jug = new THREE.Group();
+  const glass = lam(0xa8d8f0, { transparent: true, opacity: 0.75 });
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 0.9, 2.4, 7), glass); body.position.y = -1.2;
+  const handle = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.16, 4, 6), glass); handle.position.set(-1.2, -1.1, 0);
+  const lip = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.3, 0.6), glass); lip.position.set(1.2, -0.15, 0);
+  jug.add(body, handle, lip);
+  jug.position.set(1.4, 0.4, 0.4);
+  const water = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1, 0.4), new THREE.MeshBasicMaterial({ color: 0x48a0f0, transparent: true, opacity: 0.8 }));
+  g.add(jug, water);
+  g.userData = { jug, water };
+  g.scale.setScalar(0.8);
+  return g;
+}
+
 export class FxView {
   constructor(scene, race) {
     this.scene = scene;
+    this.hands = race.worms.map(() => null); // one hand per worm, made the first time it's needed
     // Item boxes: a spinning cube with a question mark on it.
     const tex = canvasTex(16, 16, (c) => {
       const g = c.createLinearGradient(0, 0, 16, 16);
@@ -93,6 +118,31 @@ export class FxView {
       if (e.type !== 'peel') m.rotation.set(time * 9, time * 7, 0);
     }
     for (const k in this.pool) for (let i = used[k]; i < this.pool[k].length; i++) this.pool[k][i].visible = false;
+
+    // The hand: it lowers a fallen worm back onto the road, or pours a jug of water over one that's baked,
+    // and then goes back up where it came from.
+    race.worms.forEach((w, i) => {
+      let h = this.hands[i];
+      const busy = w.fall > 0 && !w.out;
+      if (!busy && !(h && h.visible)) return;
+      if (!h) { h = this.hands[i] = makeHand(); this.scene.add(h); }
+      const { jug, water } = h.userData;
+      if (!busy) { h.position.y += dt * 26; water.visible = false; if (h.position.y > 40) h.visible = false; return; } // job done: away
+      jug.visible = w.dead;
+      if (w.dead) {
+        // Down beside the worm, tip the jug, pour, and straighten up again.
+        const e = DEAD_TIME - w.fall, down = Math.min(1, e / 0.7), tip = Math.max(0, Math.min(1, (e - 0.7) / 0.4)) - Math.max(0, Math.min(1, (e - 2.1) / 0.4));
+        h.visible = true;
+        h.position.set(w.x - 2.2, 4.4 + 26 * (1 - down) ** 2, w.z);
+        jug.rotation.z = -tip * 1.25;
+        water.visible = tip > 0.9;
+        water.scale.set(1, 5.2, 1); water.position.set(2.75, -2.6 + 0.15 * Math.sin(time * 40), 0.4);
+      } else {
+        const e = FALL_TIME - w.fall, p = centreNear(race.track, w.x, w.z), u = Math.max(0, (e - DROP_PART) / (FALL_TIME - DROP_PART));
+        h.visible = e >= DROP_PART; water.visible = false;
+        h.position.set(p.x, 10.6 - 6.6 * u, p.z - 0.3);
+      }
+    });
 
     const wx = race.weather, kind = wx.type;
     this.time = time;

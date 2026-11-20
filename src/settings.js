@@ -2,8 +2,8 @@
 //   renderPx: how many screen pixels to one pixel of the 3D picture.
 //   uiPx: how many screen pixels to one pixel of the HUD and menus (1: not pixelated at all).
 const KEY = 'ws64-settings';
-//   music, sfx: volumes, 0 to 10.   events: whether random events happen in races.
-export const settings = { renderPx: null, uiPx: null, music: 6, sfx: 8, events: false };
+//   music, sfx: volumes, 0 to 10.   events: whether random events happen in races, and eventFreq how often (1 to 10).
+export const settings = { renderPx: null, uiPx: null, music: 6, sfx: 8, events: false, eventFreq: 5 };
 try { Object.assign(settings, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { /* no storage: defaults */ }
 export function saveSettings() { try { localStorage.setItem(KEY, JSON.stringify(settings)); } catch (e) { /* not kept */ } }
 

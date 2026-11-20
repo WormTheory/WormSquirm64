@@ -115,6 +115,9 @@ export function locate(tr, x, z, hint) {
   return { i: best, s: best * tr.step + dx * ax + dz * az, lat: dx * az - dz * ax, tx: ax, tz: az };
 }
 
+// The middle of the road nearest a point: where a worm that fell off there is put back.
+export function centreNear(tr, x, z, hint) { return pointAt(tr, locate(tr, x, z, hint === undefined ? -1 : hint).s, 0); }
+
 // The point at distance s along the lap, lat to the side.
 export function pointAt(tr, s, lat) {
   s = ((s % tr.length) + tr.length) % tr.length;

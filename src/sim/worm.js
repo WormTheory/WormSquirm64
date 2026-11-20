@@ -29,6 +29,7 @@ export function makeWorm(idx, char, human, x, z) {
     stun: 0, boost: 0, star: 0, shrunk: 0, fall: 0, flat: 0,
     heat: 0, hurts: 0,      // how baked it is (0 to 1), and how many times it's been hurt
     items: 0, item: -1,     // how many items it's had, and the last one
+    dead: false,            // whether its fall is really a death by baking (it lies there instead of dropping)
     lift: 0, out: false };  // how high a bird is carrying it, and whether it's out of the race for good
 }
 

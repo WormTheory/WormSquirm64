@@ -2,11 +2,14 @@
 // wobble laid over it for each action. None of this affects where the worm goes.
 import * as THREE from '../vendor/three.module.min.js';
 import { CHARS } from './characters.js';
+import { centreNear } from './sim/track.js';
+import { FALL_TIME, DROP_PART } from './sim/events.js';
 
 const SEGS = 10, GAP = 0.5;
 const ANIM = 0.65; // seconds one press's wobble lasts, however short the lunge under it
 const BALL = new THREE.SphereGeometry(1, 7, 5);
 const DISC = new THREE.CircleGeometry(1, 8);
+const SPARK = new THREE.OctahedronGeometry(1, 0);
 const SHADOW = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false });
 
 // lat: side-to-side wave (size, speed). vert: up-and-down wave. hop: how high it leaves the ground.
@@ -80,7 +83,7 @@ export class WormView {
     const lam = (color) => new THREE.MeshLambertMaterial({ color, flatShading: true });
     const base = new THREE.Color(char.color);
     const mats = [lam(base), lam(base.clone().multiplyScalar(0.82)), lam(base.clone().lerp(new THREE.Color(0xffffff), 0.35))];
-    this.mats = mats;
+    this.mats = mats; this.base = mats.map((m) => m.color.clone()); this.burnt = 1;
     this.group = new THREE.Group();
     this.px = new Float32Array(SEGS); this.pz = new Float32Array(SEGS);
     this.rad = []; this.meshes = []; this.shadows = [];
@@ -113,6 +116,10 @@ export class WormView {
       sh.rotation.x = -Math.PI / 2;
       this.group.add(sh); this.shadows.push(sh);
     }
+    // Four small markers that show an item at work on this worm: stars circling a stunned head,
+    // sparkles round a starred worm, flames behind a boosted one.
+    this.auraMat = new THREE.MeshBasicMaterial({ color: 0xffe24a });
+    this.aura = [0, 1, 2, 3].map(() => { const m = new THREE.Mesh(SPARK, this.auraMat); m.visible = false; this.group.add(m); return m; });
     scene.add(this.group);
   }
 
@@ -128,6 +135,7 @@ export class WormView {
     const dt = this.lastT === null ? 0 : Math.min(0.1, Math.max(0, time - this.lastT));
     this.lastT = time; this.winT += dt;
     for (const m of this.mats) m.emissive.setRGB(0, 0, 0);
+    for (const m of this.aura) m.visible = false;
     const pose = VICTORY[this.kind];
     let hx = 0, hz = 1;
     for (let i = 0; i < SEGS; i++) {
@@ -141,12 +149,15 @@ export class WormView {
     this.meshes[0].rotation.y = Math.hypot(hx, hz) > 0.05 ? Math.atan2(hx, hz) : 0;
   }
 
-  update(w, time) {
+  // track: the race's track, to know where a fallen worm will be put back.
+  update(w, time, track) {
     // A worm the bird has taken isn't there any more.
     this.group.visible = !w.out;
     if (w.out) return;
     if (w.finished) return this.celebrate(w, time);
-    const small = w.shrunk > 0 ? 0.55 : 1, flat = w.flat > 0, gap = GAP * small;
+    const small = w.shrunk > 0 ? 0.55 : 1, flat = w.flat > 0 || (w.fall > 0 && w.dead), gap = GAP * small;
+    const back = w.fall > 0 && !w.dead && track ? centreNear(track, w.x, w.z) : null;
+    let held = false;
     const px = this.px, pz = this.pz;
     px[0] = w.x; pz[0] = w.z;
     for (let i = 1; i < SEGS; i++) {
@@ -169,7 +180,11 @@ export class WormView {
     const glow = this.mats[0].emissive;
     if (w.star > 0) glow.setHSL((time * 2) % 1, 1, 0.45);
     else if (this.flash > 0 && Math.floor(this.flash * 20) % 2 === 0) glow.setRGB(1, 0, 0);
+    else if (w.shrunk > 0) glow.setRGB(0.05, 0.12, 0.4); // (struck by lightning: small and a bit blue)
     else glow.setRGB(0.45 * Math.min(1, w.heat || 0), 0, 0);
+    // Baked to death, it lies there burnt dark until the water comes.
+    const burnt = w.fall > 0 && w.dead ? 0.3 : 1;
+    if (burnt !== this.burnt) { this.burnt = burnt; this.mats.forEach((m, k) => m.color.copy(this.base[k]).multiplyScalar(burnt)); }
     this.mats[1].emissive.copy(glow); this.mats[2].emissive.copy(glow);
     if (w.count !== this.seen) {
       this.seen = w.count; this.act = w.action;
@@ -198,9 +213,16 @@ export class WormView {
       // What's happened to it shows: shrunk by lightning, squashed flat, dropping out of sight, or dangling from a bird.
       const big = small * this.rad[i];
       if (flat) y = big * 0.2; else y = y * small;
-      if (w.fall > 0) y -= (1.4 - w.fall) ** 2 * 9;
+      if (w.fall > 0 && !w.dead) {
+        // Fallen: it drops away, then comes back down pinched in a hand, hanging by its head over the middle of the road.
+        const e = FALL_TIME - w.fall;
+        if (e < DROP_PART) y -= e * e * 30;
+        else { held = true; y = Math.max(big, 10 - 6.6 * ((e - DROP_PART) / (FALL_TIME - DROP_PART)) - i * 0.36); }
+      }
       if (w.lift > 0) y = Math.max(y, w.lift - i * 0.45 * Math.min(1, w.lift / 3));
-      const x = px[i] + dz * lat, z = pz[i] - dx * lat, m = this.meshes[i];
+      let x = px[i] + dz * lat, z = pz[i] - dx * lat;
+      const m = this.meshes[i];
+      if (held && back) { x = back.x + 0.1 * Math.sin(time * 9 + i); z = back.z; }
       m.position.set(x, y, z);
       m.scale.set(big * (flat ? 1.5 : 1), big * (flat ? 0.2 : 1), big * (flat ? 1.5 : 1));
       if (i === 0) m.rotation.y = Math.atan2(dx, dz) + (w.stun > 0 ? time * 18 : 0);
@@ -208,5 +230,21 @@ export class WormView {
       sh.visible = !(w.fall > 0) && !(w.lift > 0);
       sh.position.set(x, 0.04, z); sh.scale.setScalar(k);
     }
+    const mode = w.fall > 0 || w.lift > 0 ? null : w.stun > 0 ? 'stun' : w.star > 0 ? 'star' : w.boost > 0 ? 'boost' : null;
+    const head = this.meshes[0].position, mid = this.meshes[4].position, tail = this.meshes[SEGS - 1].position, prev = this.meshes[SEGS - 2].position;
+    this.aura.forEach((m, k) => {
+      m.visible = !!mode;
+      if (!mode) return;
+      const a = time * (mode === 'stun' ? 7 : 5) + (k * Math.PI) / 2;
+      if (mode === 'stun') { m.position.set(head.x + Math.cos(a) * 0.75, head.y + 0.75, head.z + Math.sin(a) * 0.75); m.scale.setScalar(0.16); }
+      else if (mode === 'star') { m.position.set(mid.x + Math.cos(a) * 1.7, mid.y + 0.5 + 0.5 * Math.sin(time * 9 + k), mid.z + Math.sin(a) * 1.7); m.scale.setScalar(0.2); }
+      else {
+        const dx = tail.x - prev.x, dz = tail.z - prev.z, l = Math.hypot(dx, dz) || 1, d = 0.5 + k * 0.42 + 0.12 * Math.sin(time * 40 + k * 2);
+        m.position.set(tail.x + (dx / l) * d, tail.y + 0.1 * Math.sin(time * 33 + k), tail.z + (dz / l) * d);
+        m.scale.setScalar((0.34 - k * 0.06) * (0.8 + 0.3 * Math.sin(time * 50 + k)));
+      }
+      m.rotation.set(time * 6, time * 5, 0);
+    });
+    if (mode) this.auraMat.color.setHex(mode === 'boost' ? (Math.floor(time * 20) % 2 ? 0xff7a20 : 0xffd040) : mode === 'star' ? 0xffffff : 0xffe24a);
   }
 }

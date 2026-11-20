@@ -17,8 +17,8 @@ export const gridSlot = (track, i) => pointAt(track, -3 - 2.2 * i, i % 2 ? -3 : 
 
 export class Race {
   // racers: [{char, human, out}], in grid order (first is on pole). out: already taken by the bird in an earlier race.
-  // events: whether random events happen.
-  constructor({ trackDef, seed = 1, racers, events = false }) {
+  // events: whether random events happen, and eventFreq how often (1 to 10).
+  constructor({ trackDef, seed = 1, racers, events = false, eventFreq = 5 }) {
     this.track = buildTrack(trackDef);
     this.laps = trackDef.laps;
     this.rng = makeRng(seed);
@@ -38,7 +38,7 @@ export class Race {
     });
     this.order = [...this.worms];
     this.items = makeItems(this.track);
-    this.weather = makeEvents(this, events);
+    this.weather = makeEvents(this, events, eventFreq);
   }
 
   get time() { return Math.max(0, this.clock); }
@@ -87,7 +87,11 @@ export class Race {
       if (w.fall > 0) {
         // Fallen off (or dead): gone for a moment, then back in the middle of the road where it left.
         w.fall -= dt;
-        if (w.fall <= 0) { const p = pointAt(tr, w.s, 0); w.x = p.x; w.z = p.z; w.fall = 0; w.stun = 0.4; w.heat = 0; this.events.push({ type: 'respawn', idx: w.idx }); }
+        if (w.fall <= 0) {
+          if (!w.dead) { const p = pointAt(tr, w.s, 0); w.x = p.x; w.z = p.z; } // (a baked worm is revived where it lies)
+          this.events.push({ type: 'respawn', idx: w.idx, revived: w.dead });
+          w.fall = 0; w.dead = false; w.stun = 0.4; w.heat = 0;
+        }
         continue;
       }
       if (wash(this, w, dt)) { drop(this, w, 'fall'); continue; }

@@ -46,6 +46,8 @@ python3 -m http.server 8000   # then open http://localhost:8000
   the road; a heatwave bakes them, slowing them and killing some; a bird takes one worm for good (for the rest of
   a cup, or of an online room), and that player watches the nest from then on; a pair of legs walks across and
   flattens whoever is underfoot for five to ten seconds.
+- **The hand.** A worm that falls off is lowered back onto the road by a giant hand, and one that bakes to death
+  has a jug of water poured over it. How often events come is a slider in the options.
 - **Wormbow Road** has no walls: a worm that goes over the edge falls and comes back in the middle of the road.
 - **Music** (`src/music.js`) is made up by the game from a seed for each track, so there are no sound files.
   The last lap plays faster. Music and sound each have a volume slider in the options.

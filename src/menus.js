@@ -258,7 +258,7 @@ export class Menus {
 
   options() {
     this.titleFocus = 2;
-    this.put('options', `<div class="head">OPTIONS</div>${this.optionsHtml()}
+    this.put('options', `<div class="head">OPTIONS</div>${this.optionsHtml(true)}
       <div class="row"><button class="btn" type="button" data-a="events">RANDOM EVENTS: ${settings.events ? 'ON' : 'OFF'}</button>
       <button class="btn" type="button" data-a="back">BACK</button></div>
       <div class="help">Random events: rain, heatwaves, a hungry bird and somebody's feet.</div>`,
@@ -269,16 +269,18 @@ export class Menus {
 
   // The sliders (two pixel sizes, two volumes), shown in the options and in the pause menu. Both read and write the
   // same saved settings, so a change in one place is there in the other.
-  optionsHtml() {
+  // full: with how often random events come as well (the options screen has it; the pause menu doesn't).
+  optionsHtml(full) {
     const el = this.panel.parentElement, w = el.clientWidth || 640, h = el.clientHeight || 480;
     const row = (id, label, min, max, step, val) => `<label class="opt"><span>${label}</span>
       <input class="rng" type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}" aria-label="${label}"><b id="${id}-v">${val}</b></label>`;
     return `<div class="opts">${row('ws-rpx', 'PICTURE PIXEL SIZE', 1, 8, 0.5, Math.min(8, renderPx(w, h)))}
       ${row('ws-upx', 'MENU AND HUD PIXEL SIZE', 1, 5, 1, uiPx(w, h))}
-      ${row('ws-mus', 'MUSIC', 0, 10, 1, settings.music ?? 6)}${row('ws-sfx', 'SOUND', 0, 10, 1, settings.sfx ?? 8)}</div>`;
+      ${row('ws-mus', 'MUSIC', 0, 10, 1, settings.music ?? 6)}${row('ws-sfx', 'SOUND', 0, 10, 1, settings.sfx ?? 8)}
+      ${full ? row('ws-evf', 'RANDOM EVENT FREQUENCY', 1, 10, 1, settings.eventFreq || 5) : ''}</div>`;
   }
   bindOptions() {
-    for (const [id, key] of [['ws-rpx', 'renderPx'], ['ws-upx', 'uiPx'], ['ws-mus', 'music'], ['ws-sfx', 'sfx']]) {
+    for (const [id, key] of [['ws-rpx', 'renderPx'], ['ws-upx', 'uiPx'], ['ws-mus', 'music'], ['ws-sfx', 'sfx'], ['ws-evf', 'eventFreq']]) {
       const sl = this.panel.querySelector('#' + id);
       if (!sl) continue;
       sl.addEventListener('input', () => {
@@ -292,11 +294,11 @@ export class Menus {
   mode() {
     const go = (m) => { this.session.mode = m; this.players(); };
     const about = ['Four races for a cup, with points.', 'One race on a track you pick.',
-      'Race people elsewhere, with a room code or from the list of open games.'];
+      'Race people elsewhere, by room code or from the open games.'];
     this.put('mode', `<div class="head">SELECT GAME</div><div class="row">
       <button class="btn" type="button" data-a="gp">GRAND PRIX</button><button class="btn" type="button" data-a="vs">VS RACE</button>
       <button class="btn" type="button" data-a="online">ONLINE</button></div>
-      <div class="help" id="ws-about"></div>`,
+      <div class="help" id="ws-about" style="min-height:3.2em"></div>`,
     { gp: () => go('gp'), vs: () => go('vs'), online: () => go('online') }, ['gp', 'vs', 'online'].indexOf(this.session.mode));
     // The line underneath describes whichever one is picked out.
     this.onFocus = () => { this.panel.querySelector('#ws-about').textContent = about[this.focus]; };

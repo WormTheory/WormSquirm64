@@ -17,13 +17,18 @@ const { chromium } = require('playwright');
   // Wormbow Road: shove the player's worm off the edge and catch it falling.
   await ws(() => { const r = window.__ws.race, w = r.worms[window.__ws.G.players[0].me]; w.x += 40; r.step(1 / 60); });
   await page.waitForTimeout(450); await shot('fall');
+  await page.waitForTimeout(650); await shot('hand');
+  // Baked to death: the hand comes with a jug of water.
+  await race(1, 0);
+  await ws(() => { const r = window.__ws.race, w = r.worms[window.__ws.G.players[0].me]; w.dead = true; w.fall = 2.6; r.step(1 / 60); });
+  await page.waitForTimeout(1500); await shot('jug');
   for (const [kind, wait] of [['rain', 1500], ['heat', 3500], ['stomp', 2600]]) {
     await race(1, 0); await ws((k) => window.__ws.event(k), kind);
     await page.waitForTimeout(wait); await shot(kind);
   }
   // Item boxes, and a worm that's been given a star, shrunk and then flattened.
   await race(1, 0);
-  await ws(() => { const r = window.__ws.race, w = r.worms[window.__ws.G.players[0].me], b = r.items.boxes[1]; w.x = b.x - 5; w.z = b.z - 1; window.__ws.G.players[0].cam.fx = w.x; window.__ws.G.players[0].cam.fz = w.z; r.worms[0].star = 9; r.worms[1].shrunk = 9; r.worms[2].flat = 9; for (let i = 0; i < 3; i++) { r.worms[i].x = b.x - 3 + i * 1.5; r.worms[i].z = b.z + 2; } });
+  await ws(() => { const r = window.__ws.race, w = r.worms[window.__ws.G.players[0].me], b = r.items.boxes[1]; w.x = b.x - 5; w.z = b.z - 1; window.__ws.G.players[0].cam.fx = w.x; window.__ws.G.players[0].cam.fz = w.z; r.worms[0].star = 9; r.worms[1].shrunk = 9; r.worms[2].flat = 9; r.worms[3].stun = 9; r.worms[4].boost = 9; for (const j of [3, 4]) { r.worms[j].x = b.x - 4 + (j - 3) * 3; r.worms[j].z = b.z + 5; } for (let i = 0; i < 3; i++) { r.worms[i].x = b.x - 3 + i * 1.5; r.worms[i].z = b.z + 2; } });
   await page.waitForTimeout(500); await shot('boxes');
   // Every worm's victory dance: all eight finished and lined up in front of the camera.
   await race(1, 0);

@@ -12,8 +12,10 @@ const BIRD_IN = 2.6, BIRD_OUT = 3;   // seconds for the bird to come down, and t
 const BIRD_HIGH = 34;
 const STEP_EVERY = 0.75, FOOT_R = 3.3;
 
-export function makeEvents(race, on) {
-  return { on, type: 'none', t: 0, next: on ? race.rng.range(8, 14) : Infinity, bird: null, stomp: null };
+// freq: how often, 1 (rarely) to 10 (one after another); 5 is a gap of ten to twenty seconds.
+export function makeEvents(race, on, freq = 5) {
+  const wait = 5 / Math.max(1, Math.min(10, freq));
+  return { on, wait, type: 'none', t: 0, next: on ? race.rng.range(8, 14) * wait : Infinity, bird: null, stomp: null };
 }
 
 // (kind can be given, to start a particular event: the tests do.)
@@ -43,10 +45,14 @@ export function begin(race, ev, force) {
   race.events.push({ type: 'event', kind });
 }
 
-// Sends a worm off the road (or kills it): it drops out of sight and comes back in the middle of the road where it left.
+// How long a worm is gone: one that fell drops out of sight (DROP_PART) and is then lowered back onto the road by a hand;
+// one that baked lies where it died while a hand pours a jug of water over it.
+export const FALL_TIME = 1.6, DEAD_TIME = 2.6, DROP_PART = 0.6;
+// Sends a worm off the road, or kills it. Either way it's out of things for a moment, then back.
 export function drop(race, w, why) {
   if (w.fall > 0 || w.out) return;
-  w.fall = 1.4; w.spasm = null; w.queued = null; w.stun = 0;
+  w.dead = why === 'die';
+  w.fall = w.dead ? DEAD_TIME : FALL_TIME; w.spasm = null; w.queued = null; w.stun = 0;
   race.events.push({ type: why, idx: w.idx });
 }
 
@@ -100,7 +106,7 @@ export function stepEvents(race, dt) {
     }
   }
   if (ev.t >= ev.len) {
-    ev.type = 'none'; ev.bird = null; ev.stomp = null; ev.next = rng.range(GAP[0], GAP[1]);
+    ev.type = 'none'; ev.bird = null; ev.stomp = null; ev.next = rng.range(GAP[0], GAP[1]) * ev.wait;
     for (const w of race.worms) w.wash = null;
     race.events.push({ type: 'event', kind: 'none' });
   }

@@ -74,3 +74,13 @@ export function ui(kind) {
   else if (kind === 'back') { tone('square', 520, 520, 0.06, 0.07); tone('square', 330, 330, 0.09, 0.07, 0.06); }
   else if (kind === 'tick') tone('square', 990, 990, 0.025, 0.05);
 }
+export const sizzle = (vol = 0.12) => burst(5000, 0.7, vol, 'highpass');
+export const splash = (vol = 0.15) => { burst(1400, 0.5, vol, 'bandpass'); tone('sine', 500, 180, 0.3, vol * 0.5); };
+// The sound of an item going off, by its number (see ITEMS in sim/items.js): boost, peel, pebble, homing pebble, star, lightning, mole.
+export function itemUse(item, k = 1) {
+  if (item === 0) { burst(1200, 0.5, 0.16 * k, 'bandpass'); tone('sawtooth', 180, 720, 0.45, 0.1 * k); }
+  else if (item === 1) tone('sine', 520, 160, 0.22, 0.14 * k);
+  else if (item === 2 || item === 3) { tone('square', 240, 520, 0.12, 0.1 * k); if (item === 3) tone('square', 700, 900, 0.3, 0.06 * k, 0.12); }
+  else if (item === 4) [659, 784, 988, 1319, 1568].forEach((f, i) => tone('square', f, f, 0.09, 0.1 * k, i * 0.07));
+  else if (item === 6) { burst(300, 0.4, 0.14 * k); tone('sine', 140, 60, 0.4, 0.12 * k); }
+}

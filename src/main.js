@@ -2,7 +2,7 @@
 // 60 steps a second, each player's camera, and the run of screens around a race.
 import * as THREE from '../vendor/three.module.min.js';
 import { Race, STEP } from './sim/race.js';
-import { TRACKS, CUPS, POINTS, pointAt } from './sim/track.js';
+import { TRACKS, CUPS, POINTS, pointAt, centreNear } from './sim/track.js';
 import { ACTIONS } from './sim/worm.js';
 import { CHARS, hex } from './characters.js';
 import { buildWorld, disposeWorld } from './view.js';
@@ -82,7 +82,7 @@ let eaten = new Set(), nest = null;
 function setupRace(trackIdx, racers, locals, mirror) {
   if (G) { disposeWorld(G.scene); G.players.forEach((p) => p.hud.remove()); }
   const race = mirror ? new MirrorRace({ trackDef: TRACKS[trackIdx], racers })
-    : new Race({ trackDef: TRACKS[trackIdx], seed: (Date.now() ^ (Math.random() * 1e9)) >>> 0, racers, events: !!settings.events && locals.length > 0 });
+    : new Race({ trackDef: TRACKS[trackIdx], seed: (Date.now() ^ (Math.random() * 1e9)) >>> 0, racers, events: !!settings.events && locals.length > 0, eventFreq: settings.eventFreq || 5 });
   const scene = buildWorld(race.track);
   const views = race.worms.map((w) => { const v = new WormView(CHARS[w.char], scene); v.reset(w); return v; });
   const fx = new FxView(scene, race);
@@ -229,10 +229,13 @@ function react(e, mine) {
     case 'go': sfx.beep(true); break;
     case 'lap': if (me) { sfx.lapJingle(); if (e.lap === G.race.laps) songSpeed(1.18); } break; // the last lap goes faster
     case 'finish': if (me) sfx.finishJingle(); break;
-    case 'item': if (me) sfx.itemJingle(); break;
+    // Getting an item sounds its own way: a whoosh for a boost, a fanfare for a star, a toss for the things you throw or drop.
+    case 'item': sfx.itemUse(e.item, me ? 1 : 0.3); if (me) sfx.itemJingle(); break;
     case 'hit': sfx.hit(me ? 0.2 : 0.05); break;
-    case 'zap': sfx.zap(); break;
-    case 'fall': case 'die': sfx.fallWhistle(me ? 0.12 : 0.03); break;
+    case 'zap': sfx.zap(); G.players.forEach((p) => { p.hud.flash = 0.3; }); break; // (lightning lights up every screen)
+    case 'fall': sfx.fallWhistle(me ? 0.12 : 0.03); break;
+    case 'die': sfx.sizzle(me ? 0.16 : 0.05); break;
+    case 'respawn': if (e.revived) sfx.splash(me ? 0.2 : 0.06); break;
     case 'hurt': sfx.hurt(me ? 0.12 : 0.025); break;
     case 'stomp': sfx.stomp(); break;
     case 'squash': sfx.squash(); break;
@@ -313,11 +316,13 @@ function frame(now, hidden) {
       p.hud.update(G.race, p.me, dt);
       // The camera follows a smoothed point, so a flop doesn't shake the whole picture.
       const me = G.race.worms[p.me], k = 1 - Math.exp(-dt * 6), c = p.cam, D = 10, cp = Math.cos(c.pitch);
-      c.fx += (me.x - c.fx) * k; c.fz += (me.z - c.fz) * k;
+      // (A worm that's fallen off is watched from where the hand will put it back.)
+      const at = me.fall > 0 && !me.dead ? centreNear(G.race.track, me.x, me.z) : me;
+      c.fx += (at.x - c.fx) * k; c.fz += (at.z - c.fz) * k;
       p.camera.position.set(c.fx - Math.sin(c.yaw) * D * cp, 1.2 + D * Math.sin(c.pitch) + (me.lift || 0) * 0.5, c.fz - Math.cos(c.yaw) * D * cp);
       p.camera.lookAt(c.fx, 1.2 + (me.lift || 0), c.fz);
     }
-    G.race.worms.forEach((w, i) => G.views[i].update(w, clockT));
+    G.race.worms.forEach((w, i) => G.views[i].update(w, clockT, G.race.track));
     G.fx.update(G.race, clockT, dt);
     if (nest) nest.update(clockT, dt);
     if (G.players.length) {
