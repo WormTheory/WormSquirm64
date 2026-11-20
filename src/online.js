@@ -59,7 +59,7 @@ export class Online {
         <span>${g.racing ? 'racing' : 'in lobby'} · ${g.n}/${MAX_RACERS}</span></button>`).join('')
         : `<div class="help">${this.games.failed ? "Couldn't reach the list of games. You can still join by code." : 'None yet. Host one, or wait: this list fills in by itself.'}</div>`;
       const at = m.btns[m.focus];
-      m.btns = [...m.panel.querySelectorAll('.btn')];
+      m.btns = [...m.panel.querySelectorAll('.btn:not(:disabled)')];
       m.setFocus(Math.max(0, m.btns.indexOf(at)));
     };
     list();
@@ -67,7 +67,7 @@ export class Online {
       list();
       if (document.activeElement === box) { if (this.inputs.esc) box.blur(); return; }
       if (nav.back) return this.quit();
-      m.steer({ dx: nav.dx, dy: nav.dy, ok: nav.ok });
+      m.steer(nav);
     };
   }
 

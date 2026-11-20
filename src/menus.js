@@ -25,6 +25,7 @@ export const CSS = `
 #ws .row{display:flex;flex-wrap:wrap;gap:1.6vmin;justify-content:center}
 #ws .btn{font:inherit;font-size:clamp(13px,3.2vmin,26px);padding:.4em 1.1em;border:3px solid #000;border-radius:10px;color:#fff;
   background:linear-gradient(#5a6a90,#2a3658);box-shadow:0 5px 0 #000;cursor:pointer}
+#ws .btn:disabled{opacity:.4;cursor:default}
 #ws .btn.foc{background:linear-gradient(#ff7a3a,#d82818);outline:3px solid #fff}
 #ws .assign{display:grid;grid-template-columns:minmax(0,2.2fr) repeat(4,minmax(0,1fr));gap:1vmin;width:min(94%,36em);align-items:stretch;
   font-size:clamp(10px,2.5vmin,19px)}
@@ -34,6 +35,7 @@ export const CSS = `
 #ws .assign .cell{font:inherit;color:#fff;border:3px dashed rgba(255,255,255,.35);border-radius:10px;background:rgba(0,0,0,.3);cursor:pointer;
   min-height:2.4em;padding:0;min-width:0}
 #ws .assign .cell.on{border-style:solid;border-color:#000;box-shadow:0 4px 0 #000}
+#ws .assign .cell.maybe{animation:wsb 1s steps(2) infinite}
 #ws .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1.4vmin;width:min(94%,44em)}
 #ws .card{position:relative;border:3px solid #000;border-radius:10px;background:rgba(0,0,0,.45);padding:.6em .2em .4em;cursor:pointer;
   font:inherit;color:#fff;font-size:clamp(9px,2.2vmin,17px);min-width:0;display:flex;flex-direction:column;align-items:center;gap:.4em}
@@ -45,7 +47,7 @@ export const CSS = `
 #ws .tag{border:2px solid #000;border-radius:6px;padding:0 .3em;font-size:.85em;background:#444c60}
 #ws .card canvas{width:clamp(60px,15vmin,120px);aspect-ratio:1}
 @media (max-width:520px){#ws .grid.tracks{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (prefers-reduced-motion:reduce){#ws .blink{animation:none}}
+@media (prefers-reduced-motion:reduce){#ws .blink,#ws .assign .cell.maybe{animation:none}}
 `;
 export const PCOL = ['#e03020', '#2868e8', '#e0a010', '#2f9a38'];
 
@@ -66,7 +68,8 @@ export class Menus {
     this.panel = panel; this.inputs = inputs; this.tracks = tracks; this.onRace = onRace;
     this.touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     this.session = { mode: 'gp', cpu: true, players: [], track: 0 };
-    this.assign = {};      // which player slot (0 to 3) each input has taken
+    this.assign = {};      // which player slot (0 to 3) each input is on
+    this.conf = new Set(); // the inputs that have confirmed theirs
     this.portraits = [];   // a picture of each worm, set by the game once it can draw them
     this.screen = null; this.focus = 0; this.btns = []; this.tickFn = null;
     this.onOnline = () => {}; // set by the game: what ONLINE leads to once the players are settled
@@ -84,7 +87,7 @@ export class Menus {
   put(screen, html, acts, focus = 0) {
     this.screen = screen; this.acts = acts; this.panel.hidden = false; this.tickFn = null;
     this.panel.innerHTML = html;
-    this.btns = [...this.panel.querySelectorAll('.btn,.card.pick')];
+    this.btns = [...this.panel.querySelectorAll('.btn:not(:disabled),.card.pick')];
     this.setFocus(focus);
   }
   setFocus(i) {
@@ -93,9 +96,24 @@ export class Menus {
     this.focus = ((i % n) + n) % n;
     this.btns.forEach((b, k) => b.classList.toggle('foc', k === this.focus));
   }
-  steer(nav, cols = 1) {
-    if (nav.dx) this.setFocus(this.focus + Math.sign(nav.dx));
-    if (nav.dy) this.setFocus(this.focus + Math.sign(nav.dy) * cols);
+  // Moves between buttons by where they are on the screen: left and right along a row, up and down
+  // between rows. So up and down do nothing to a single row of buttons, and left and right nothing to a column.
+  steer(nav) {
+    const cur = this.btns[this.focus];
+    if (cur && (nav.dx || nav.dy)) {
+      const box = (b) => { const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, h: r.height }; };
+      const me = box(cur), sameRow = (o) => Math.abs(o.y - me.y) < Math.min(o.h, me.h) / 2;
+      let best = -1, bd = Infinity;
+      this.btns.forEach((b, i) => {
+        if (b === cur) return;
+        const o = box(b);
+        let d;
+        if (nav.dx) { if (!sameRow(o) || Math.sign(o.x - me.x) !== Math.sign(nav.dx)) return; d = Math.abs(o.x - me.x); }
+        else { if (sameRow(o) || Math.sign(o.y - me.y) !== Math.sign(nav.dy)) return; d = Math.abs(o.y - me.y) * 1000 + Math.abs(o.x - me.x); }
+        if (d < bd) { bd = d; best = i; }
+      });
+      if (best >= 0) this.setFocus(best);
+    }
     if (nav.ok && this.btns[this.focus]) this.btns[this.focus].click();
   }
 
@@ -128,37 +146,45 @@ export class Menus {
   }
 
   // Who's playing on what: a row for every input there is, and a column for each player slot.
-  // An input moves itself left and right between the slots; clicking or tapping a square does the same.
+  // An input moves itself left and right to a player number, then presses a button to confirm it.
+  // Only a confirmed input can work the buttons underneath. Clicking or tapping a square chooses and confirms at once.
   players() {
     const s = this.session, devs = this.inputs.devices(this.touch);
-    for (const d in this.assign) if (!devs.includes(d)) delete this.assign[d];
+    for (const d in this.assign) if (!devs.includes(d)) { delete this.assign[d]; this.conf.delete(d); }
     this.devList = devs.join();
     const rows = devs.map((d) => {
-      const at = this.assign[d];
+      const at = this.assign[d], sure = this.conf.has(d);
       return `<div class="dev ${at === undefined ? 'out' : ''}">${DEVICE_NAMES[d]}</div>` + [0, 1, 2, 3].map((k) =>
-        `<button class="cell ${at === k ? 'on' : ''}" type="button" data-a="slot" data-v="${d}:${k}" aria-label="${DEVICE_NAMES[d]} as player ${k + 1}"
-          style="${at === k ? 'background:' + PCOL[k] : ''}">${at === k ? 'P' + (k + 1) : ''}</button>`).join('');
+        `<button class="cell ${at === k ? (sure ? 'on' : 'maybe') : ''}" type="button" data-a="slot" data-v="${d}:${k}" aria-label="${DEVICE_NAMES[d]} as player ${k + 1}"
+          style="${at === k ? (sure ? 'background:' : 'border-color:') + PCOL[k] : ''}">${at === k ? 'P' + (k + 1) + (sure ? ' OK' : '?') : ''}</button>`).join('');
     }).join('');
-    const keep = this.screen === 'players' ? this.focus : (s.mode === 'online' ? 0 : 1);
+    const off = this.conf.size ? '' : 'disabled';
+    if (this.screen !== 'players') this.pFocus = s.mode === 'online' ? 0 : 1; // START
     this.put('players', `<div class="head">WHO'S PLAYING?</div>
       <div class="assign"><div class="hd">INPUT</div>${[1, 2, 3, 4].map((k) => `<div class="hd" style="color:${PCOL[k - 1]}">P${k}</div>`).join('')}${rows}</div>
-      <div class="help">Each input picks a player: move left or right (or click a square), up to four sharing the screen.
-      A controller shows up here once you press one of its buttons.</div>
-      <div class="row">${s.mode === 'online' ? '' : `<button class="btn" type="button" data-a="cpu">COMPUTER WORMS: ${s.cpu ? 'ON' : 'OFF'}</button>`}
-      <button class="btn" type="button" data-a="go">START</button>
-      <button class="btn" type="button" data-a="back">BACK</button></div>`,
+      <div class="help">Each input picks a player: move left or right to a number, then press a button to confirm it (or click a square).
+      Up to four share the screen. A controller shows up here once you press one of its buttons.</div>
+      <div class="row">${s.mode === 'online' ? '' : `<button class="btn" type="button" data-a="cpu" ${off}>COMPUTER WORMS: ${s.cpu ? 'ON' : 'OFF'}</button>`}
+      <button class="btn" type="button" data-a="go" ${off}>START</button>
+      <button class="btn" type="button" data-a="back" ${off}>BACK</button></div>`,
     {
-      slot: (v) => { const [d, k] = v.split(':'); this.setSlot(d, this.assign[d] === +k ? undefined : +k); },
+      slot: (v) => {
+        const [d, k] = v.split(':');
+        if (this.assign[d] === +k && this.conf.has(d)) return this.setSlot(d, undefined);
+        if (this.setSlot(d, +k)) { this.conf.add(d); this.players(); }
+      },
       cpu: () => { s.cpu = !s.cpu; this.players(); },
       go: () => this.playersDone(),
       back: () => this.mode(),
-    }, keep);
+    }, this.pFocus);
   }
-  // Gives an input a slot (undefined: none). A slot someone else has is refused.
+  // Moves an input to a slot, unconfirmed (undefined: not playing). A slot someone else has is refused.
   setSlot(dev, slot) {
-    if (slot !== undefined && Object.entries(this.assign).some(([d, k]) => d !== dev && k === slot)) return;
+    if (slot !== undefined && Object.entries(this.assign).some(([d, k]) => d !== dev && k === slot)) return false;
+    this.conf.delete(dev);
     if (slot === undefined) delete this.assign[dev]; else this.assign[dev] = slot;
     this.players();
+    return true;
   }
   // The next slot nobody has, going left or right from where an input is now. Off the left end is "not playing".
   nextSlot(dev, dir) {
@@ -166,11 +192,11 @@ export class Menus {
     for (let k = (this.assign[dev] === undefined ? -1 : this.assign[dev]) + dir; k >= 0 && k <= 3; k += dir) if (!used.has(k)) return k;
     return dir < 0 ? undefined : this.assign[dev];
   }
+  // Only inputs that confirmed their number play.
   playersDone() {
-    const s = this.session;
-    // Nobody chose: whoever is most likely at the controls plays.
-    if (!Object.keys(this.assign).length) this.assign[this.touch ? 'touch' : 'kb'] = 0;
-    s.players = Object.entries(this.assign).sort((a, b) => a[1] - b[1]).map(([dev], i) => ({ dev, devs: devsOf(dev), char: -1, cur: i }));
+    const s = this.session, sure = Object.entries(this.assign).filter(([d]) => this.conf.has(d));
+    if (!sure.length) return;
+    s.players = sure.sort((a, b) => a[1] - b[1]).map(([dev], i) => ({ dev, devs: devsOf(dev), char: -1, cur: i }));
     if (!s.cpu && s.players.length < 2) s.cpu = true; // a race needs someone to race
     if (s.mode === 'online') this.onOnline(s); else this.worms();
   }
@@ -214,7 +240,7 @@ export class Menus {
     if (this.tickFn) return this.tickFn(all);
     if (this.screen === 'dialog') { if (all.back && this.onBack) this.onBack(); else this.steer(all); return; }
     if (this.screen === 'tracks') {
-      if (all.back) { s.players.forEach((p) => { p.char = -1; }); this.worms(); } else this.steer(all, 1);
+      if (all.back) { s.players.forEach((p) => { p.char = -1; }); this.worms(); } else this.steer(all);
       return;
     }
     if (this.screen === 'players') {
@@ -223,12 +249,22 @@ export class Menus {
       for (const d of devs) {
         if (d === 'touch') continue; // (touch works the screen by tapping it)
         const n = inp.nav(devsOf(d)), at = this.assign[d];
+        if (this.conf.has(d)) {
+          // Confirmed: this input now works the buttons. Back un-confirms.
+          if (n.back) return this.setSlot(d, at);
+          if (n.start) return this.playersDone();
+          this.steer(n);
+          if (this.screen !== 'players') return;
+          this.pFocus = this.focus;
+          continue;
+        }
         if (n.dx) return this.setSlot(d, this.nextSlot(d, Math.sign(n.dx)));
         if (n.back) return at === undefined ? this.mode() : this.setSlot(d, undefined);
-        if (at === undefined) { if (n.ok || n.start || n.any) return this.setSlot(d, this.nextSlot(d, 1)); continue; }
-        if (n.start) return this.playersDone();
-        if (n.dy || n.ok) this.steer({ dx: 0, dy: n.dy, ok: n.ok });
-        if (this.screen !== 'players') return;
+        if (n.ok || n.start || n.any) {
+          if (at === undefined) return this.setSlot(d, this.nextSlot(d, 1));
+          this.conf.add(d);
+          return this.players();
+        }
       }
       if (inp.esc) this.mode();
       return;

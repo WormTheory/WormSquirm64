@@ -21,7 +21,8 @@ const { chromium } = require('playwright');
     if (hasTouch) {
       // By touch alone: tap through the menus, then tap the on-screen buttons.
       await page.touchscreen.tap(200, 120); await page.waitForTimeout(200); await shot('mode');
-      await page.tap('text=GRAND PRIX'); await page.waitForTimeout(200); await shot('players');
+      await page.tap('text=GRAND PRIX'); await page.waitForTimeout(200);
+      await page.tap('[data-v="touch:0"]'); await page.waitForTimeout(200); await shot('players');
       await page.tap('text=START'); await page.waitForTimeout(200); await shot('worms');
       await page.tap('text=Flopple');
       await page.waitForTimeout(5500);
@@ -30,8 +31,10 @@ const { chromium } = require('playwright');
     } else {
       await key('Enter'); await shot('mode');           // title -> game select
       await key('Enter');                               // Grand Prix -> who's playing
-      await key('Enter'); await shot('players');        // the right of the keyboard joins
-      await key('Enter'); await key('ArrowRight'); await shot('worms');
+      await key('Enter'); await shot('players');        // the keyboard goes to player 1...
+      await key('ArrowDown'); await key('ArrowUp');     // (up and down do nothing here)
+      await key('Enter'); await shot('confirmed');      // ...and confirms it
+      await key('Enter'); await key('ArrowRight'); await shot('worms'); // START
       await key('Enter');                               // choose a worm: the race starts
       await page.waitForTimeout(1200); await shot('trackname');
       await page.waitForTimeout(4300);

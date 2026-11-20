@@ -24,8 +24,8 @@ const path = require('path');
     await page.goto('http://ws.test/index.html?net=local');
     await page.waitForTimeout(600);
     const key = async (k, wait = 150) => { await page.keyboard.press(k); await page.waitForTimeout(wait); };
-    // Title -> ONLINE -> join on the keyboard -> the host-or-join screen.
-    await key('Enter'); await key('ArrowRight'); await key('ArrowRight'); await key('Enter'); await key('Enter'); await key('Enter', 400);
+    // Title -> ONLINE -> the keyboard takes player 1, confirms, START -> the host-or-join screen.
+    await key('Enter'); await key('ArrowRight'); await key('ArrowRight'); await key('Enter'); await key('Enter'); await key('Enter'); await key('Enter', 400);
     return { page, key, shot: (n) => page.screenshot({ path: `${out}/net-${name}-${n}.png` }), ws: (fn, arg) => page.evaluate(fn, arg) };
   };
 
