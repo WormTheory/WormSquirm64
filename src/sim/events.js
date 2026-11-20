@@ -19,7 +19,7 @@ const STEP_EVERY = 0.75, FOOT_R = 5;
 // kinds: which events may happen (all of them if not given).
 export function makeEvents(race, on, freq = 5, kinds = null) {
   const wait = 5 / Math.max(1, Math.min(10, freq));
-  const may = ['rain', 'heat', 'stomp', 'moon', 'rain', 'heat', 'stomp', 'moon', 'bird'].filter((k) => !kinds || kinds.includes(k)); // (the bird is rarer: it's for keeps)
+  const may = ['rain', 'heat', 'stomp', 'moon', 'bird'].filter((k) => !kinds || kinds.includes(k)); // (each as likely as the next)
   return { on, wait, may, type: 'none', t: 0, next: on && may.length ? race.rng.range(8, 14) * wait : Infinity, bird: null, stomp: null, wolf: -1 };
 }
 

@@ -210,14 +210,16 @@ export class FxView {
     });
   }
 
+  // Where the moon is for a given camera: up and to the right of wherever it's looking (level), so nobody can miss it,
+  // and far off beyond the hills, so they stand in front of it. It rises as the sky turns. The answer goes in `out`.
+  moonAt(camera, out) {
+    camera.getWorldDirection(this.dir); this.dir.y = 0; this.dir.normalize();
+    return out.set(camera.position.x + this.dir.x * 380 - this.dir.z * 110, camera.position.y + 195 * Math.min(1, this.tint * 1.3) - 65, camera.position.z + this.dir.z * 380 + this.dir.x * 110);
+  }
+
   // Call before drawing each player's view: the rain goes wherever that camera is.
   around(camera) {
-    // (The moon hangs up and to the right of wherever this camera is looking, so nobody can miss it. It rises as the sky turns.)
-    if (this.moon.visible) {
-      camera.getWorldDirection(this.dir); this.dir.y = 0; this.dir.normalize();
-      // (It's far off, beyond the hills, so they stand in front of it; it's big enough to show over and between them.)
-      this.moon.position.set(camera.position.x + this.dir.x * 380 - this.dir.z * 110, camera.position.y + 125 * Math.min(1, this.tint * 1.3) - 65, camera.position.z + this.dir.z * 380 + this.dir.x * 110);
-    }
+    if (this.moon.visible) this.moonAt(camera, this.moon.position);
     if (!this.rain.visible) return;
     this.rain.position.set(camera.position.x, camera.position.y - RAIN_BOX / 2 - ((this.time * 34) % RAIN_BOX), camera.position.z);
   }

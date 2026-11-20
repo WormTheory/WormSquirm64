@@ -76,6 +76,7 @@ const LAYOUTS = [
 // eaten: the worms (by number) the bird has taken, who stay gone for the rest of a cup or of a room. nest: where they went.
 let G = null, session = null, net = null, phase = 'menu', acc = 0, clockT = 0, lastBeep = 9, lastSnap = 0;
 let eaten = new Set(), nest = null;
+const MOON_LOOK = 3.2, moonPos = new THREE.Vector3(); // seconds a camera spends looking up at a new blood moon
 
 // racers: [{char, human, out}] in grid order. locals: this screen's players, [{devs, me: their worm's number}].
 // mirror: true for a guest, whose race only shows what the host sends.
@@ -243,7 +244,10 @@ function react(e, mine) {
     case 'stomp': sfx.stomp(); break;
     case 'squash': sfx.squash(); break;
     case 'grab': sfx.caw(); break;
-    case 'event': sfx.eventSting(e.kind); break;
+    case 'event':
+      sfx.eventSting(e.kind);
+      if (e.kind === 'moon') G.players.forEach((p) => { p.moonT = MOON_LOOK; }); // every camera glances up at it
+      break;
     case 'eaten': {
       const char = G.race.worms[e.idx].char;
       eaten.add(char);
@@ -333,6 +337,13 @@ function frame(now, hidden) {
       c.fx += (at.x - c.fx) * k; c.fz += (at.z - c.fz) * k;
       p.camera.position.set(c.fx - Math.sin(c.yaw) * D * cp, 1.2 + D * Math.sin(c.pitch) + (me.lift || 0) * 0.5, c.fz - Math.cos(c.yaw) * D * cp);
       p.camera.lookAt(c.fx, 1.2 + (me.lift || 0), c.fz);
+      if (p.moonT > 0) {
+        // The blood moon has just appeared: the camera tips up to it for a moment, then comes back down.
+        p.moonT -= dt;
+        const u = 1 - p.moonT / MOON_LOOK, ease = (v) => { const k = Math.max(0, Math.min(1, v)); return k * k * (3 - 2 * k); }, b = ease(u / 0.3) * ease((1 - u) / 0.3);
+        G.fx.moonAt(p.camera, moonPos);
+        p.camera.lookAt(c.fx + (moonPos.x - c.fx) * b, 1.2 + (moonPos.y - 1.2) * b, c.fz + (moonPos.z - c.fz) * b);
+      }
     }
     G.race.worms.forEach((w, i) => G.views[i].update(w, clockT, G.race.track));
     G.fx.update(G.race, clockT, dt);
