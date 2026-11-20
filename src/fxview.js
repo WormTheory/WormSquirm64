@@ -97,6 +97,7 @@ export class FxView {
       const shoe = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.4, 6), lam(0x5a3418)); shoe.position.set(0, 0.7, 1.2);
       const sole = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.3, 6.2), lam(0x201810)); sole.position.set(0, 0.15, 1.2);
       g.add(leg, shoe, sole); g.visible = false;
+      g.scale.setScalar(1.5); // (big enough that the shoe covers what it flattens)
       scene.add(g);
       return g;
     });

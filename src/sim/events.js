@@ -10,7 +10,7 @@ const GAP = [10, 20];          // quiet seconds between events
 const WEATHER_FOR = [8, 12];   // how long rain or a heatwave lasts
 const BIRD_IN = 2.6, BIRD_OUT = 3;   // seconds for the bird to come down, and to leave with its catch
 const BIRD_HIGH = 34;
-const STEP_EVERY = 0.75, FOOT_R = 3.3;
+const STEP_EVERY = 0.75, FOOT_R = 5;
 
 // freq: how often, 1 (rarely) to 10 (one after another); 5 is a gap of ten to twenty seconds.
 export function makeEvents(race, on, freq = 5) {
