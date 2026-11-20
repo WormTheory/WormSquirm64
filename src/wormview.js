@@ -89,6 +89,7 @@ export class WormView {
   // Lays the body out in a straight line behind the head.
   reset(w) {
     this.at = ANIM; this.hopT = 0; this.seen = w.count; this.act = null; this.hopMul = 1; this.lastT = null;
+    this.taps = w.taps; this.tw = 0;
     for (let i = 0; i < SEGS; i++) { this.px[i] = w.x - Math.sin(w.aim) * GAP * i; this.pz[i] = w.z - Math.cos(w.aim) * GAP * i; }
   }
 
@@ -105,6 +106,10 @@ export class WormView {
     const dt = this.lastT === null ? 0 : Math.min(0.1, Math.max(0, time - this.lastT));
     this.lastT = time;
     this.at += dt; this.hopT += dt / ANIM;
+    // Every press, counted or not, gives a small shiver that dies away in a fifth of a second.
+    if (w.taps !== this.taps) { this.taps = w.taps; this.tw = 1; }
+    this.tw = Math.max(0, this.tw - dt * 5);
+    const tw = this.tw * this.tw;
     if (w.count !== this.seen) {
       this.seen = w.count; this.act = w.action;
       if (this.at < ANIM) this.at = Math.min(this.at, 0.35 * ANIM);
@@ -121,7 +126,7 @@ export class WormView {
       let dx = px[a - 1] - px[a], dz = pz[a - 1] - pz[a];
       const l = Math.hypot(dx, dz) || 1;
       dx /= l; dz /= l;
-      let lat = 0.05 * Math.sin(time * 3 - i * 0.8 + w.idx), y = this.rad[i];
+      let lat = 0.05 * Math.sin(time * 3 - i * 0.8 + w.idx) + tw * 0.13 * Math.sin(time * 55 - i * 1.7), y = this.rad[i] + tw * 0.07 * (1 + Math.sin(time * 47 - i * 2.1));
       if (st) {
         lat += env * st.lat * Math.sin(time * st.latF - i * 0.9);
         const ph = this.hopT - i * st.lag;

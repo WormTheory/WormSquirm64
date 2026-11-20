@@ -13,9 +13,12 @@ const styles = {
   'press 6/s, all buttons': { every: 1 / 6, aim: 0, keys: 8 },
   'press 4/s, all buttons': { every: 1 / 4, aim: 0, keys: 8 },
   'press 4/s, two buttons in turn': { every: 1 / 4, aim: 0, keys: 2 },
+  'press 4/s, three A then one B': { every: 1 / 4, aim: 0, keys: 'AAAB' },
   'press 4/s, one button only': { every: 1 / 4, aim: 0, keys: 1 },
-  'press 4/s, looking 50 deg off': { every: 1 / 4, aim: 50, keys: 8 },
+  'press 4/s, looking 55 deg off': { every: 1 / 4, aim: 55, keys: 8 },
   'press 4/s, looking 70 deg off': { every: 1 / 4, aim: 70, keys: 8 },
+  'press 4/s, looking 80 deg off': { every: 1 / 4, aim: 80, keys: 8 },
+  'press 4/s, looking 95 deg off': { every: 1 / 4, aim: 95, keys: 8 },
   'press 3/s, all buttons': { every: 1 / 3, aim: 0, keys: 8 },
   'press 2/s, all buttons': { every: 1 / 2, aim: 0, keys: 8 },
 };
@@ -27,7 +30,7 @@ for (const [name, st] of Object.entries(styles)) {
     let next = 0, k = 0;
     while (race.state !== 'done' && race.clock < 900) {
       { const l = locate(race.track, me.x, me.z, me.hint); race.setAim(7, Math.atan2(l.tx, l.tz) + st.aim * Math.PI / 180); }
-      if (race.clock >= next) { race.press(7, ACTIONS[k++ % st.keys]); next = race.clock + st.every; }
+      if (race.clock >= next) { race.press(7, st.keys === 'AAAB' ? ACTIONS[k++ % 4 === 3 ? 1 : 0] : ACTIONS[k++ % st.keys]); next = race.clock + st.every; }
       race.step(STEP);
     }
     rankSum += me.rank + 1; if (me.rank === 0) wins++;

@@ -91,7 +91,7 @@ export class Hud {
       <div class="help">${this.touch ? 'Touch: drag to turn the camera. Tap the buttons to squirm, wiggle, undulate or flop.<br>' : ''}
       Controller: left stick turns the camera. Every face and shoulder button does something.<br>
       Keyboard: A/D or the arrow keys turn the camera. J K L I U O, Space and Shift do something.<br>
-      Face roughly the right way and keep changing buttons. A worn-out button barely moves you.</div>`;
+      Your worm heads roughly where the camera points. Roughly.</div>`;
     this.panel.onclick = onStart;
   }
 
@@ -108,10 +108,8 @@ export class Hud {
 
   hidePanel() { this.panel.hidden = true; this.panel.onclick = null; }
 
-  // A worn-out button's name comes up small, grey and unenthusiastic.
-  popAction(text, tired) {
-    this.pop.textContent = tired ? text.toLowerCase() + '...' : text + '!';
-    this.pop.style.color = tired ? '#9aa0a8' : '#fff'; this.pop.style.fontSize = tired ? '.9em' : '';
+  popAction(text) {
+    this.pop.textContent = text + '!';
     this.popT = 0.5; this.pop.style.transform = `rotate(${(Math.random() * 16 - 8).toFixed(1)}deg)`;
   }
 

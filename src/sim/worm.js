@@ -9,24 +9,39 @@ export const TUNE = {
   distMin: 0.6, distMax: 2.3,    // how far one spasm travels
   durMin: 0.14, durMax: 0.22,    // how long it takes
   restMin: 0.04, restMax: 0.10,  // the pause after, when presses do nothing but queue
-  assist: 1.05,                  // looking within this (radians, 60 degrees) of the way the track goes counts as dead on
-  // A button wears out: each use tires it by one, each use of a different button rests it by two
-  // (so taking two buttons in turn is fine, and the fourth press in a row of one is not).
-  // Past tiredAt it only lunges tiredMul as far, until other buttons have rested it.
-  tiredAt: 3, tiredMax: 6, tiredMul: 0.35,
+  // Aim assist, in degrees off the way the track goes. Looking within assistFull counts as dead on.
+  // From there to assistEnd the worm's real aim swings smoothly out to meet the camera, and past
+  // assistEnd it aims exactly where the camera points. Nothing snaps, so there's no edge to notice.
+  assistFull: 60, assistEnd: 95,
+  // A button wears out, slowly enough not to be noticed: each use tires it by one, each use of a
+  // different button rests it by two (so taking two buttons in turn never tires either). The first
+  // tiredAt uses are free; after that each one lunges a little less far, down to tiredMul after
+  // tiredSpan more. Rest brings it back the same gradual way.
+  tiredAt: 3, tiredSpan: 24, tiredMul: 0.35,
   pGood: 0.68, pSide: 0.22,      // chance of going roughly the right way, or off to one side (the rest: backwards)
   band: 0.3,                     // hidden catch-up: last place lunges this much further than the middle of the pack
 };
 
 export function makeWorm(idx, char, human, x, z) {
-  return { idx, char, human, x, z, look: 0, aim: 0, action: null, tired: {}, wasTired: false, spasm: null, rest: 0, queued: null, count: 0,
+  return { idx, char, human, x, z, look: 0, aim: 0, action: null, tired: {}, taps: 0, spasm: null, rest: 0, queued: null, count: 0,
     hint: -1, s: 0, prog: 0, lap: 1, rank: idx, finished: false, finishTime: 0 };
 }
 
 // A press never does more than ask for the next spasm. While one's under way (or the worm is
 // resting after it) the press is just remembered, so mashing gains nothing beyond four presses a second.
+// Every press is counted in taps all the same, so the worm can be shown twitching at each one.
 export function pressAction(w, action) {
   w.queued = action;
+  w.taps++;
+}
+
+// Where a worm really aims (radians), given where it's looking and the way the track goes.
+export function assistedAim(look, fwd) {
+  const off = Math.atan2(Math.sin(look - fwd), Math.cos(look - fwd)), deg = Math.abs(off) * 180 / Math.PI;
+  if (deg >= TUNE.assistEnd) return look;
+  if (deg <= TUNE.assistFull) return fwd;
+  const t = (deg - TUNE.assistFull) / (TUNE.assistEnd - TUNE.assistFull);
+  return fwd + Math.sign(off) * TUNE.assistEnd * t * t * (3 - 2 * t) * Math.PI / 180;
 }
 
 function startSpasm(w, action, rng, rankFrac) {
@@ -37,12 +52,12 @@ function startSpasm(w, action, rng, rankFrac) {
   else err = Math.PI + rng.range(-0.5, 0.5);
   const a = w.aim + err;
   for (const k in w.tired) if (k !== action) w.tired[k] = Math.max(0, w.tired[k] - 2);
-  w.tired[action] = Math.min(TUNE.tiredMax, (w.tired[action] || 0) + 1);
-  w.wasTired = w.tired[action] > TUNE.tiredAt;
+  w.tired[action] = Math.min(TUNE.tiredAt + TUNE.tiredSpan, (w.tired[action] || 0) + 1);
+  const worn = Math.max(0, w.tired[action] - TUNE.tiredAt) / TUNE.tiredSpan;
   w.spasm = {
     action, t: 0, dur: rng.range(TUNE.durMin, TUNE.durMax),
     dx: Math.sin(a), dz: Math.cos(a),
-    dist: rng.range(TUNE.distMin, TUNE.distMax) * (1 + TUNE.band * (rankFrac - 0.5)) * (w.wasTired ? TUNE.tiredMul : 1),
+    dist: rng.range(TUNE.distMin, TUNE.distMax) * (1 + TUNE.band * (rankFrac - 0.5)) * (1 - (1 - TUNE.tiredMul) * worn),
     rest: rng.range(TUNE.restMin, TUNE.restMax),
   };
   w.action = action;

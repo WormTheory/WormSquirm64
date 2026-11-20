@@ -76,11 +76,12 @@ function frame(now) {
     cam.yaw += inp.yaw;
     cam.pitch = Math.max(0.08, Math.min(1.1, cam.pitch + inp.pitch));
     race.setAim(ME, cam.yaw);
-    for (const a of inp.presses) race.press(ME, a);
+    // Every press shows its name and makes a small noise, whether or not it ends up moving the worm.
+    if (race.state !== 'countdown') for (const a of inp.presses) { race.press(ME, a); hud.popAction(a); sfx.squelch(0.05); }
     acc += dt;
     while (acc >= STEP) { race.step(STEP); acc -= STEP; }
     for (const e of race.events) {
-      if (e.type === 'spasm') { sfx.squelch(e.idx === ME ? 0.2 : 0.04); if (e.idx === ME) hud.popAction(e.action, e.tired); }
+      if (e.type === 'spasm') { sfx.squelch(e.idx === ME ? 0.2 : 0.04); }
       else if (e.type === 'go') sfx.beep(true);
       else if (e.type === 'lap' && e.idx === ME) sfx.lapJingle();
       else if (e.type === 'finish' && e.idx === ME) sfx.finishJingle();

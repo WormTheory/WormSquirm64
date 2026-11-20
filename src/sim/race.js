@@ -1,7 +1,7 @@
 // One race: the worms, the countdown, laps, places and when it's over.
 import { makeRng } from './rng.js';
 import { buildTrack, locate, pointAt } from './track.js';
-import { makeWorm, pressAction, stepWorm, TUNE } from './worm.js';
+import { makeWorm, pressAction, stepWorm, assistedAim } from './worm.js';
 import { makeAi, stepAi } from './ai.js';
 
 export const STEP = 1 / 60;
@@ -46,12 +46,10 @@ export class Race {
     for (const w of this.worms) {
       const here = locate(tr, w.x, w.z, w.hint);
       if (w.ai) stepAi(w.ai, w, here, dt, this.rng);
-      // Looking generally the right way is as good as looking exactly the right way:
-      // within the assist angle the worm aims straight along the track.
-      const fwd = Math.atan2(here.tx, here.tz), off = w.look - fwd;
-      w.aim = Math.abs(Math.atan2(Math.sin(off), Math.cos(off))) < TUNE.assist ? fwd : w.look;
+      // Looking generally the right way is as good as looking exactly the right way.
+      w.aim = assistedAim(w.look, Math.atan2(here.tx, here.tz));
       const a = stepWorm(w, dt, this.rng, n > 1 ? w.rank / (n - 1) : 0.5);
-      if (a) this.events.push({ type: 'spasm', idx: w.idx, action: a, tired: w.wasTired });
+      if (a) this.events.push({ type: 'spasm', idx: w.idx, action: a });
     }
     // Worms shove each other apart.
     for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
