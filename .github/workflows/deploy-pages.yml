@@ -1,0 +1,37 @@
+# Publishes the game to GitHub Pages on every push. The game is plain files with no build step,
+# so the site is just the page, its scripts and three.js.
+
+name: Deploy game to Pages
+
+on:
+  push:
+    branches: [main, claude/wizardly-fermi-5477yr]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# (A newer push replaces a deploy that's still running, so the latest game always wins.)
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir site
+          cp -r index.html src vendor site/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
