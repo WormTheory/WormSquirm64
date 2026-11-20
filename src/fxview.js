@@ -113,7 +113,7 @@ export class FxView {
       c.fillStyle = '#a00c10'; for (const [x, y, r] of [[11, 11, 4], [20, 9, 2.5], [21, 20, 5], [10, 21, 2.5], [15, 16, 1.5]]) { c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); }
     });
     this.moon = new THREE.Sprite(new THREE.SpriteMaterial({ map: moonTex, fog: false, alphaTest: 0.5 }));
-    this.moon.scale.set(34, 34, 1); this.moon.visible = false;
+    this.moon.scale.set(150, 150, 1); this.moon.visible = false;
     scene.add(this.moon);
   }
 
@@ -215,7 +215,8 @@ export class FxView {
     // (The moon hangs up and to the right of wherever this camera is looking, so nobody can miss it. It rises as the sky turns.)
     if (this.moon.visible) {
       camera.getWorldDirection(this.dir); this.dir.y = 0; this.dir.normalize();
-      this.moon.position.set(camera.position.x + this.dir.x * 120 - this.dir.z * 52, camera.position.y + 32 * Math.min(1, this.tint * 1.3) - 16, camera.position.z + this.dir.z * 120 + this.dir.x * 52);
+      // (It's far off, beyond the hills, so they stand in front of it; it's big enough to show over and between them.)
+      this.moon.position.set(camera.position.x + this.dir.x * 380 - this.dir.z * 110, camera.position.y + 125 * Math.min(1, this.tint * 1.3) - 65, camera.position.z + this.dir.z * 380 + this.dir.x * 110);
     }
     if (!this.rain.visible) return;
     this.rain.position.set(camera.position.x, camera.position.y - RAIN_BOX / 2 - ((this.time * 34) % RAIN_BOX), camera.position.z);
