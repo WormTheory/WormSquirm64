@@ -9,7 +9,7 @@ import { settings, saveSettings, renderPx, uiPx } from './settings.js';
 
 export const CSS = `
 #ws .panel{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2.2vmin;
-  background:rgba(8,16,40,.6);pointer-events:auto;text-align:center;box-sizing:border-box;overflow:auto;
+  background:rgba(8,16,40,.6);pointer-events:auto;text-align:center;box-sizing:border-box;overflow:auto;justify-content:safe center;
   padding:var(--pt) var(--pr) var(--pb) var(--pl)}
 #ws .logo{display:flex;align-items:center;justify-content:center;gap:.04em;font-size:clamp(34px,11vmin,110px);padding:0 .15em;
   -webkit-text-stroke:3px #1a0a40;filter:drop-shadow(5px 5px 0 #1a0a40)}
@@ -30,11 +30,12 @@ export const CSS = `
 #ws .btn{font:inherit;font-size:clamp(13px,3.2vmin,26px);padding:.4em 1.1em;border:3px solid #000;border-radius:10px;color:#fff;
   background:linear-gradient(#5a6a90,#2a3658);box-shadow:0 5px 0 #000;cursor:pointer}
 #ws .btn:disabled{opacity:.4;cursor:default}
-#ws .pad{position:relative;width:min(94%,42em,78vh);aspect-ratio:16/9;font-size:clamp(11px,2.5vmin,19px);font-style:normal}
+#ws .pad{position:relative;width:min(94%,46em,62vh);font-size:clamp(11px,2.3vmin,18px);font-style:normal;flex:none;container-type:inline-size}
 #ws .pad canvas{position:absolute;inset:0;width:100%;height:100%}
 #ws .pad span{position:absolute;line-height:1;margin-top:-.5em;white-space:nowrap}
-#ws .pad .l{right:78%;text-align:right}
-#ws .pad .r{left:78%;text-align:left}
+#ws .pad .l{text-align:right}
+#ws .pad .r{text-align:left}
+#ws .pad .k{width:2em;margin-left:-1em;text-align:center;color:#10141c;font-size:3.1cqw}
 #ws .col{display:flex;flex-direction:column;gap:1.6vmin;align-items:stretch}
 #ws .opts{display:flex;flex-direction:column;gap:1.4vmin;width:min(94%,30em);font-size:clamp(12px,2.6vmin,20px)}
 #ws .opt{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1.2fr) 2.2em;gap:.6em;align-items:center;text-align:left}
@@ -92,6 +93,45 @@ function drawPad(cv) {
     for (const [col, lw] of [['#10141c', 6], ['#ffffff', 2.5]]) {
       c.beginPath(); c.moveTo(x, y);
       if (side === 'r' && x < 305) c.lineTo(x, ly); else c.lineTo(bend, ly); // (the left face button's line drops straight down first)
+      c.lineTo(end, ly);
+      c.strokeStyle = col; c.lineWidth = lw; c.stroke();
+    }
+  }
+}
+
+// The keyboard picture, on a 794 by 400 drawing: three rows of letter keys and the arrow keys beside them.
+// The keys that do something are coloured (one colour per action, the same on both halves), with their
+// letters laid over them as page text so they stay readable when pixelated.
+const KB_W = 794, KB_H = 400, KB_ZONE = 128, KEY = 33, PITCH = 38;
+const KB_ROWS = [['QWERTYUIOP', 140, 112], ['ASDFGHJKL', 150, 150], ['ZXCVBNM', 168, 188]];
+const KB_ARROWS = [['\u2190', 536, 188], ['\u2193', 574, 188], ['\u2192', 612, 188], ['\u2191', 574, 150]];
+const ACT_COL = ['#2f9a38', '#d82818', '#2860e8', '#e0a010', '#9a62d8', '#30b8b0', '#f08030', '#e060a0'];
+const KEY_ACT = { Q: 0, E: 1, R: 2, F: 3, Z: 4, X: 5, C: 6, V: 7, J: 0, K: 1, L: 2, I: 3, U: 4, O: 5, N: 6, M: 7 };
+const WORDS = ['SQUIRM', 'WIGGLE', 'UNDULATE', 'FLOP', 'WRITHE', 'THRASH', 'LURCH', 'SPASM'];
+const keyAt = (ch) => { for (const [row, x, y] of KB_ROWS) { const i = row.indexOf(ch); if (i >= 0) return [x + i * PITCH, y]; } return null; };
+const KB_KEYS = [...Object.keys(KEY_ACT), 'A', 'D'].map((ch) => [ch, ...keyAt(ch)]).concat(KB_ARROWS);
+// Each word sits at its own height at the side. A key's line runs straight up or down to that height and then out,
+// and the keys are given heights in an order that keeps any two lines from crossing.
+const KB_LABELS = [];
+for (const [side, up, mid, down] of [['l', 'QER', 'A', 'ZXCFV'], ['r', 'OIU', '\u2192', 'LKMJN']]) {
+  [...up].forEach((ch, i) => KB_LABELS.push([WORDS[KEY_ACT[ch]], keyAt(ch), side, 88 - i * 34]));
+  KB_LABELS.push(['CAMERA', mid === 'A' ? keyAt('A') : [612, 188], side, mid === 'A' ? 166 : 204]);
+  [...down].forEach((ch, i) => KB_LABELS.push([WORDS[KEY_ACT[ch]], keyAt(ch), side, 245 + i * 34]));
+}
+function drawKeyboard(cv) {
+  const c = cv.getContext('2d');
+  const key = (x, y, fill) => {
+    c.beginPath(); if (c.roundRect) c.roundRect(x, y, KEY, KEY, 5); else c.rect(x, y, KEY, KEY);
+    c.fillStyle = fill; c.fill(); c.lineWidth = 3; c.strokeStyle = '#10141c'; c.stroke();
+  };
+  for (const [row, x0, y] of KB_ROWS) [...row].forEach((ch, i) => key(x0 + i * PITCH, y, ch in KEY_ACT ? ACT_COL[KEY_ACT[ch]] : ch === 'A' || ch === 'D' ? '#f4f4f8' : '#7a8090'));
+  for (const [, x, y] of KB_ARROWS) key(x, y, '#f4f4f8');
+  c.lineJoin = 'round'; c.lineCap = 'round';
+  for (const [, [x, y], side, ly] of KB_LABELS) {
+    const cx = x + KEY / 2, end = side === 'l' ? KB_ZONE + 6 : KB_W - KB_ZONE - 6, level = Math.abs(ly - (y + KEY / 2)) < 2;
+    for (const [col, lw] of [['#10141c', 6], ['#ffffff', 2.5]]) {
+      c.beginPath();
+      if (level) c.moveTo(side === 'l' ? x : x + KEY, ly); else { c.moveTo(cx, ly < y ? y : y + KEY); c.lineTo(cx, ly); }
       c.lineTo(end, ly);
       c.strokeStyle = col; c.lineWidth = lw; c.stroke();
     }
@@ -193,16 +233,20 @@ export class Menus {
     { start: () => this.mode(), controls: () => this.controls(), options: () => this.options() }, this.titleFocus || 0);
   }
 
-  // A picture of a controller, with a line from each button to the one word for what it does.
+  // A picture of a controller and, under it, of a keyboard, with a line from each button or key
+  // to the one word for what it does.
   controls() {
     this.titleFocus = 1;
+    const label = ([word, , side, y], W, H, zone) =>
+      `<span class="t ${side}" style="top:${(y / H) * 100}%;${side === 'l' ? 'right' : 'left'}:${100 - zone}%">${word}</span>`;
     this.put('controls', `<div class="head">CONTROLS</div>
-      <div class="pad"><canvas width="${PAD_W}" height="${PAD_H}"></canvas>${PAD_LABELS.map(([word, , side, y]) =>
-        `<span class="t ${side}" style="top:${(y / PAD_H) * 100}%">${word}</span>`).join('')}</div>
-      <div class="help">Keyboard: A/D or the arrow keys (or the mouse) for the camera; Q E R F Z X C V and J K L I U O N M for the rest.<br>
-      Touch: drag for the camera, tap the buttons. Escape or Start pauses.</div>
+      <div class="pad" style="aspect-ratio:${PAD_W}/${PAD_H}"><canvas width="${PAD_W}" height="${PAD_H}"></canvas>${PAD_LABELS.map((l) => label(l, PAD_W, PAD_H, 22)).join('')}</div>
+      <div class="pad" style="aspect-ratio:${KB_W}/${KB_H}"><canvas width="${KB_W}" height="${KB_H}"></canvas>${KB_LABELS.map((l) => label(l, KB_W, KB_H, (KB_ZONE / KB_W) * 100)).join('')}
+        ${KB_KEYS.map(([ch, x, y]) => `<span class="k" style="left:${((x + KEY / 2) / KB_W) * 100}%;top:${((y + KEY / 2) / KB_H) * 100}%">${ch}</span>`).join('')}</div>
+      <div class="help">The mouse turns the camera too. Touch: drag for the camera, tap the buttons. Escape or Start pauses.</div>
       <div class="row"><button class="btn" type="button" data-a="back">BACK</button></div>`, { back: () => this.title() });
-    drawPad(this.panel.querySelector('.pad canvas'));
+    const cvs = this.panel.querySelectorAll('.pad canvas');
+    drawPad(cvs[0]); drawKeyboard(cvs[1]);
     this.tickFn = (nav) => { if (nav.back) this.title(); else this.steer(nav); };
   }
 
