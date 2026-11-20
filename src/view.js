@@ -168,7 +168,8 @@ export function buildWorld(tr) {
     c.fillStyle = '#fff8d0'; c.fillText('WORM SQUIRM 64', 128, 16);
   });
   const ban = new THREE.Group();
-  const beam = new THREE.Mesh(new THREE.BoxGeometry(tr.hw * 2 + 4, 2, 0.4),
+  // (The beam stops inside the posts. When its ends were flush with their outer faces, the two flickered.)
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(tr.hw * 2 + 3.1, 2, 0.4),
     [0, 1, 2, 3].map(() => lam({ color: 0x901818 })).concat([lam({ map: banTex }), lam({ map: banTex })]));
   beam.position.y = 7;
   ban.add(beam);
