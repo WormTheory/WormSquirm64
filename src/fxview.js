@@ -3,7 +3,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { canvasTex } from './view.js';
 import { centreNear } from './sim/track.js';
-import { FALL_TIME, DEAD_TIME, DROP_PART } from './sim/events.js';
+import { FALL_TIME, DEAD_TIME, DROP_PART, OUT_TIME, LIE_PART, carried } from './sim/events.js';
 
 const lam = (color, o) => new THREE.MeshLambertMaterial({ color, flatShading: true, ...o });
 const RAIN_BOX = 26;
@@ -138,9 +138,19 @@ export class FxView {
         water.visible = tip > 0.9;
         water.scale.set(1, 5.2, 1); water.position.set(2.75, -2.6 + 0.15 * Math.sin(time * 40), 0.4);
       } else {
-        const e = FALL_TIME - w.fall, p = centreNear(race.track, w.x, w.z), u = Math.max(0, (e - DROP_PART) / (FALL_TIME - DROP_PART));
-        h.visible = e >= DROP_PART; water.visible = false;
-        h.position.set(p.x, 10.6 - 6.6 * u, p.z - 0.3);
+        const p = centreNear(race.track, w.x, w.z);
+        water.visible = false;
+        if (w.pit) {
+          const e = FALL_TIME - w.fall, u = Math.max(0, (e - DROP_PART) / (FALL_TIME - DROP_PART));
+          h.visible = e >= DROP_PART;
+          h.position.set(p.x, 10.6 - 6.6 * u, p.z - 0.3);
+        } else {
+          // Down to where the worm lies, then up and over the wall with it.
+          const e = OUT_TIME - w.fall;
+          h.visible = true;
+          if (e < LIE_PART) h.position.set(w.x, 1.1 + 28 * (1 - e / LIE_PART) ** 2, w.z - 0.3);
+          else { const c = carried(w, p, (e - LIE_PART) / (OUT_TIME - LIE_PART)); h.position.set(c[0], c[2] + 0.6, c[1] - 0.3); }
+        }
       }
     });
 

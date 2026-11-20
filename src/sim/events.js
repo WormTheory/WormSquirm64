@@ -48,11 +48,21 @@ export function begin(race, ev, force) {
 // How long a worm is gone: one that fell drops out of sight (DROP_PART) and is then lowered back onto the road by a hand;
 // one that baked lies where it died while a hand pours a jug of water over it.
 export const FALL_TIME = 1.6, DEAD_TIME = 2.6, DROP_PART = 0.6;
+// A worm that went over a wall hasn't fallen anywhere: it lies on its back on the far side (LIE_PART) until the hand
+// picks it up and carries it back.
+export const OUT_TIME = 2.4, LIE_PART = 0.9;
+// Where a worm being carried back is, u of the way through the carry (0 to 1): from where it lay to the middle of the road,
+// lifted up and over. Returns [x, z, height of its head].
+export function carried(from, to, u) {
+  const k = u * u * (3 - 2 * u);
+  return [from.x + (to.x - from.x) * k, from.z + (to.z - from.z) * k, 0.5 + 2.9 * Math.min(1, u * 5) + 4.5 * Math.sin(Math.PI * u)];
+}
 // Sends a worm off the road, or kills it. Either way it's out of things for a moment, then back.
 export function drop(race, w, why) {
   if (w.fall > 0 || w.out) return;
   w.dead = why === 'die';
-  w.fall = w.dead ? DEAD_TIME : FALL_TIME; w.spasm = null; w.queued = null; w.stun = 0;
+  w.pit = !w.dead && !!race.track.def.open; // (only a road with no walls has anything to fall into)
+  w.fall = w.dead ? DEAD_TIME : w.pit ? FALL_TIME : OUT_TIME; w.spasm = null; w.queued = null; w.stun = 0;
   race.events.push({ type: why, idx: w.idx });
 }
 

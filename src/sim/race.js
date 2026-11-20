@@ -94,7 +94,12 @@ export class Race {
         }
         continue;
       }
-      if (wash(this, w, dt)) { drop(this, w, 'fall'); continue; }
+      if (wash(this, w, dt)) {
+        // Washed over the wall: it ends up on the ground just beyond it.
+        if (!open) { const l = locate(tr, w.x, w.z, w.hint), p = pointAt(tr, l.s, Math.sign(l.lat) * (tr.hw + 2.8)); w.x = p.x; w.z = p.z; w.s = l.s; }
+        drop(this, w, 'fall');
+        continue;
+      }
       let loc = locate(tr, w.x, w.z, w.hint);
       const lim = tr.hw + 0.4;
       if (Math.abs(loc.lat) > lim) {

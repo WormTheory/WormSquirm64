@@ -18,6 +18,11 @@ const { chromium } = require('playwright');
   await ws(() => { const r = window.__ws.race, w = r.worms[window.__ws.G.players[0].me]; w.x += 40; r.step(1 / 60); });
   await page.waitForTimeout(450); await shot('fall');
   await page.waitForTimeout(650); await shot('hand');
+  // Washed over a wall: the worm lies on its back beyond it, and the hand carries it home.
+  await race(1, 0);
+  await ws(() => { const r = window.__ws.race, w = r.worms[window.__ws.G.players[0].me]; w.x -= 9.8; w.fall = 2.4; w.pit = false; w.dead = false; w.spasm = null; r.step(1 / 60); });
+  await page.waitForTimeout(500); await shot('onback');
+  await page.waitForTimeout(900); await shot('carried');
   // Baked to death: the hand comes with a jug of water.
   await race(1, 0);
   await ws(() => { const r = window.__ws.race, w = r.worms[window.__ws.G.players[0].me]; w.dead = true; w.fall = 2.6; r.step(1 / 60); });

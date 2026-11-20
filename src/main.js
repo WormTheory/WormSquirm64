@@ -317,7 +317,7 @@ function frame(now, hidden) {
       // The camera follows a smoothed point, so a flop doesn't shake the whole picture.
       const me = G.race.worms[p.me], k = 1 - Math.exp(-dt * 6), c = p.cam, D = 10, cp = Math.cos(c.pitch);
       // (A worm that's fallen off is watched from where the hand will put it back.)
-      const at = me.fall > 0 && !me.dead ? centreNear(G.race.track, me.x, me.z) : me;
+      const at = me.fall > 0 && me.pit ? centreNear(G.race.track, me.x, me.z) : me;
       c.fx += (at.x - c.fx) * k; c.fz += (at.z - c.fz) * k;
       p.camera.position.set(c.fx - Math.sin(c.yaw) * D * cp, 1.2 + D * Math.sin(c.pitch) + (me.lift || 0) * 0.5, c.fz - Math.cos(c.yaw) * D * cp);
       p.camera.lookAt(c.fx, 1.2 + (me.lift || 0), c.fz);
