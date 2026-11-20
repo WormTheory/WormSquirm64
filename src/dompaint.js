@@ -100,7 +100,10 @@ export class DomPainter {
     }
     const tag = el.tagName;
     if (tag === 'IMG' || tag === 'CANVAS') {
+      // (A picture being shrunk is smoothed, or its thin lines break up; one being enlarged keeps its hard pixels.)
+      c.imageSmoothingEnabled = (el.naturalWidth || el.width) > w * 1.5;
       if (tag === 'CANVAS' || (el.complete && el.naturalWidth)) c.drawImage(el, x + bw, y + bw, w - bw * 2, h - bw * 2);
+      c.imageSmoothingEnabled = false;
       return;
     }
     if (tag === 'INPUT') return this.input(el, cs, x, y, w, h);

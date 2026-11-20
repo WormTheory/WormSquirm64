@@ -15,7 +15,7 @@ export const CSS = `
   -webkit-text-stroke:3px #1a0a40;filter:drop-shadow(5px 5px 0 #1a0a40)}
 #ws:not(.ghost) [data-tilt]{transform:rotate(-3deg)}
 #ws .logo span{-webkit-background-clip:text;background-clip:text;color:transparent}
-#ws .logo .ws{line-height:.76;background-image:linear-gradient(#fff36a 20%,#ff8a1c 60%,#e02818)}
+#ws .logo .ws{text-align:right;line-height:.76;background-image:linear-gradient(#fff36a 20%,#ff8a1c 60%,#e02818)}
 #ws .logo .n64{font-size:2.08em;line-height:.8;background-image:linear-gradient(#7cf0ff,#2860e8)}
 #ws .head{font-size:clamp(22px,6vmin,54px);padding:0 .15em;background:linear-gradient(#fff36a,#ff8a1c);-webkit-background-clip:text;background-clip:text;
   color:transparent;-webkit-text-stroke:2px #1a0a40;filter:drop-shadow(3px 3px 0 #1a0a40)}
@@ -30,6 +30,11 @@ export const CSS = `
 #ws .btn{font:inherit;font-size:clamp(13px,3.2vmin,26px);padding:.4em 1.1em;border:3px solid #000;border-radius:10px;color:#fff;
   background:linear-gradient(#5a6a90,#2a3658);box-shadow:0 5px 0 #000;cursor:pointer}
 #ws .btn:disabled{opacity:.4;cursor:default}
+#ws .pad{position:relative;width:min(94%,42em,78vh);aspect-ratio:16/9;font-size:clamp(11px,2.5vmin,19px);font-style:normal}
+#ws .pad canvas{position:absolute;inset:0;width:100%;height:100%}
+#ws .pad span{position:absolute;line-height:1;margin-top:-.5em;white-space:nowrap}
+#ws .pad .l{right:78%;text-align:right}
+#ws .pad .r{left:78%;text-align:left}
 #ws .col{display:flex;flex-direction:column;gap:1.6vmin;align-items:stretch}
 #ws .opts{display:flex;flex-direction:column;gap:1.4vmin;width:min(94%,30em);font-size:clamp(12px,2.6vmin,20px)}
 #ws .opt{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1.2fr) 2.2em;gap:.6em;align-items:center;text-align:left}
@@ -59,6 +64,39 @@ export const CSS = `
 @media (prefers-reduced-motion:reduce){#ws .blink,#ws .assign .cell.maybe{animation:none}}
 `;
 export const PCOL = ['#e03020', '#2868e8', '#e0a010', '#2f9a38'];
+
+// The controls picture, on a 480 by 270 drawing. Each label: the word, where its line starts (on the
+// button), which side the word sits, and how far down. The words are the eight actions in button order
+// (the four face buttons, then the four shoulder buttons), plus the stick.
+const PAD_W = 480, PAD_H = 270;
+const PAD_LABELS = [
+  ['LURCH', [165, 84], 'l', 44], ['WRITHE', [160, 104], 'l', 80], ['CAMERA', [175, 150], 'l', 150],
+  ['SPASM', [315, 84], 'r', 44], ['THRASH', [320, 104], 'r', 80], ['FLOP', [315, 132], 'r', 116],
+  ['WIGGLE', [333, 150], 'r', 152], ['SQUIRM', [315, 168], 'r', 188], ['UNDULATE', [297, 150], 'r', 224],
+];
+function drawPad(cv) {
+  const c = cv.getContext('2d');
+  const shape = (fill, draw) => { c.beginPath(); draw(); c.fillStyle = fill; c.fill(); c.lineWidth = 4; c.strokeStyle = '#10141c'; c.stroke(); };
+  const rr = (x, y, w, h, r) => (c.roundRect ? c.roundRect(x, y, w, h, r) : c.rect(x, y, w, h));
+  for (const x of [143, 293]) { shape('#8a90a0', () => rr(x + 4, 74, 36, 26, 8)); shape('#a8aebc', () => rr(x, 94, 44, 22, 8)); } // triggers, bumpers
+  for (const x of [152, 328]) shape('#c8ccd8', () => c.ellipse(x, 204, 36, 52, 0, 0, 7));                                         // grips
+  shape('#d8dce8', () => rr(126, 108, 228, 96, 34));                                                                          // body
+  shape('#30343c', () => c.arc(175, 150, 17, 0, 7)); shape('#585e6c', () => c.arc(175, 150, 9, 0, 7));                         // left stick
+  shape('#30343c', () => c.arc(272, 186, 14, 0, 7));                                                                          // right stick
+  shape('#30343c', () => { c.rect(203, 180, 22, 8); c.rect(210, 173, 8, 22); });                                               // d-pad
+  [[315, 168, '#2f9a38'], [333, 150, '#d82818'], [297, 150, '#2860e8'], [315, 132, '#e0a010']].forEach(([x, y, col]) => shape(col, () => c.arc(x, y, 9, 0, 7)));
+  // The lines: from each button out to the side, with one bend, ending by its word.
+  c.lineJoin = 'round'; c.lineCap = 'round';
+  for (const [, [x, y], side, ly] of PAD_LABELS) {
+    const end = side === 'l' ? 112 : 368, bend = side === 'l' ? Math.min(x - 14, 138) : Math.max(x + 14, 350);
+    for (const [col, lw] of [['#10141c', 6], ['#ffffff', 2.5]]) {
+      c.beginPath(); c.moveTo(x, y);
+      if (side === 'r' && x < 305) c.lineTo(x, ly); else c.lineTo(bend, ly); // (the left face button's line drops straight down first)
+      c.lineTo(end, ly);
+      c.strokeStyle = col; c.lineWidth = lw; c.stroke();
+    }
+  }
+}
 
 // One card of a worm select grid: the worm's picture and name, and tags over it (who's on it, who has it).
 export function wormCard(i, pic, tags, taken) {
@@ -155,15 +193,16 @@ export class Menus {
     { start: () => this.mode(), controls: () => this.controls(), options: () => this.options() }, this.titleFocus || 0);
   }
 
+  // A picture of a controller, with a line from each button to the one word for what it does.
   controls() {
     this.titleFocus = 1;
     this.put('controls', `<div class="head">CONTROLS</div>
-      <div class="help"><b>Controller:</b> the left stick turns the camera. Every face and shoulder button does something.</div>
-      <div class="help"><b>Keyboard and mouse:</b> A/D or the arrow keys turn the camera, or drag with the mouse.
-      Q E R F Z X C V and J K L I U O N M do something.</div>
-      <div class="help"><b>Touch:</b> drag to turn the camera. Tap the buttons to squirm, wiggle, undulate or flop.</div>
-      <div class="help">Your worm heads roughly where the camera points. Roughly.<br>Escape or Start pauses.</div>
+      <div class="pad"><canvas width="${PAD_W}" height="${PAD_H}"></canvas>${PAD_LABELS.map(([word, , side, y]) =>
+        `<span class="t ${side}" style="top:${(y / PAD_H) * 100}%">${word}</span>`).join('')}</div>
+      <div class="help">Keyboard: A/D or the arrow keys (or the mouse) for the camera; Q E R F Z X C V and J K L I U O N M for the rest.<br>
+      Touch: drag for the camera, tap the buttons. Escape or Start pauses.</div>
       <div class="row"><button class="btn" type="button" data-a="back">BACK</button></div>`, { back: () => this.title() });
+    drawPad(this.panel.querySelector('.pad canvas'));
     this.tickFn = (nav) => { if (nav.back) this.title(); else this.steer(nav); };
   }
 
