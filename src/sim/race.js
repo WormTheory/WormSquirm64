@@ -11,6 +11,7 @@ const TIMERS = ['stun', 'boost', 'star', 'shrunk', 'flat', 'howl', 'safe', 'patc
 export const STEP = 1 / 60;
 const COUNTDOWN = 5;       // seconds before GO (the track's name shows for the first of them)
 const AFTER_WINNER = 30;   // the race is called this long after the first worm finishes
+const DRAW_AFTER = 7.5;    // and this long after the bird has eaten the last player
 
 // Where the worm in grid place i starts.
 export const gridSlot = (track, i) => pointAt(track, -3 - 2.2 * i, i % 2 ? -3 : 3);
@@ -140,11 +141,14 @@ export class Race {
     order.forEach((w, r) => { w.rank = r; });
     this.order = order;
     if (this.state === 'racing') {
-      // Over when every player has finished (or been eaten) and somebody has won, when everyone left has finished,
-      // or half a minute after the winner.
+      // Over when every player has finished (or been eaten) and somebody has won, when everyone not eaten has finished,
+      // or half a minute after the winner. And if the bird has eaten every player, it's a draw: the race ends a few
+      // seconds later (long enough to watch the last of them fed to the chicks), whatever the computer's worms are doing.
       const humans = this.worms.filter((w) => w.human), settled = (w) => w.finished || w.out;
+      const allEaten = humans.length > 0 && humans.every((w) => w.out);
+      if (allEaten && this.eatenAt === undefined) this.eatenAt = this.clock;
       const humansDone = humans.length > 0 && humans.every(settled) && (this.firstFinish >= 0 || humans.some((w) => w.finished));
-      if (humansDone || this.worms.every(settled) || (this.firstFinish >= 0 && this.clock > this.firstFinish + AFTER_WINNER)) {
+      if (allEaten ? this.clock > this.eatenAt + DRAW_AFTER : humansDone || this.worms.every(settled) || (this.firstFinish >= 0 && this.clock > this.firstFinish + AFTER_WINNER)) {
         this.state = 'done';
         this.events.push({ type: 'done' });
       }

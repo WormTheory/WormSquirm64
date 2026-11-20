@@ -197,20 +197,23 @@ function pause(on) {
 
 function showResults() {
   const race = G.race, mine = new Set(G.players.map((p) => p.me)), gp = session && session.mode === 'gp';
-  const pts = (w, i) => (w.out ? 0 : POINTS[i] || 0);
+  // If the bird ate everybody who was playing, it's a draw: no places and no points.
+  const humans = race.worms.filter((w) => w.human), draw = humans.length > 0 && humans.every((w) => w.out);
+  const pts = (w, i) => (w.out || draw ? 0 : POINTS[i] || 0);
   if (gp) race.order.forEach((w, i) => { session.points[w.char] = (session.points[w.char] || 0) + pts(w, i); });
   const dot = (w) => `<i class="dot" style="background:${hex(CHARS[w.char].color)}"></i> ${CHARS[w.char].name}`;
-  const rows = race.order.map((w, i) => `<tr class="${mine.has(w.idx) ? 'me' : ''}"><td>${w.out ? '' : i + 1 + ORD[i]}</td><td>${dot(w)}</td>
+  const rows = race.order.map((w, i) => `<tr class="${mine.has(w.idx) ? 'me' : ''}"><td>${w.out || draw ? '' : i + 1 + ORD[i]}</td><td>${dot(w)}</td>
     <td>${w.out ? 'eaten by a bird' : w.finished ? fmtTime(w.finishTime) : 'still squirming'}</td>${gp ? `<td>+${pts(w, i)}</td><td>${session.points[w.char]}</td>` : ''}</tr>`).join('');
-  const html = `<div class="head">${TRACKS[G.trackIdx].name.toUpperCase()}</div><table class="t">${rows}</table>`;
+  const html = `<div class="head">${draw ? 'DRAW' : TRACKS[G.trackIdx].name.toUpperCase()}</div>${draw ? '<div class="help">Everybody playing was eaten.</div>' : ''}<table class="t">${rows}</table>`;
   playSong('results');
   if (net) {
+    if (draw) eaten = new Set(); // (or the room's next race would start with nobody in it)
     if (net.room.isHost) menus.dialog(html, [{ label: 'BACK TO LOBBY', fn: () => net.room.toLobby() }, { label: 'LEAVE GAME', fn: () => online.leave() }]);
     else menus.dialog(html + '<div class="help">Waiting for the host.</div>', [{ label: 'LEAVE GAME', fn: () => online.leave() }]);
   } else if (!gp) {
     menus.dialog(html, [{ label: 'RACE AGAIN', fn: () => startRace(G.trackIdx) },
       { label: 'CHANGE TRACK', fn: () => { menus.session.track = G.trackIdx; menus.trackSel(); } }, { label: 'QUIT', fn: toTitle }]);
-  } else if (session.round < session.cup.tracks.length - 1) {
+  } else if (session.round < session.cup.tracks.length - 1 && !draw) { // (a draw ends the cup: there's nobody left to race the rest)
     menus.dialog(html, [{ label: 'NEXT RACE', fn: () => { session.round++; startRace(session.cup.tracks[session.round]); } }, { label: 'QUIT', fn: toTitle }]);
   } else {
     menus.dialog(html, [{ label: 'FINAL STANDINGS', fn: () => {
@@ -311,7 +314,7 @@ function view(rect, camera, scene) {
   const x = Math.round(rect[0] * bufW), w = Math.round(rect[2] * bufW), h = Math.round(rect[3] * bufH), y = bufH - Math.round(rect[1] * bufH) - h;
   renderer.setViewport(x, y, w, h); renderer.setScissor(x, y, w, h);
   const aspect = (rect[2] * (root.clientWidth || 4)) / (rect[3] * (root.clientHeight || 3));
-  if (camera.aspect !== aspect) { camera.aspect = aspect; if (camera !== (nest && nest.camera)) camera.fov = aspect < 1 ? 80 : 62; camera.updateProjectionMatrix(); }
+  if (camera.aspect !== aspect) { camera.aspect = aspect; if (!nest || (camera !== nest.camera && camera !== nest.raceCam)) camera.fov = aspect < 1 ? 80 : 62; camera.updateProjectionMatrix(); }
   if (!scene) G.fx.around(camera);
   renderer.render(scene || G.scene, camera);
 }
@@ -347,12 +350,21 @@ function frame(now, hidden) {
     }
     G.race.worms.forEach((w, i) => G.views[i].update(w, clockT, G.race.track));
     G.fx.update(G.race, clockT, dt);
-    if (nest) nest.update(clockT, dt);
+    if (nest) { nest.update(clockT, dt); if (nest.watching) nest.watch(G.race, dt); }
     if (G.players.length) {
       renderer.setViewport(0, 0, bufW, bufH); renderer.setScissor(0, 0, bufW, bufH);
       renderer.setClearColor(0x000000); renderer.clear();
       // A player whose worm the bird took watches the nest instead.
-      for (const p of G.players) { if (G.race.worms[p.me].out && nest) view(p.rect, nest.camera, nest.scene); else view(p.rect, p.camera); }
+      for (const p of G.players) {
+        if (!(G.race.worms[p.me].out && nest)) { view(p.rect, p.camera); continue; }
+        // After the feeding the nest looks down on the race: the race first, then the nest and chicks over it, in the way.
+        if (nest.watching) {
+          view(p.rect, nest.raceCam);
+          renderer.autoClear = false; renderer.clearDepth();
+          view(p.rect, nest.camera, nest.scene);
+          renderer.autoClear = true;
+        } else view(p.rect, nest.camera, nest.scene);
+      }
       if (G.overview) view([0.5, 0.5, 0.5, 0.5], G.overview);
     } else {
       // Behind the menus: a slow turn around the start line.

@@ -55,6 +55,14 @@ const { chromium } = require('playwright');
   await page.waitForTimeout(2200); await shot('bird-away');
   await page.waitForTimeout(4200); await shot('nest-feeding');
   await page.waitForTimeout(5000); await shot('nest');
+  // A second worm is taken: the first player, now watching the race from the nest, sees that feeding too.
+  await ws(() => window.__ws.event('bird', 0));
+  await page.waitForTimeout(7600); await shot('nest-second');
+  // The bird takes the other player too: with everyone playing eaten, the race ends as a draw.
+  await ws(() => window.__ws.event('bird', window.__ws.G.players[1].me));
+  await page.waitForTimeout(6200); await shot('order-greyed');
+  await page.waitForTimeout(10500); await shot('draw');
+  console.log('after both players eaten: phase', await ws(() => window.__ws.phase), 'heading', await page.locator('.panel .head').first().textContent().catch(() => '(none)'));
   console.log('eaten:', await ws(() => window.__ws.race.worms.filter((w) => w.out).length), 'errors:', errs.length ? errs : 'none');
   await browser.close();
 })();

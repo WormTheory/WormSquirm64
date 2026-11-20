@@ -236,9 +236,10 @@ export class NestView {
     this.camera = new THREE.PerspectiveCamera(46, 4 / 3, 0.2, 200);
     this.camera.position.set(0, 4.2, 9.5); this.camera.lookAt(0, 1.6, 0);
     const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); scene.add(m); return m; };
-    add(new THREE.CylinderGeometry(0.9, 1.4, 14, 7), lam(0x5a3a20), -1, -7.4, -1);                 // the tree
+    this.backdrop = [add(new THREE.CylinderGeometry(0.9, 1.4, 14, 7), lam(0x5a3a20), -1, -7.4, -1)]; // the tree
     const branch = add(new THREE.CylinderGeometry(0.5, 0.7, 16, 6), lam(0x5a3a20), 2, -0.6, -0.4); branch.rotation.z = Math.PI / 2 - 0.08;
-    for (const [x, y, z, r] of [[-5, 3, -4, 3], [5, 4, -5, 3.6], [0, 6, -6, 4], [-7, -2, -3, 2.6], [7, -1, -4, 2.8]]) add(new THREE.IcosahedronGeometry(r, 0), lam(0x2f8a40), x, y, z);
+    for (const [x, y, z, r] of [[-5, 3, -4, 3], [5, 4, -5, 3.6], [0, 6, -6, 4], [-7, -2, -3, 2.6], [7, -1, -4, 2.8]]) this.backdrop.push(add(new THREE.IcosahedronGeometry(r, 0), lam(0x2f8a40), x, y, z));
+    this.sky = scene.background;
     add(new THREE.TorusGeometry(2.1, 0.6, 5, 9), lam(0x8a6a3a), 0, 0.5, 0).rotation.x = Math.PI / 2;
     add(new THREE.CylinderGeometry(2.1, 1.6, 0.5, 9), lam(0x6a4e28), 0, 0.2, 0);
     // Three chicks, all mouth.
@@ -262,10 +263,35 @@ export class NestView {
     this.wormMat = lam(0xe88aa0);
     this.worm = Array.from({ length: 7 }, (_, i) => { const m = new THREE.Mesh(ball, this.wormMat); m.scale.setScalar(0.2 - i * 0.012); m.visible = false; scene.add(m); return m; });
     this.queue = []; this.now = null; this.fed = 0; this.onGulp = null;
+    // Once the first worm has been fed, the view turns to look down on the race from the nest: the race is drawn first,
+    // and the nest, its branch and the chicks are drawn over it, in the way. watching says that's so.
+    this.watching = false;
+    this.raceCam = new THREE.PerspectiveCamera(52, 4 / 3, 0.5, 500);
+    this.eye = new THREE.Vector3();
   }
 
   // Another worm for the chicks.
   feed(color) { this.queue.push(color); }
+
+  // From now on: no sky and no tree behind the nest (the race is there instead), and the camera sits behind the chicks
+  // looking out over their heads, so they fill the bottom of the picture.
+  setWatching() {
+    this.watching = true;
+    this.scene.background = null;
+    for (const m of this.backdrop) m.visible = false;
+    this.camera.position.set(0.4, 2.6, 5.6); this.camera.lookAt(0, 2.9, 0); this.camera.updateProjectionMatrix();
+  }
+
+  // Points the camera that looks down on the race: from high up to one side, at the middle of the worms still racing.
+  watch(race, dt) {
+    let x = 0, z = 0, n = 0;
+    for (const w of race.worms) if (!w.out) { x += w.x; z += w.z; n++; }
+    if (!n) return;
+    const k = 1 - Math.exp(-dt * 1.5);
+    this.eye.x += (x / n - this.eye.x) * k; this.eye.z += (z / n - this.eye.z) * k;
+    this.raceCam.position.set(this.eye.x + 16, 30, this.eye.z + 34);
+    this.raceCam.lookAt(this.eye.x, 0, this.eye.z);
+  }
 
   update(time, dt) {
     if (!this.now && this.queue.length) { this.now = { t: 0, chick: this.fed++ % 3 }; this.wormMat.color.setHex(this.queue.shift()); }
@@ -292,6 +318,6 @@ export class NestView {
       m.position.set(px + 1.6 + 0.12 * Math.sin(time * 11 + i), py + 0.4 - hang - drop * (py - c.y - 0.2 - hang * 0.5), c.z + 0.1);
     });
     if (f.t > 3.4 && !f.gulped) { f.gulped = true; if (this.onGulp) this.onGulp(); }
-    if (f.t > 6.2) this.now = null;
+    if (f.t > 6.2) { this.now = null; this.setWatching(); }
   }
 }

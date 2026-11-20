@@ -168,8 +168,9 @@ export class PlayerHud {
       (race.order || race.worms).forEach((o, i) => {
         const oy = top + s * 2.1 + i * os * 1.4;
         c.beginPath(); c.arc(left + os * 0.5, oy + os * 0.55, os * 0.5, 0, 7);
-        c.fillStyle = hex(CHARS[o.char].color); c.fill(); c.lineWidth = 1; c.strokeStyle = '#000'; c.stroke();
-        text(CHARS[o.char].name, left + os * 1.4, oy, os, o.idx === me ? '#ffe24a' : '#fff');
+        // (A worm the bird has eaten stays in the list, greyed out.)
+        c.fillStyle = o.out ? '#5a5e66' : hex(CHARS[o.char].color); c.fill(); c.lineWidth = 1; c.strokeStyle = '#000'; c.stroke();
+        text(CHARS[o.char].name, left + os * 1.4, oy, os, o.out ? '#8a8e96' : o.idx === me ? '#ffe24a' : '#fff');
       });
     }
 
