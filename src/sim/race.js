@@ -6,7 +6,7 @@ import { makeAi, stepAi } from './ai.js';
 import { makeItems, stepItems, stun, STUN } from './items.js';
 import { makeEvents, stepEvents, wash, drop } from './events.js';
 
-const TIMERS = ['stun', 'boost', 'star', 'shrunk', 'flat', 'howl', 'safe', 'patch'];
+const TIMERS = ['stun', 'boost', 'star', 'shrunk', 'flat', 'howl', 'safe', 'patch', 'slow'];
 
 export const STEP = 1 / 60;
 const COUNTDOWN = 5;       // seconds before GO (the track's name shows for the first of them)

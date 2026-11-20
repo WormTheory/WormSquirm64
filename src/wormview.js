@@ -210,6 +210,7 @@ export class WormView {
     if (w.star > 0) glow.setHSL((time * 2) % 1, 1, 0.45);
     else if (this.flash > 0 && Math.floor(this.flash * 20) % 2 === 0) glow.setRGB(1, 0, 0);
     else if (w.shrunk > 0) glow.setRGB(0.05, 0.12, 0.4); // (struck by lightning: small and a bit blue)
+    else if (w.slow > 0) glow.setRGB(0.25, 0.3, 0.02);    // (stuck in glue: a sickly yellow-green)
     else glow.setRGB(0.18 * Math.min(1, w.heat || 0), 0, 0);
     // Sun-baked worms go browner the more baked they are, and browner still once it's killed them.
     // (And a wolf's coat is dark fur.)

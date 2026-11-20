@@ -5,9 +5,14 @@
 //   stomp   a pair of giant legs walks across the road; a worm under a foot is flattened for five to ten seconds.
 //   moon    a blood moon rises. One worm rears up, turns into a were-wolf-worm and hunts the others, biting them,
 //           until the curse lifts and it goes back to racing. The hand patches up its victims.
+//   twister a tornado comes down the road the wrong way; a worm it catches is whirled up and put down somewhere else,
+//           further on or further back.
+//   quake   the ground shakes in fits, and each fit tips some of the worms over.
+//   frost   the road ices up: every lunge keeps sliding afterwards.
 import { locate, pointAt } from './track.js';
 
-export const EVENT_KINDS = ['none', 'rain', 'heat', 'bird', 'stomp', 'moon'];
+export const EVENT_KINDS = ['none', 'rain', 'heat', 'bird', 'stomp', 'moon', 'twister', 'quake', 'frost'];
+const TWIST = { len: 12, speed: 9, reach: 3, secs: 1.6, high: 6.5 };
 const MOON = { len: 17, pick: 2.6, rear: 1.7, back: 1.3, speed: 10.5 }; // seconds: the whole event, before a worm is chosen, rearing up, turning back; and how fast the wolf runs
 const GAP = [10, 20];          // quiet seconds between events
 const WEATHER_FOR = [8, 12];   // how long rain or a heatwave lasts
@@ -19,8 +24,8 @@ const STEP_EVERY = 0.75, FOOT_R = 5;
 // kinds: which events may happen (all of them if not given).
 export function makeEvents(race, on, freq = 5, kinds = null) {
   const wait = 5 / Math.max(1, Math.min(10, freq));
-  const may = ['rain', 'heat', 'stomp', 'moon', 'bird'].filter((k) => !kinds || kinds.includes(k)); // (each as likely as the next)
-  return { on, wait, may, type: 'none', t: 0, next: on && may.length ? race.rng.range(8, 14) * wait : Infinity, bird: null, stomp: null, wolf: -1 };
+  const may = ['rain', 'heat', 'stomp', 'moon', 'bird', 'twister', 'quake', 'frost'].filter((k) => !kinds || kinds.includes(k)); // (each as likely as the next)
+  return { on, wait, may, twister: null, type: 'none', t: 0, next: on && may.length ? race.rng.range(8, 14) * wait : Infinity, bird: null, stomp: null, wolf: -1 };
 }
 
 // (kind can be given, to start a particular event: the tests do.)
@@ -35,6 +40,13 @@ export function begin(race, ev, force) {
   }
   ev.type = kind; ev.t = 0;
   if (kind === 'moon') { ev.len = MOON.len; ev.wolf = -1; }
+  else if (kind === 'twister') {
+    // It starts a way ahead of the leader and comes back down the road to meet everyone.
+    const lead = live.reduce((a, b) => (b.prog > a.prog ? b : a), live[0] || race.worms[0]);
+    ev.twister = { s: lead.s + 30, x: 0, z: 0 }; ev.len = TWIST.len;
+    const p = pointAt(tr, ev.twister.s, 0); ev.twister.x = p.x; ev.twister.z = p.z;
+  } else if (kind === 'quake') { ev.len = rng.range(6, 8); ev.shake = 0.6; }
+  else if (kind === 'frost') ev.len = rng.range(9, 12);
   else if (kind === 'rain' || kind === 'heat') {
     ev.len = rng.range(WEATHER_FOR[0], WEATHER_FOR[1]);
     for (const w of race.worms) { w.wash = null; w.bake = rng.range(0.15, 1.1); } // (bake: hurts a second, on average)
@@ -81,6 +93,15 @@ export function drop(race, w, why) {
 
 export function stepEvents(race, dt) {
   const ev = race.weather, rng = race.rng;
+  // Worms the tornado has caught go on being whirled along even after it's gone.
+  for (const w of race.worms) {
+    const sp = w.spin;
+    if (!sp) continue;
+    sp.t += dt;
+    const u = Math.min(1, sp.t / TWIST.secs), p = pointAt(race.track, sp.s0 + (sp.to - sp.s0) * u, 0);
+    w.x = p.x; w.z = p.z; w.lift = u < 1 ? 0.01 + TWIST.high * Math.sin(Math.PI * u) : 0; w.stun = Math.max(w.stun, 0.3);
+    if (u >= 1) { w.spin = null; w.stun = 0.5; }
+  }
   // Baked worms recover once the sun's off them.
   if (ev.type !== 'heat') for (const w of race.worms) if (w.heat > 0) w.heat = Math.max(0, w.heat - 0.12 * dt);
   if (ev.type === 'none') {
@@ -90,6 +111,39 @@ export function stepEvents(race, dt) {
   }
   ev.t += dt;
   const live = race.worms.filter((w) => !w.out && !(w.fall > 0) && !(w.lift > 0));
+  if (ev.type === 'twister') {
+    const tw = ev.twister, tr = race.track;
+    tw.s -= TWIST.speed * dt;
+    // It leans across the road towards whichever worm it's about to reach.
+    let want = Math.sin(ev.t * 1.3) * tr.hw * 0.6, near = 16;
+    for (const w of live) {
+      let d = tw.s - w.s; d -= Math.round(d / tr.length) * tr.length;
+      if (d > 0 && d < near && !(w.safe > 0)) { near = d; want = locate(tr, w.x, w.z, w.hint).lat; }
+    }
+    tw.lat = (tw.lat || 0) + Math.max(-7 * dt, Math.min(7 * dt, want - (tw.lat || 0)));
+    const p = pointAt(tr, tw.s, tw.lat);
+    tw.x = p.x; tw.z = p.z;
+    for (const w of live) {
+      if (w.finished || w.star > 0 || w.safe > 0 || (w.x - tw.x) ** 2 + (w.z - tw.z) ** 2 > TWIST.reach * TWIST.reach) continue;
+      w.spin = { t: 0, s0: w.s, to: w.s + rng.range(-14, 22) }; w.lift = 0.01; w.spasm = null; w.queued = null; w.safe = 4;
+      race.events.push({ type: 'twirl', idx: w.idx });
+    }
+  } else if (ev.type === 'quake') {
+    // A fit of shaking every second or so; each one tips over some of the worms.
+    ev.shake -= dt;
+    if (ev.shake <= 0) {
+      ev.shake = rng.range(0.9, 1.6);
+      race.events.push({ type: 'tremor' });
+      for (const w of live) if (!w.finished && !(w.star > 0) && rng() < 0.4) { w.stun = Math.max(w.stun, rng.range(0.8, 1.6)); w.spasm = null; race.events.push({ type: 'hit', idx: w.idx }); }
+    }
+  } else if (ev.type === 'frost') {
+    // On ice, a lunge that has just ended carries on as a slide.
+    for (const w of live) {
+      if (w.wasSpasm && !w.spasm && !(w.stun > 0)) { const v = (w.wasSpasm.dist / w.wasSpasm.dur) * 0.5; w.slide = { x: w.wasSpasm.dx * v, z: w.wasSpasm.dz * v }; }
+      w.wasSpasm = w.spasm;
+      if (w.slide) { w.x += w.slide.x * dt; w.z += w.slide.z * dt; const k = Math.exp(-1.7 * dt); w.slide.x *= k; w.slide.z *= k; }
+    }
+  }
   if (ev.type === 'rain') {
     for (const w of live) {
       if (!w.wash || (w.wash.t -= dt) <= 0) { const a = rng.range(0, Math.PI * 2), v = rng.range(1.5, 5); w.wash = { x: Math.cos(a) * v, z: Math.sin(a) * v, t: rng.range(0.8, 2) }; }
@@ -163,7 +217,8 @@ export function stepEvents(race, dt) {
   }
   if (ev.t >= ev.len) {
     if (race.worms[ev.wolf]) race.worms[ev.wolf].wolf = 0;
-    ev.type = 'none'; ev.bird = null; ev.stomp = null; ev.wolf = -1; ev.next = rng.range(GAP[0], GAP[1]) * ev.wait;
+    ev.type = 'none'; ev.bird = null; ev.stomp = null; ev.wolf = -1; ev.twister = null;
+    for (const w of race.worms) { w.slide = null; w.wasSpasm = null; } ev.next = rng.range(GAP[0], GAP[1]) * ev.wait;
     for (const w of race.worms) w.wash = null;
     race.events.push({ type: 'event', kind: 'none' });
   }

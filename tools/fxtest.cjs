@@ -48,6 +48,17 @@ const { chromium } = require('playwright');
   await page.waitForTimeout(1700); await shot('moon-wolf');
   await page.waitForTimeout(1500); await shot('moon-plaster');
   console.log('wolf:', await ws(() => window.__ws.race.weather.wolf), 'bitten so far:', await ws(() => window.__ws.race.worms.filter((w) => w.bit || w.patch > 0).length));
+  // The tornado, the frost and the earthquake, and the glue, spring and switcheroo items.
+  await race(1, 0);
+  await ws(() => { window.__ws.event('twister'); const r = window.__ws.race, tw = r.weather.twister, me = r.worms[window.__ws.G.players[0].me]; tw.s = me.s + 14; });
+  await page.waitForTimeout(1300); await shot('twister');
+  await page.waitForTimeout(900); await shot('twister-up');
+  await race(1, 4); await ws(() => window.__ws.event('frost')); await page.waitForTimeout(2500); await shot('frost');
+  await race(1, 0); await ws(() => window.__ws.event('quake')); await page.waitForTimeout(1200); await shot('quake');
+  await race(1, 0);
+  await ws(() => { const r = window.__ws.race, me = r.worms[window.__ws.G.players[0].me]; r.items.ents.push({ type: 'glue', x: me.x, z: me.z + 0.2, vx: 0, vz: 0, owner: -1, grace: 0, life: 9 }); const o = r.worms[0]; o.spring = { t: 0, s0: me.s - 4, lat: -3 }; o.lift = 0.01; });
+  await page.waitForTimeout(450); await shot('glue-spring');
+  console.log('glued:', await ws(() => window.__ws.race.worms[window.__ws.G.players[0].me].slow > 0));
   // The bird takes player one of two; player two races on.
   await race(2, 1);
   await ws(() => window.__ws.event('bird', window.__ws.G.players[0].me));

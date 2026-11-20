@@ -76,8 +76,9 @@ export class FxView {
       pebble: () => { const m = new THREE.Mesh(ball, lam(0x9a9aa4)); m.scale.setScalar(0.36); m.position.y = 0.4; return m; },
       homing: () => { const m = new THREE.Mesh(ball, lam(0xe03828)); m.scale.setScalar(0.4); m.position.y = 0.45; return m; },
       mole: () => { const m = new THREE.Mesh(new THREE.ConeGeometry(0.75, 0.6, 6), lam(0x6a4424)); m.position.y = 0.3; return m; },
+      glue: () => { const m = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.75, 0.12, 9), lam(0xc8d030, { transparent: true, opacity: 0.85 })); m.position.y = 0.07; return m; },
     };
-    this.pool = { peel: [], pebble: [], homing: [], mole: [] };
+    this.pool = { peel: [], pebble: [], homing: [], mole: [], glue: [] };
     // Rain: two stacked boxes of streaks that fall through each other, kept round whichever camera is drawing.
     const pts = [];
     for (let i = 0; i < 420; i++) { const x = (Math.random() - 0.5) * 44, y = Math.random() * RAIN_BOX, z = (Math.random() - 0.5) * 44; pts.push(x, y, z, x + 0.15, y - 1.3, z); }
@@ -94,6 +95,24 @@ export class FxView {
     scene.add(this.bird);
     this.birdAt = null;
     // The legs: trousers and a shoe each, tall enough that the top is out of sight.
+    // Snow for a frost: the rain's trick again, with flakes that drift down slowly.
+    const flakes = [];
+    for (let i = 0; i < 380; i++) flakes.push((Math.random() - 0.5) * 44, Math.random() * RAIN_BOX, (Math.random() - 0.5) * 44);
+    const sg = new THREE.BufferGeometry();
+    sg.setAttribute('position', new THREE.Float32BufferAttribute(flakes, 3));
+    const sm = new THREE.PointsMaterial({ color: 0xffffff, size: 2.4, sizeAttenuation: false, fog: false });
+    this.snow = new THREE.Group();
+    for (const y of [0, RAIN_BOX]) { const pts2 = new THREE.Points(sg, sm); pts2.position.y = y; this.snow.add(pts2); }
+    this.snow.visible = false;
+    scene.add(this.snow);
+    this.twister = new THREE.Group();
+    for (let i = 0; i < 7; i++) {
+      const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.7 + i * 0.36, 0.4 + i * 0.34, 1.45, 7, 1, true), lam(i % 2 ? 0x8a8e98 : 0xa8acb4, { side: THREE.DoubleSide, transparent: true, opacity: 0.72 }));
+      ring.position.y = 0.7 + i * 1.4;
+      this.twister.add(ring);
+    }
+    this.twister.visible = false;
+    scene.add(this.twister);
     this.legs = [0, 1].map(() => {
       const g = new THREE.Group();
       const leg = new THREE.Mesh(new THREE.BoxGeometry(2.6, 600, 2.6), lam(0x3050a0)); leg.position.y = 301.7;
@@ -122,14 +141,14 @@ export class FxView {
       m.visible = race.items.boxes[i].t <= 0;
       m.rotation.set(time * 1.3, time * 1.9 + i, 0); m.position.y = 1 + 0.15 * Math.sin(time * 3 + i);
     });
-    const used = { peel: 0, pebble: 0, homing: 0, mole: 0 };
+    const used = { peel: 0, pebble: 0, homing: 0, mole: 0, glue: 0 };
     for (const e of race.items.ents) {
       const pool = this.pool[e.type];
       if (!pool) continue;
       let m = pool[used[e.type]++];
       if (!m) { m = this.make[e.type](); pool.push(m); this.scene.add(m); }
       m.visible = true; m.position.x = e.x; m.position.z = e.z;
-      if (e.type !== 'peel') m.rotation.set(time * 9, time * 7, 0);
+      if (e.type !== 'peel' && e.type !== 'glue') m.rotation.set(time * 9, time * 7, 0);
     }
     for (const k in this.pool) for (let i = used[k]; i < this.pool[k].length; i++) this.pool[k][i].visible = false;
 
@@ -178,10 +197,17 @@ export class FxView {
     this.time = time;
     this.rain.visible = kind === 'rain';
     this.moon.visible = kind === 'moon';
+    this.snow.visible = kind === 'frost';
+    // The tornado: a stack of rings, each turning and swaying a little out of step with the one below.
+    this.twister.visible = !!wx.twister;
+    if (wx.twister) {
+      this.twister.position.set(wx.twister.x, 0, wx.twister.z);
+      this.twister.children.forEach((ring, i) => { ring.rotation.y = time * (9 - i * 0.5); ring.position.x = Math.sin(time * 5 + i * 0.7) * 0.12 * i; ring.position.z = Math.cos(time * 4 + i * 0.9) * 0.12 * i; });
+    }
     // Rain darkens the sky and a heatwave turns it a hot orange, each fading in and out.
-    const want = kind === 'rain' || kind === 'heat' || kind === 'moon' ? 1 : 0;
+    const want = kind === 'rain' || kind === 'heat' || kind === 'moon' || kind === 'frost' || kind === 'twister' ? 1 : 0;
     this.tint += Math.sign(want - this.tint) * Math.min(Math.abs(want - this.tint), dt * 0.8);
-    if (kind === 'rain') this.tintTo.set(0x4a5868); else if (kind === 'heat') this.tintTo.set(0xf8a040); else if (kind === 'moon') this.tintTo.set(0x6a0810);
+    if (kind === 'rain') this.tintTo.set(0x4a5868); else if (kind === 'heat') this.tintTo.set(0xf8a040); else if (kind === 'moon') this.tintTo.set(0x6a0810); else if (kind === 'frost') this.tintTo.set(0xd8ecff); else if (kind === 'twister') this.tintTo.set(0x70747c);
     if (kind !== 'none') this.deep = kind === 'moon' ? 0.9 : 0.6; // (the blood moon turns the sky nearly all the way red)
     const u = this.scene.userData;
     if (u.sky) { this.scene.background.copy(u.sky).lerp(this.tintTo, this.tint * this.deep); this.scene.fog.color.copy(u.fog).lerp(this.tintTo, this.tint * this.deep); }
@@ -220,6 +246,7 @@ export class FxView {
   // Call before drawing each player's view: the rain goes wherever that camera is.
   around(camera) {
     if (this.moon.visible) this.moonAt(camera, this.moon.position);
+    if (this.snow.visible) this.snow.position.set(camera.position.x, camera.position.y - RAIN_BOX / 2 - ((this.time * 5) % RAIN_BOX), camera.position.z);
     if (!this.rain.visible) return;
     this.rain.position.set(camera.position.x, camera.position.y - RAIN_BOX / 2 - ((this.time * 34) % RAIN_BOX), camera.position.z);
   }

@@ -243,6 +243,9 @@ function react(e, mine) {
     case 'howl': sfx.howl(); break;
     case 'unwolf': sfx.howl(true); break;
     case 'bitten': sfx.bite(me ? 0.22 : 0.09); break;
+    case 'glued': sfx.glued(me ? 0.14 : 0.04); break;
+    case 'twirl': sfx.twirl(me ? 0.16 : 0.06); break;
+    case 'tremor': sfx.rumble(); break;
     case 'hurt': sfx.hurt(me ? 0.12 : 0.025); break;
     case 'stomp': sfx.stomp(); break;
     case 'squash': sfx.squash(); break;
@@ -339,6 +342,8 @@ function frame(now, hidden) {
       const at = me.fall > 0 && me.pit ? centreNear(G.race.track, me.x, me.z) : me;
       c.fx += (at.x - c.fx) * k; c.fz += (at.z - c.fz) * k;
       p.camera.position.set(c.fx - Math.sin(c.yaw) * D * cp, 1.2 + D * Math.sin(c.pitch) + (me.lift || 0) * 0.5, c.fz - Math.cos(c.yaw) * D * cp);
+      // (In an earthquake the whole picture judders.)
+      if (G.race.weather.type === 'quake') { p.camera.position.x += 0.3 * Math.sin(clockT * 61); p.camera.position.y += 0.22 * Math.sin(clockT * 83); p.camera.position.z += 0.3 * Math.sin(clockT * 71); }
       p.camera.lookAt(c.fx, 1.2 + (me.lift || 0), c.fz);
       if (p.moonT > 0) {
         // The blood moon has just appeared: the camera tips up to it for a moment, then comes back down.

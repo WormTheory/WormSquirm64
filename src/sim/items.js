@@ -3,9 +3,10 @@
 // the front of the pack gets things to leave behind, the back gets things that catch up.
 import { locate, pointAt } from './track.js';
 
-export const ITEMS = ['BOOST', 'PEEL', 'PEBBLE', 'HOMING', 'STAR', 'ZAP', 'MOLE'];
-export const ITEM_NAMES = ['WORMSHROOM', 'SQUIRMANA PEEL', 'PEBBLE', 'HOMING PEBBLE', 'SQUIRM STAR', 'LIGHTNING', 'MOLE'];
-export const ENT_TYPES = ['peel', 'pebble', 'homing', 'mole'];
+export const ITEMS = ['BOOST', 'PEEL', 'PEBBLE', 'HOMING', 'STAR', 'ZAP', 'MOLE', 'GLUE', 'SWAP', 'SPRING'];
+export const ITEM_NAMES = ['WORMSHROOM', 'SQUIRMANA PEEL', 'PEBBLE', 'HOMING PEBBLE', 'SQUIRM STAR', 'LIGHTNING', 'MOLE', 'GLUE POT', 'SWITCHEROO', 'SPRING'];
+export const ENT_TYPES = ['peel', 'pebble', 'homing', 'mole', 'glue'];
+const SPRING = { secs: 0.9, dist: 13, high: 4.6 }, GLUE_R = 1.6;
 const BOX_BACK = 4;       // seconds before a taken box comes back
 export const STUN = { peel: 1.3, pebble: 1.3, homing: 1.5, mole: 2.2, star: 1.0 };
 
@@ -29,7 +30,8 @@ export function stun(race, w, secs) {
 
 // How likely each item is, for a worm r of the way down the order (0: leading, 1: last).
 function roll(rng, r) {
-  const wts = [1 + 2 * r, 0.5 + 3 * (1 - r), 0.5 + 2.5 * (1 - r), 0.6 + 1.5 * r, 2.2 * r * r, 1.3 * r * r, r > 0.3 ? 1.4 * r : 0];
+  const wts = [1 + 2 * r, 0.5 + 3 * (1 - r), 0.5 + 2.5 * (1 - r), 0.6 + 1.5 * r, 2.2 * r * r, 1.3 * r * r, r > 0.3 ? 1.4 * r : 0,
+    0.4 + 2 * (1 - r), r > 0.15 ? 1.3 * r : 0, 0.7 + 1.1 * r];
   let x = rng() * wts.reduce((a, b) => a + b, 0);
   for (let i = 0; i < wts.length; i++) { x -= wts[i]; if (x <= 0) return i; }
   return 0;
@@ -40,6 +42,9 @@ function give(race, w) {
   let item = roll(rng, n > 1 ? w.rank / (n - 1) : 0.5);
   const leader = race.order && race.order.find((o) => !o.out && !o.finished);
   if (item === 6 && (!leader || leader === w)) item = 0; // nobody ahead to send a mole after
+  // (Nor to change places with, if the worm in front can't be swapped just now.)
+  const front = race.order && race.order[w.rank - 1], canSwap = front && !front.out && !front.finished && !(front.fall > 0) && !(front.lift > 0) && !(front.wolf > 0);
+  if (item === 8 && !canSwap) item = 0;
   w.item = item; w.items++;
   race.events.push({ type: 'item', idx: w.idx, item });
   const here = locate(race.track, w.x, w.z, w.hint);
@@ -54,7 +59,18 @@ function give(race, w) {
   else if (item === 5) {
     for (const o of race.worms) if (o !== w && !(o.star > 0) && !o.out && !o.finished) o.shrunk = 5;
     race.events.push({ type: 'zap' });
-  } else ents.push({ type: 'mole', x: w.x, z: w.z, vx: 0, vz: 0, owner: w.idx, grace: 0.5, life: 14, hint: w.hint, target: leader.idx });
+  } else if (item === 6) ents.push({ type: 'mole', x: w.x, z: w.z, vx: 0, vz: 0, owner: w.idx, grace: 0.5, life: 14, hint: w.hint, target: leader.idx });
+  // A glue pot: a sticky puddle left behind that slows whoever wades through it, for as long as it lasts.
+  else if (item === 7) ents.push({ type: 'glue', x: w.x - here.tx * 2.4, z: w.z - here.tz * 2.4, vx: 0, vz: 0, owner: w.idx, grace: 1.5, life: 18 });
+  else if (item === 8) {
+    // Switcheroo: it and the worm in front change places, lap and all.
+    for (const k of ['x', 'z', 's', 'hint', 'prog', 'lap']) { const t = w[k]; w[k] = front[k]; front[k] = t; }
+    w.spasm = null; front.spasm = null; w.star = Math.max(w.star, 0.4); front.star = Math.max(front.star, 0.4); // (a moment's sparkle on both)
+    race.events.push({ type: 'swap', idx: w.idx, other: front.idx });
+  } else {
+    // A spring: one great bound up the road.
+    w.spring = { t: 0, s0: here.s, lat: here.lat }; w.lift = 0.01; w.spasm = null;
+  }
 }
 
 export function stepItems(race, dt) {
@@ -64,10 +80,27 @@ export function stepItems(race, dt) {
     if (b.t > 0) { b.t -= dt; continue; }
     for (const w of live) if (!w.finished && (w.x - b.x) ** 2 + (w.z - b.z) ** 2 < 1.7) { b.t = BOX_BACK; give(race, w); break; }
   }
+  for (const w of race.worms) {
+    const sp = w.spring;
+    if (!sp) continue;
+    sp.t += dt;
+    const u = Math.min(1, sp.t / SPRING.secs), p = pointAt(tr, sp.s0 + SPRING.dist * u, sp.lat * (1 - 0.6 * u));
+    w.x = p.x; w.z = p.z; w.lift = u < 1 ? 0.01 + SPRING.high * Math.sin(Math.PI * u) : 0;
+    if (u >= 1) w.spring = null;
+  }
   for (let i = ents.length - 1; i >= 0; i--) {
     const e = ents[i];
     e.life -= dt; e.grace -= dt;
     let dead = e.life <= 0;
+    if (e.type === 'glue') {
+      for (const w of live) {
+        if ((w.idx === e.owner && e.grace > 0) || w.star > 0 || (w.x - e.x) ** 2 + (w.z - e.z) ** 2 > GLUE_R * GLUE_R) continue;
+        if (!(w.slow > 0)) race.events.push({ type: 'glued', idx: w.idx });
+        w.slow = 2.5;
+      }
+      if (dead) ents.splice(i, 1);
+      continue;
+    }
     if (e.type === 'pebble') {
       e.x += e.vx * dt; e.z += e.vz * dt;
       const loc = locate(tr, e.x, e.z, e.hint);
