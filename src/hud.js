@@ -1,6 +1,7 @@
-// What's drawn over each player's part of the picture: lap, time, place, the running order,
-// the minimap and (for the touch-screen player) the on-screen buttons. Sizes are in "cq" units,
-// which measure the player's own part of the screen, so a quarter-screen HUD is a quarter the size.
+// What's drawn over each player's part of the picture: lap, time, place, the running order and
+// the minimap. It's all painted onto one small canvas (a half or a third the size of the screen)
+// and stretched without smoothing, so it comes out in chunky pixels like the picture beneath it.
+// The menus, which are ordinary page elements, get the same look from a filter (the class "pix").
 import { CHARS, hex } from './characters.js';
 
 export const CSS = `
@@ -10,29 +11,15 @@ html,body{height:100%;margin:0;background:#101820;overflow:hidden;overscroll-beh
   --pt:max(10px,env(safe-area-inset-top,0px));--pr:max(16px,env(safe-area-inset-right,0px));
   --pb:max(10px,env(safe-area-inset-bottom,0px));--pl:max(16px,env(safe-area-inset-left,0px))}
 #ws [hidden]{display:none!important}
-#ws canvas.game{position:absolute;inset:0;width:100%;height:100%;display:block}
+#ws canvas.game,#ws canvas.hudc{position:absolute;inset:0;width:100%;height:100%;display:block}
+#ws canvas.hudc{pointer-events:none;image-rendering:pixelated}
+#ws .pix{filter:url(#ws-pix)}
+#ws .probe{position:absolute;visibility:hidden;pointer-events:none;padding:var(--pt) var(--pr) var(--pb) var(--pl)}
 #ws .t{text-shadow:2px 2px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000;letter-spacing:.02em}
 #ws .hud{position:absolute;pointer-events:none;container-type:size;overflow:hidden;box-sizing:border-box}
-#ws .hud.split{box-shadow:inset 0 0 0 1px #000}
-#ws .lap{position:absolute;top:var(--pt);left:var(--pl);font-size:clamp(11px,3.4cqmin,30px);color:#ffe24a}
-#ws .lap b{font-size:1.5em;color:#fff}
-#ws .time{position:absolute;top:var(--pt);right:var(--pr);font-size:clamp(10px,3cqmin,26px);text-align:right;color:#ffe24a;font-variant-numeric:tabular-nums}
-#ws .time b{color:#fff}
-#ws .place{position:absolute;bottom:var(--pb);left:var(--pl);font-size:clamp(34px,15cqmin,130px);line-height:.9;padding-right:.1em;
-  background:linear-gradient(#fff36a,#ff8a1c);-webkit-background-clip:text;background-clip:text;color:transparent;
-  -webkit-text-stroke:3px #000;filter:drop-shadow(3px 3px 0 #000)}
-#ws .place sup{font-size:.4em}
-#ws .order{position:absolute;left:var(--pl);top:calc(var(--pt) + clamp(30px,8cqmin,70px));display:flex;flex-direction:column;gap:3px;font-size:clamp(9px,1.9cqmin,14px)}
-#ws .order div{display:flex;align-items:center;gap:5px}
-#ws .order i{width:1.3em;height:1.3em;border-radius:50%;border:2px solid #000;display:inline-block;box-sizing:border-box}
-#ws .order .me{color:#ffe24a}
-#ws .map{position:absolute;right:var(--pr);top:calc(var(--pt) + clamp(22px,6cqmin,50px));width:clamp(56px,20cqmin,150px);height:clamp(56px,20cqmin,150px)}
-#ws .pop{position:absolute;left:0;right:0;bottom:30%;text-align:center;font-size:clamp(16px,6cqmin,52px);color:#fff;opacity:0}
-#ws .big{position:absolute;left:0;right:0;top:28%;text-align:center;font-size:clamp(40px,22cqmin,190px);
-  background:linear-gradient(#fff36a,#ff5a1c);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:4px #000;filter:drop-shadow(4px 4px 0 #000)}
 #ws .pads{position:absolute;right:var(--pr);bottom:var(--pb);display:grid;grid-template-columns:1fr 1fr;gap:10px;pointer-events:auto}
 #ws .pads button{width:clamp(56px,19cqmin,96px);height:clamp(56px,19cqmin,96px);border-radius:50%;border:3px solid #000;color:#fff;
-  font:inherit;font-size:clamp(8px,2.5cqmin,13px);box-shadow:0 4px 0 #000;touch-action:none;padding:0}
+  font:inherit;font-style:normal;font-size:clamp(11px,2.6cqmin,14px);box-shadow:0 4px 0 #000;touch-action:none;padding:0}
 #ws .pads button:active{transform:translateY(3px);box-shadow:0 1px 0 #000}
 #ws .trackname{position:absolute;left:0;right:0;top:12%;text-align:center;pointer-events:none;font-size:clamp(20px,6.5vmin,64px);
   background:linear-gradient(#ffffff,#8ad8ff);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:2px #102060;filter:drop-shadow(3px 3px 0 #102060)}
@@ -42,70 +29,153 @@ export const fmtTime = (t) => {
   const m = Math.floor(t / 60), s = Math.floor(t % 60), c = Math.floor((t * 100) % 100);
   return `${m}'${String(s).padStart(2, '0')}"${String(c).padStart(2, '0')}`;
 };
+const FONT = '"Arial Black","Arial Bold",Impact,"Helvetica Neue",sans-serif';
 
-// Draws a track's centre line to fill a square canvas, and returns how to place a point on it.
-export function drawTrackMap(canvas, tr) {
-  const S = canvas.width, c = canvas.getContext('2d');
+// How a track's centre line fits a square of the given size.
+function fitTrack(tr, S) {
   let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
   for (let i = 0; i < tr.N; i++) { x0 = Math.min(x0, tr.px[i]); x1 = Math.max(x1, tr.px[i]); z0 = Math.min(z0, tr.pz[i]); z1 = Math.max(z1, tr.pz[i]); }
-  const k = (S * 0.8) / Math.max(x1 - x0, z1 - z0), ox = S / 2 - ((x0 + x1) / 2) * k, oz = S / 2 - ((z0 + z1) / 2) * k;
-  c.clearRect(0, 0, S, S);
+  const k = (S * 0.8) / Math.max(x1 - x0, z1 - z0);
+  return { k, ox: S / 2 - ((x0 + x1) / 2) * k, oz: S / 2 - ((z0 + z1) / 2) * k };
+}
+function strokeTrack(c, tr, f, S, X, Y) {
   c.beginPath();
-  for (let i = 0; i <= tr.N; i += 4) c.lineTo(tr.px[i % tr.N] * k + ox, tr.pz[i % tr.N] * k + oz);
+  for (let i = 0; i <= tr.N; i += 4) c.lineTo(X + tr.px[i % tr.N] * f.k + f.ox, Y + tr.pz[i % tr.N] * f.k + f.oz);
   c.closePath();
-  c.lineJoin = 'round'; c.strokeStyle = '#000'; c.lineWidth = S * 0.07; c.stroke(); c.strokeStyle = '#f4f4f4'; c.lineWidth = S * 0.04; c.stroke();
-  return { k, ox, oz };
+  c.lineJoin = 'round'; c.strokeStyle = '#000'; c.lineWidth = Math.max(3, S * 0.07); c.stroke();
+  c.strokeStyle = '#f4f4f4'; c.lineWidth = Math.max(1.5, S * 0.04); c.stroke();
+}
+// Draws a track's centre line to fill a square canvas (the track select cards).
+export function drawTrackMap(canvas, tr) {
+  const S = canvas.width, c = canvas.getContext('2d'), f = fitTrack(tr, S);
+  c.clearRect(0, 0, S, S);
+  strokeTrack(c, tr, f, S, 0, 0);
+  return f;
+}
+
+// The one canvas every player's HUD is painted on, and the filter that pixelates the menus to match.
+export class HudLayer {
+  constructor(root, sharp) {
+    this.root = root; this.sharp = sharp;
+    this.canvas = document.createElement('canvas');
+    this.canvas.className = 'hudc';
+    root.appendChild(this.canvas);
+    this.ctx = this.canvas.getContext('2d');
+    this.probe = document.createElement('div');
+    this.probe.className = 'probe';
+    root.appendChild(this.probe);
+    this.svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    this.svg.setAttribute('width', '0'); this.svg.setAttribute('height', '0'); this.svg.setAttribute('aria-hidden', 'true');
+    this.svg.style.position = 'absolute';
+    root.appendChild(this.svg);
+    this.resize();
+  }
+
+  // n: how many screen pixels to one HUD pixel. Two on a small screen (any more and small text can't be read), three on a big one.
+  resize() {
+    const w = this.root.clientWidth || 640, h = this.root.clientHeight || 480, n = this.sharp ? 1 : Math.min(w, h) < 700 ? 2 : 3;
+    this.n = n; this.W = Math.ceil(w / n); this.H = Math.ceil(h / n);
+    this.canvas.width = this.W; this.canvas.height = this.H;
+    // The space to leave at each edge for a phone's notch and bars, in HUD pixels.
+    const cs = getComputedStyle(this.probe), px = (v) => (parseFloat(v) || 0) / n;
+    this.inset = { t: px(cs.paddingTop), r: px(cs.paddingRight), b: px(cs.paddingBottom), l: px(cs.paddingLeft) };
+    // The menus' filter: keep one screen pixel in every n-by-n block, then spread it across the block.
+    const ks = Array.from({ length: n - 1 }, (_, i) => i + 1);
+    this.svg.innerHTML = this.sharp ? '' : `<filter id="ws-pix" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feFlood x="0" y="0" width="1" height="1"/><feComposite x="0" y="0" width="${n}" height="${n}"/><feTile result="grid"/>
+      <feComposite in="SourceGraphic" in2="grid" operator="in" result="a0"/>
+      ${ks.map((k) => `<feOffset in="a0" dx="${k}" result="a${k}"/>`).join('')}
+      <feMerge result="b0"><feMergeNode in="a0"/>${ks.map((k) => `<feMergeNode in="a${k}"/>`).join('')}</feMerge>
+      ${ks.map((k) => `<feOffset in="b0" dy="${k}" result="b${k}"/>`).join('')}
+      <feMerge><feMergeNode in="b0"/>${ks.map((k) => `<feMergeNode in="b${k}"/>`).join('')}</feMerge></filter>`;
+  }
+
+  clear() { this.ctx.clearRect(0, 0, this.W, this.H); }
 }
 
 export class PlayerHud {
-  // rect: [left, top, width, height] as fractions of the screen. inputs is given only to the touch player.
-  constructor(root, rect, { split, showOrder, inputs }) {
-    const el = (cls, parent, tag = 'div') => { const e = document.createElement(tag); e.className = cls; parent.appendChild(e); return e; };
-    const hud = this.el = el('hud' + (split ? ' split' : ''), root);
-    hud.style.cssText = `left:${rect[0] * 100}%;top:${rect[1] * 100}%;width:${rect[2] * 100}%;height:${rect[3] * 100}%`;
-    this.lap = el('lap t', hud); this.time = el('time t', hud); this.place = el('place', hud);
-    this.order = showOrder ? el('order t', hud) : null;
-    this.pop = el('pop t', hud); this.big = el('big', hud);
-    this.map = el('map', hud, 'canvas'); this.map.width = this.map.height = 128;
+  // rect: [left, top, width, height] as fractions of the screen. inputs is given only to the touch player,
+  // whose on-screen buttons are real page elements in `parent`.
+  constructor(layer, parent, rect, { split, showOrder, inputs }) {
+    this.layer = layer; this.rect = rect; this.split = split; this.showOrder = showOrder; this.el = null;
     if (inputs) {
-      const pads = el('pads', hud), cols = ['#2f9a38', '#d82818', '#2860e8', '#e0a010'];
+      const el = (cls, p, tag = 'div') => { const e = document.createElement(tag); e.className = cls; p.appendChild(e); return e; };
+      this.el = el('hud', parent);
+      this.el.style.cssText = `left:${rect[0] * 100}%;top:${rect[1] * 100}%;width:${rect[2] * 100}%;height:${rect[3] * 100}%`;
+      const pads = el('pads pix', this.el), cols = ['#2f9a38', '#d82818', '#2860e8', '#e0a010'];
       ['SQUIRM', 'WIGGLE', 'UNDULATE', 'FLOP'].forEach((a, i) => {
         const b = el('', pads, 'button'); b.type = 'button'; b.textContent = a; b.style.background = cols[i];
         b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); inputs.tap(a); });
       });
     }
-    this.popT = 0;
   }
 
-  remove() { this.el.remove(); }
+  remove() { if (this.el) this.el.remove(); }
 
-  popAction(text) {
-    this.pop.textContent = text + '!'; this.popT = 0.5;
-    this.pop.style.transform = `rotate(${(Math.random() * 16 - 8).toFixed(1)}deg)`;
-  }
+  update(race, me) {
+    const L = this.layer, c = L.ctx, [rx, ry, rw, rh] = this.rect, w = race.worms[me];
+    const X = Math.round(rx * L.W), Y = Math.round(ry * L.H), W = Math.round(rw * L.W), H = Math.round(rh * L.H), m = Math.min(W, H);
+    const pad = Math.max(3, Math.round(m * 0.02));
+    // Only the edges of this player's part that are also edges of the screen need room for a notch.
+    const left = X + pad + (rx === 0 ? L.inset.l : 0), top = Y + pad + (ry === 0 ? L.inset.t : 0);
+    const right = X + W - pad - (rx + rw >= 1 ? L.inset.r : 0), bottom = Y + H - pad - (ry + rh >= 1 ? L.inset.b : 0);
+    c.save();
+    c.beginPath(); c.rect(X, Y, W, H); c.clip();
+    c.textBaseline = 'top'; c.lineJoin = 'round';
+    const font = (size) => { c.font = `italic 900 ${Math.round(size)}px ${FONT}`; };
+    const width = (str, size) => { font(size); return c.measureText(str).width; };
+    // Outlined text. Returns how wide it was.
+    const text = (str, x, y, size, fill, align = 'left') => {
+      font(size); c.textAlign = align;
+      c.lineWidth = Math.max(2, size * 0.2); c.strokeStyle = '#000'; c.strokeText(str, Math.round(x), Math.round(y));
+      c.fillStyle = fill; c.fillText(str, Math.round(x), Math.round(y));
+      return c.measureText(str).width;
+    };
+    const fade = (y, size, a, b) => { const g = c.createLinearGradient(0, y, 0, y + size); g.addColorStop(0.15, a); g.addColorStop(0.9, b); return g; };
 
-  update(race, me, dt) {
-    const w = race.worms[me];
-    this.lap.innerHTML = `LAP <b>${w.lap}</b>/${race.laps}`;
-    this.time.innerHTML = `TIME <b>${fmtTime(w.finished ? w.finishTime : race.time)}</b>`;
-    this.place.innerHTML = `${w.rank + 1}<sup>${ORD[w.rank]}</sup>`;
-    if (this.order) {
-      this.order.innerHTML = (race.order || race.worms).map((o) =>
-        `<div class="${o.idx === me ? 'me' : ''}"><i style="background:${hex(CHARS[o.char].color)}"></i>${CHARS[o.char].name}</div>`).join('');
-    }
-    this.popT = Math.max(0, this.popT - dt);
-    this.pop.style.opacity = Math.min(1, this.popT * 4);
-    if (race.state === 'countdown') {
-      const n = Math.ceil(-race.clock);
-      this.big.textContent = n <= 3 ? String(n) : '';
-    } else if (race.clock < 1) this.big.textContent = 'GO!';
-    else if (w.finished) this.big.textContent = 'FINISH!';
-    else this.big.textContent = '';
-    // Minimap: the track's centre line and a dot per worm, this player's on top.
-    const { k, ox, oz } = drawTrackMap(this.map, race.track), c = this.map.getContext('2d');
+    // Lap, top left.
+    const s = Math.max(9, m * 0.05);
+    let x = left;
+    x += text('LAP ', x, top + s * 0.45, s, '#ffe24a');
+    x += text(String(w.lap), x, top, s * 1.5, '#fff');
+    text('/' + race.laps, x, top + s * 0.45, s, '#ffe24a');
+
+    // Time, top right.
+    const ts = Math.max(8, m * 0.042), tstr = fmtTime(w.finished ? w.finishTime : race.time);
+    text(tstr, right, top, ts, '#fff', 'right');
+    text('TIME ', right - width(tstr, ts), top, ts, '#ffe24a', 'right');
+
+    // Minimap under the time: the track's centre line and a dot per worm, this player's on top.
+    const ms = Math.max(44, Math.round(m * 0.22)), mx = Math.round(right - ms), my = Math.round(top + ts * 1.5), f = fitTrack(race.track, ms);
+    strokeTrack(c, race.track, f, ms, mx, my);
     for (const o of [...race.worms].sort((a, b) => (a.idx === me) - (b.idx === me))) {
-      c.beginPath(); c.arc(o.x * k + ox, o.z * k + oz, o.idx === me ? 5 : 3.5, 0, 7);
-      c.fillStyle = hex(CHARS[o.char].color); c.fill(); c.lineWidth = 1.5; c.strokeStyle = o.idx === me ? '#fff' : '#000'; c.stroke();
+      c.beginPath(); c.arc(mx + o.x * f.k + f.ox, my + o.z * f.k + f.oz, Math.max(1.5, ms * (o.idx === me ? 0.045 : 0.03)), 0, 7);
+      c.fillStyle = hex(CHARS[o.char].color); c.fill(); c.lineWidth = 1; c.strokeStyle = o.idx === me ? '#fff' : '#000'; c.stroke();
     }
+
+    // The running order, down the left.
+    if (this.showOrder) {
+      const os = Math.max(7, m * 0.03);
+      (race.order || race.worms).forEach((o, i) => {
+        const oy = top + s * 2.1 + i * os * 1.4;
+        c.beginPath(); c.arc(left + os * 0.5, oy + os * 0.55, os * 0.5, 0, 7);
+        c.fillStyle = hex(CHARS[o.char].color); c.fill(); c.lineWidth = 1; c.strokeStyle = '#000'; c.stroke();
+        text(CHARS[o.char].name, left + os * 1.4, oy, os, o.idx === me ? '#ffe24a' : '#fff');
+      });
+    }
+
+    // Place, bottom left.
+    const ps = Math.max(26, m * 0.17), py = bottom - ps;
+    const pw = text(String(w.rank + 1), left, py, ps, fade(py, ps, '#fff36a', '#ff8a1c'));
+    text(ORD[w.rank], left + pw, py + ps * 0.08, ps * 0.42, fade(py, ps * 0.5, '#fff36a', '#ff8a1c'));
+
+    // The countdown, GO and FINISH across the middle.
+    let big = '';
+    if (race.state === 'countdown') { const n = Math.ceil(-race.clock); if (n <= 3) big = String(n); } else if (race.clock < 1) big = 'GO!';
+    else if (w.finished) big = 'FINISH!';
+    if (big) { const bs = Math.min(m * 0.26, (W * 0.9) / Math.max(2, big.length * 0.62)), by = Y + H * 0.28; text(big, X + W / 2, by, bs, fade(by, bs, '#fff36a', '#ff5a1c'), 'center'); }
+
+    if (this.split) { c.lineWidth = 1; c.strokeStyle = '#000'; c.strokeRect(X + 0.5, Y + 0.5, W - 1, H - 1); }
+    c.restore();
   }
 }

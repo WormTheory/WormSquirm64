@@ -8,7 +8,7 @@ import { CHARS, hex } from './characters.js';
 import { buildWorld, disposeWorld } from './view.js';
 import { WormView } from './wormview.js';
 import { Inputs } from './input.js';
-import { PlayerHud, CSS as HUD_CSS, ORD, fmtTime } from './hud.js';
+import { PlayerHud, HudLayer, CSS as HUD_CSS, ORD, fmtTime } from './hud.js';
 import { Menus, CSS as MENU_CSS } from './menus.js';
 import { Online, CSS as ONLINE_CSS } from './online.js';
 import { MirrorRace, snapshot } from './net/mirror.js';
@@ -22,13 +22,15 @@ document.head.appendChild(style);
 const canvas = document.createElement('canvas');
 canvas.className = 'game';
 root.appendChild(canvas);
+// (Add ?sharp to the address to switch the pixel effect on the HUD and menus off.)
+const hudLayer = new HudLayer(root, new URLSearchParams(location.search).has('sharp'));
 const huds = document.createElement('div');
 root.appendChild(huds);
 const trackName = document.createElement('div');
-trackName.className = 'trackname'; trackName.hidden = true;
+trackName.className = 'trackname pix'; trackName.hidden = true;
 root.appendChild(trackName);
 const panel = document.createElement('div');
-panel.className = 'panel';
+panel.className = 'panel pix';
 root.appendChild(panel);
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'low-power' });
@@ -44,7 +46,7 @@ function resize() {
   bufW = Math.max(2, Math.round(w * k)); bufH = Math.max(2, Math.round(h * k));
   renderer.setSize(bufW, bufH, false);
 }
-addEventListener('resize', resize);
+addEventListener('resize', () => { resize(); hudLayer.resize(); });
 resize();
 menus.portraits = makePortraits(renderer, bufW, bufH);
 
@@ -79,7 +81,7 @@ function setupRace(trackIdx, racers, locals, mirror) {
       devs: h.devs, me: h.me, rect: rects[i], drag: i === dragOwner,
       cam: { yaw: w.aim, pitch: 0.4, fx: w.x, fz: w.z },
       camera: new THREE.PerspectiveCamera(62, 4 / 3, 0.5, 500),
-      hud: new PlayerHud(huds, rects[i], { split: locals.length > 1, showOrder: locals.length <= 2, inputs: h.devs.includes('touch') ? inputs : null }),
+      hud: new PlayerHud(hudLayer, huds, rects[i], { split: locals.length > 1, showOrder: locals.length <= 2, inputs: h.devs.includes('touch') ? inputs : null }),
     };
   });
   // With three players the fourth corner shows the whole track from above.
@@ -203,8 +205,8 @@ function stepRace(dt, live, now) {
     p.cam.yaw += inp.yaw;
     p.cam.pitch = Math.max(0.08, Math.min(1.1, p.cam.pitch + inp.pitch));
     race.setAim(p.me, p.cam.yaw);
-    // Every press shows its name and makes a small noise, whether or not it ends up moving the worm.
-    if (race.state !== 'countdown') for (const a of inp.presses) { race.press(p.me, a); p.hud.popAction(a); sfx.squelch(0.05); }
+    // Every press makes a small noise (and the worm shiver), whether or not it ends up moving the worm.
+    if (race.state !== 'countdown') for (const a of inp.presses) { race.press(p.me, a); sfx.squelch(0.05); }
     if (inp.start && phase === 'race' && !menus.active) pause(true);
   }
   if (live && inputs.esc && phase === 'race' && !menus.active) pause(true);
@@ -255,8 +257,9 @@ function frame(now, hidden) {
   if (phase === 'race') stepRace(dt, !menus.active, now);
   else if (phase === 'after') stepRace(dt, false, now); // the race carries on behind the results
   if (!hidden) {
+    hudLayer.clear();
     for (const p of G.players) {
-      p.hud.update(G.race, p.me, dt);
+      p.hud.update(G.race, p.me);
       // The camera follows a smoothed point, so a flop doesn't shake the whole picture.
       const me = G.race.worms[p.me], k = 1 - Math.exp(-dt * 6), c = p.cam, D = 10, cp = Math.cos(c.pitch);
       c.fx += (me.x - c.fx) * k; c.fz += (me.z - c.fz) * k;

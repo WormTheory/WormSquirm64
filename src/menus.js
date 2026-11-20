@@ -17,7 +17,7 @@ export const CSS = `
   color:transparent;-webkit-text-stroke:2px #1a0a40;filter:drop-shadow(3px 3px 0 #1a0a40)}
 #ws .blink{font-size:clamp(14px,3.6vmin,30px);animation:wsb 1s steps(2) infinite}
 @keyframes wsb{50%{opacity:0}}
-#ws .help{font-size:clamp(10px,2.1vmin,15px);font-style:normal;font-weight:700;max-width:38em;line-height:1.5;color:#d8e4ff}
+#ws .help{font-size:clamp(12px,2.1vmin,15px);font-style:normal;font-weight:700;max-width:38em;line-height:1.5;color:#d8e4ff}
 #ws table{border-collapse:collapse;font-size:clamp(12px,2.8vmin,22px)}
 #ws td{padding:.1em .55em;text-align:left;font-variant-numeric:tabular-nums}
 #ws tr.me td{color:#ffe24a}
@@ -28,7 +28,7 @@ export const CSS = `
 #ws .btn:disabled{opacity:.4;cursor:default}
 #ws .btn.foc{background:linear-gradient(#ff7a3a,#d82818);outline:3px solid #fff}
 #ws .assign{display:grid;grid-template-columns:minmax(0,2.2fr) repeat(4,minmax(0,1fr));gap:1vmin;width:min(94%,36em);align-items:stretch;
-  font-size:clamp(10px,2.5vmin,19px)}
+  font-size:clamp(12px,2.5vmin,19px)}
 #ws .assign .hd{padding:.2em 0}
 #ws .assign .dev{display:flex;align-items:center;justify-content:center;border:3px solid #000;border-radius:10px;padding:.4em .3em;background:rgba(0,0,0,.45);min-width:0}
 #ws .assign .dev.out{background:linear-gradient(#5a6a90,#2a3658)}
@@ -38,7 +38,7 @@ export const CSS = `
 #ws .assign .cell.maybe{animation:wsb 1s steps(2) infinite}
 #ws .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1.4vmin;width:min(94%,44em)}
 #ws .card{position:relative;border:3px solid #000;border-radius:10px;background:rgba(0,0,0,.45);padding:.6em .2em .4em;cursor:pointer;
-  font:inherit;color:#fff;font-size:clamp(9px,2.2vmin,17px);min-width:0;display:flex;flex-direction:column;align-items:center;gap:.4em}
+  font:inherit;color:#fff;font-size:clamp(11px,2.2vmin,17px);font-style:normal;min-width:0;display:flex;flex-direction:column;align-items:center;gap:.4em}
 #ws .card.taken{background:rgba(0,0,0,.75)}
 #ws .card.taken .pic{opacity:.45}
 #ws .card.foc{outline:3px solid #fff;background:rgba(216,40,24,.55)}
