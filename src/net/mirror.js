@@ -23,7 +23,7 @@ const r2 = (v) => Math.round(v * 100) / 100;
 export function snapshot(race) {
   const w = [];
   for (const o of race.worms) {
-    let flags = (o.out ? 32 : 0) | (o.dead ? 64 : 0) | (o.pit ? 128 : 0) | (o.wolf > 0 ? 256 : 0) | (o.howl > 0 ? 512 : 0) | (o.bit ? 1024 : 0) | (o.patch > 0 ? 2048 : 0) | (o.slow > 0 ? 4096 : 0) | (o.shield > 0 ? 8192 : 0) | (o.giant > 0 ? 16384 : 0) | (o.scarlet ? 32768 : 0) | ((o.cuts & 7) << 16);
+    let flags = (o.out ? 32 : 0) | (o.dead ? 64 : 0) | (o.pit ? 128 : 0) | (o.wolf > 0 ? 256 : 0) | (o.howl > 0 ? 512 : 0) | (o.bit ? 1024 : 0) | (o.patch > 0 ? 2048 : 0) | (o.slow > 0 ? 4096 : 0) | (o.shield > 0 ? 8192 : 0) | (o.giant > 0 ? 16384 : 0) | (o.scarlet ? 32768 : 0) | ((o.cuts & 7) << 16) | (Math.min(7, o.patch) << 19);
     FLAGS.forEach((k, i) => { if (o[k] > 0) flags |= 1 << i; });
     w.push(r2(o.x), r2(o.z), o.count, Math.max(0, ACTIONS.indexOf(o.action)), o.taps, Math.round(o.prog * 10) / 10, o.lap, o.rank,
       o.finished ? r2(o.finishTime) : -1, flags, r2(o.fall), r2(o.lift), r2(o.heat), o.hurts, o.items, o.item, o.money);
@@ -34,6 +34,7 @@ export function snapshot(race) {
   else if (wx.twister) ev.push(r2(wx.twister.x), r2(wx.twister.z));
   else if (wx.monkey) ev.push(r2(wx.monkey.x), r2(wx.monkey.z));
   else if (wx.visit >= 0) ev.push(wx.visit);
+  else if (wx.xin) ev.push(wx.xin.idx);
   else if (wx.chain) ev.push(wx.chain.a, wx.chain.b, wx.chain.far ? 1 : 0);
   else if (wx.stomp) for (const f of wx.stomp.steps) ev.push(r2(f.x), r2(f.z), r2(f.t));
   else if (wx.hail) for (const h of wx.hail) ev.push(r2(h.x), r2(h.z), r2(h.t));
@@ -53,14 +54,14 @@ export class MirrorRace {
     this.worms = racers.map((r, i) => {
       const p = gridSlot(this.track, i), w = makeWorm(i, r.char, !!r.human, p.x, p.z);
       w.aim = w.look = Math.atan2(p.tx, p.tz);
-      w.out = !!r.out; w.cuts = r.cuts || (r.half ? 1 : 0); w.half = w.cuts > 0; w.pid = r.pid || ''; w.second = !!w.pid; w.money = r.money || 0; w.scarlet = !!r.scarlet; w.patch = r.plaster ? 1 : 0; w.chain = r.chain >= 0 ? r.chain : -1;
+      w.out = !!r.out; w.cuts = r.cuts || (r.half ? 1 : 0); w.half = w.cuts > 0; w.pid = r.pid || ''; w.second = !!w.pid; w.money = r.money || 0; w.scarlet = !!r.scarlet; w.patch = +r.plaster || 0; w.chain = r.chain >= 0 ? r.chain : -1;
       return w;
     });
     for (const w of this.worms) if (w.pid) { const o = this.worms.find((x) => x.char === w.char && !x.pid); if (o) { w.root = o.idx; w.twin = o.idx; if (o.twin < 0) o.twin = w.idx; } }
     this.order = [...this.worms];
     this.base = this.worms.length;
     this.items = makeItems(this.track);
-    this.weather = { type: 'none', t: 0, bird: null, stomp: null, twister: null, monkey: null, chain: null, visit: -1 };
+    this.weather = { type: 'none', t: 0, bird: null, stomp: null, twister: null, monkey: null, chain: null, xin: null, visit: -1 };
     this.buf = []; this.rc = null; this.pend = {}; this.mine = new Set(); this.sentAt = 0; this.feet = 0;
   }
 
@@ -107,10 +108,12 @@ export class MirrorRace {
     // A worm the host has cut in two: its back half joins the race here too.
     for (let i = this.worms.length; i < a.w.length / PER; i++) {
       const x = (a.x || [])[i - this.base] || [0, 0, -1], k = i * PER, w = makeWorm(i, x[0], !!x[1], a.w[k], a.w[k + 1]);
-      w.second = true; w.half = true; w.twin = w.from = x[2]; w.pid = x[3] || '1'; w.root = x[4] === undefined ? x[2] : x[4]; w.count = a.w[k + 2]; w.taps = a.w[k + 4]; w.lap = a.w[k + 6]; w.hurts = a.w[k + 13]; w.items = a.w[k + 14]; w.money = a.w[k + 16];
+      // (Or a newcomer, cut off nobody: Worm X.)
+      const cutOff = x[2] >= 0;
+      w.second = cutOff; w.half = cutOff; w.twin = w.from = x[2]; w.pid = cutOff ? x[3] || '1' : ''; w.root = !cutOff ? i : x[4] === undefined ? x[2] : x[4]; w.count = a.w[k + 2]; w.taps = a.w[k + 4]; w.lap = a.w[k + 6]; w.hurts = a.w[k + 13]; w.items = a.w[k + 14]; w.money = a.w[k + 16];
       if (this.worms[x[2]]) { this.worms[x[2]].twin = i; if (this.mine.has(x[2])) this.mine.add(i); }
       this.worms.push(w);
-      ev.push({ type: 'cut', idx: x[2], twin: i });
+      ev.push(cutOff ? { type: 'cut', idx: x[2], twin: i } : { type: 'newcomer', idx: i });
     }
     this.worms.forEach((w, i) => {
       if (a.w[i * PER] === undefined) return;
@@ -131,7 +134,7 @@ export class MirrorRace {
       w.out = !!(fl & 32);
       if (A[k + 10] > 0 && !(w.fall > 0)) ev.push({ type: fl & 64 ? 'die' : fl & 1024 ? 'bitten' : 'fall', idx: i });
       if ((fl & 512) && !(w.howl > 0)) ev.push({ type: fl & 256 ? 'unwolf' : 'howl', idx: i });
-      w.wolf = fl & 256 ? 1 : 0; w.howl = fl & 512 ? 1 : 0; w.bit = !!(fl & 1024); w.patch = fl & 2048 ? 1 : 0;
+      w.wolf = fl & 256 ? 1 : 0; w.howl = fl & 512 ? 1 : 0; w.bit = !!(fl & 1024); w.patch = (fl >> 19) & 7;
       if (!(A[k + 10] > 0) && w.fall > 0) ev.push({ type: 'respawn', idx: i, revived: w.dead });
       w.fall = A[k + 10]; w.dead = !!(fl & 64); w.pit = !!(fl & 128);
       // (Off the ground: the bird has it, or the tornado, or it's on a spring.)
@@ -163,6 +166,7 @@ export class MirrorRace {
     wx.type = kind; wx.t = E[1] + (this.rc - a.c);
     wx.bird = kind === 'bird' && E.length >= 5 ? { x: E[2], z: E[3], h: E[4], target: E.length >= 6 ? E[5] : -1 } : null;
     wx.monkey = kind === 'monkey' && E.length >= 4 ? { x: E[2] + (b.ev[0] === E[0] && b.ev.length >= 4 ? (b.ev[2] - E[2]) * f : 0), z: E[3] + (b.ev[0] === E[0] && b.ev.length >= 4 ? (b.ev[3] - E[3]) * f : 0) } : null;
+    wx.xin = kind === 'wormx' && E.length >= 3 ? { idx: E[2] } : null;
     wx.chain = kind === 'chain' && E.length >= 5 ? { a: E[2], b: E[3], far: !!E[4], t0: E[4] ? CHAIN.carry : 0 } : null;
     if (a.ch) {
       const was = this.worms.map((w) => w.chain);

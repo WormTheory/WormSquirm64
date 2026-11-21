@@ -11,7 +11,7 @@ import { chosen } from './sim/events.js';
 export const FRACTION = ['', '\u00bd', '\u00bc', '\u215b', '1/16', '1/32', '1/64', '1/128'];
 
 const EVENT_WORDS = { rain: 'RAIN!', heat: 'HEATWAVE!', bird: 'BIRD!', stomp: 'LOOK OUT!', moon: 'BLOOD MOON!', twister: 'TORNADO!', quake: 'EARTHQUAKE!', frost: 'FROST!', hail: 'HAIL!', dizzy: 'MIX-UP! TURN ROUND!',
-  split: 'SPLIT!', check: 'CHECK FOR $30.00!', brand: 'SCARLET LETTER!', monkey: 'MONKEY M-M-M-MADNESS!', chain: 'CHAIN!' };
+  split: 'SPLIT!', check: 'CHECK FOR $30.00!', brand: 'SCARLET LETTER!', monkey: 'MONKEY M-M-M-MADNESS!', chain: 'CHAIN!', wormx: 'WORM X!' };
 const EVENT_TINT = { rain: 'rgba(20,40,90,.16)', heat: 'rgba(255,110,0,.22)', moon: 'rgba(170,0,10,.3)', frost: 'rgba(190,225,255,.22)', twister: 'rgba(60,60,70,.14)', hail: 'rgba(70,90,120,.16)', dizzy: 'rgba(150,40,200,.2)' };
 
 export const CSS = `
@@ -34,7 +34,7 @@ html,body{height:100%;margin:0;background:#101820;overflow:hidden;overscroll-beh
 #ws .trackname{position:absolute;left:0;right:0;top:12%;text-align:center;pointer-events:none;font-size:clamp(20px,6.5vmin,64px);
   background:linear-gradient(#ffffff,#8ad8ff);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:2px #102060;filter:drop-shadow(3px 3px 0 #102060)}
 `;
-export const ORD = ['st', 'nd', 'rd', 'th', 'th', 'th', 'th', 'th'];
+export const ORD = ['st', 'nd', 'rd', ...Array(17).fill('th')]; // (a race can grow to sixteen worms)
 export const fmtTime = (t) => {
   const m = Math.floor(t / 60), s = Math.floor(t % 60), c = Math.floor((t * 100) % 100);
   return `${m}'${String(s).padStart(2, '0')}"${String(c).padStart(2, '0')}`;

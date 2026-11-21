@@ -4,7 +4,7 @@ import * as THREE from '../vendor/three.module.min.js';
 import { Race, STEP } from './sim/race.js';
 import { TRACKS, CUPS, POINTS, pointAt, centreNear, locate } from './sim/track.js';
 import { ACTIONS } from './sim/worm.js';
-import { CHARS, hex } from './characters.js';
+import { CHARS, PICKABLE, X_CHAR, hex } from './characters.js';
 import { buildWorld, disposeWorld } from './view.js';
 import { WormView } from './wormview.js';
 import { FxView, NestView } from './fxview.js';
@@ -80,15 +80,16 @@ let nest = null;
 // been given, a scarlet letter. A worm is known by its number, with a 'b' and the piece's own name on the end for a
 // piece that a cut made. pieces: those names, for each worm that's been cut; cuts: how many times each piece has been.
 const keyOf = (w) => w.char + (w.pid ? 'b' + w.pid : '');
-let carry = { eaten: new Set(), pieces: {}, cuts: {}, scarlet: new Set(), plaster: new Set(), chains: [], money: {} };
-const resetCarry = () => { carry = { eaten: new Set(), pieces: {}, cuts: {}, scarlet: new Set(), plaster: new Set(), chains: [], money: {} }; nest = null; };
+let carry = { eaten: new Set(), pieces: {}, cuts: {}, scarlet: new Set(), plaster: {}, chains: [], wormx: false, money: {} };
+const resetCarry = () => { carry = { eaten: new Set(), pieces: {}, cuts: {}, scarlet: new Set(), plaster: {}, chains: [], wormx: false, money: {} }; nest = null; };
 const resetCarryKeepNest = () => { const n = nest; resetCarry(); nest = n; };
 // A plain list of racers [{char, human}], with all that put on: the pieces cut off worms are added on the end.
 const notePiece = (w) => { if (w.pid) { const l = carry.pieces[w.char] || (carry.pieces[w.char] = []); if (!l.includes(w.pid)) l.push(w.pid); } };
 function dress(base) {
   const out = base.map((r) => ({ ...r, pid: '' }));
+  if (carry.wormx) { out.push({ char: X_CHAR, human: false, pid: '' }); base = [...base, { char: X_CHAR, human: false }]; } // (the stranger stays on, at the back of the grid)
   for (const r of base) for (const pid of carry.pieces[r.char] || []) out.push({ char: r.char, human: r.human, pid });
-  for (const r of out) { const k = keyOf(r); r.cuts = carry.cuts[k] || 0; r.half = r.cuts > 0; r.second = !!r.pid; r.out = carry.eaten.has(k); r.money = carry.money[k] || 0; r.scarlet = carry.scarlet.has(k); r.plaster = carry.plaster.has(k); r.chain = -1; }
+  for (const r of out) { const k = keyOf(r); r.cuts = carry.cuts[k] || 0; r.half = r.cuts > 0; r.second = !!r.pid; r.out = carry.eaten.has(k); r.money = carry.money[k] || 0; r.scarlet = carry.scarlet.has(k); r.plaster = carry.plaster[k] || 0; r.chain = -1; }
   // (Chains: each end is told the other's place in the list.)
   for (const [ka, kb] of carry.chains) { const a = out.findIndex((r) => keyOf(r) === ka), b = out.findIndex((r) => keyOf(r) === kb); if (a >= 0 && b >= 0 && !out[a].out && !out[b].out) { out[a].chain = b; out[b].chain = a; } }
   return out;
@@ -100,7 +101,8 @@ function remember(race) {
     const k = keyOf(w);
     carry.cuts[k] = w.cuts; notePiece(w);
     if (w.scarlet) carry.scarlet.add(k);
-    if (w.patch > 0) carry.plaster.add(k);
+    carry.plaster[k] = w.patch || 0;
+    if (w.char === X_CHAR) carry.wormx = true;
     if (w.out) carry.eaten.add(k);
     carry.money[k] = w.money;
   }
@@ -148,7 +150,7 @@ function setupRace(trackIdx, racers, locals, mirror) {
 // Nobody playing: eight worms sitting on the first track's grid, behind the menus.
 function backdrop() {
   session = null; net = null; resetCarry();
-  setupRace(0, CHARS.map((_, char) => ({ char, human: false })), [], false);
+  setupRace(0, PICKABLE.map((_, char) => ({ char, human: false })), [], false);
   // (Behind the title the worms race properly, the way worms in a racing game ought to. It's a lie.)
   G.race.worms.forEach((w, i) => { w.demo = true; w.demoS = 14 - i * 2.4; w.demoLane = ((i % 4) - 1.5) * 0.42; });
   phase = 'menu';
@@ -173,7 +175,7 @@ function menuRace(s) {
 function startRace(trackIdx) {
   const humans = session.humans, used = new Set(humans.map((h) => h.char));
   if (session.mode !== 'gp') resetCarry(); // (what happens to a worm only sticks through a cup)
-  const ai = session.cpu ? CHARS.map((_, i) => i).filter((i) => !used.has(i)) : [];
+  const ai = session.cpu ? PICKABLE.map((_, i) => i).filter((i) => !used.has(i)) : [];
   const racer = (char, human) => ({ char, human });
   setupRace(trackIdx, dress(ai.map((c) => racer(c, false)).concat(humans.map((h) => racer(h.char, true)))), session.spectate ? [{ devs: [], me: 0, spectator: true }] : humans.map((h, i) => ({ devs: h.devs, me: ai.length + i })), false);
   menus.hide();
@@ -192,7 +194,7 @@ const online = new Online(menus, inputs, TRACKS, {
     // (A guest learns what's stuck to whom from the host's list.)
     resetCarryKeepNest();
     msg.racers.forEach((r, i) => { if (r.chain > i && msg.racers[r.chain]) carry.chains.push([keyOf(r), keyOf(msg.racers[r.chain])]); });
-    for (const r of msg.racers) { const k = keyOf(r); if (r.out) carry.eaten.add(k); carry.cuts[k] = r.cuts || 0; notePiece(r); if (r.scarlet) carry.scarlet.add(k); if (r.plaster) carry.plaster.add(k); carry.money[k] = r.money || 0; }
+    for (const r of msg.racers) { const k = keyOf(r); if (r.out) carry.eaten.add(k); carry.cuts[k] = r.cuts || 0; notePiece(r); if (r.scarlet) carry.scarlet.add(k); carry.plaster[k] = +r.plaster || 0; if (r.char === X_CHAR) carry.wormx = true; carry.money[k] = r.money || 0; }
     const locals = [];
     msg.seats.forEach((s, k) => { if (s.peer === room.self && online.humans[s.local]) locals.push({ devs: online.humans[s.local].devs, me: msg.seatIdx[k] }); });
     setupRace(msg.track, msg.racers, locals, !room.isHost);
@@ -350,7 +352,7 @@ function direct(e) {
       break;
     case 'omen': focus(e.idx, 3, 6); break;                           // an event is about to pick on this worm: be there first
     case 'howl': focus(e.idx, 3, 9); break;                           // the blood moon's choice
-    case 'grab': case 'cut': case 'paid': case 'branded': case 'chained': focus(e.idx, 3, 5); break;
+    case 'grab': case 'cut': case 'paid': case 'branded': case 'chained': case 'newcomer': focus(e.idx, 3, 5); break;
     case 'eaten': focus(e.idx, 3, 7, true); break;                    // stay for the whole feeding at the nest
     case 'finish': focus(e.idx, 2, 3.5); break;
     case 'squash': case 'twirl': case 'hailhit': case 'monkeygrab': focus(e.idx, 1, 3); break;

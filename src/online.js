@@ -1,6 +1,6 @@
 // The online screens: hosting or joining (by code, or from the list of open games), the room's
 // worm select, and its lobby, where the host picks the track and starts.
-import { CHARS, hex } from './characters.js';
+import { CHARS, PICKABLE, hex } from './characters.js';
 import { Room, OpenGames, roomCode, MAX_RACERS } from './net/room.js';
 import { openTransport, LOCAL } from './net/transport.js';
 import { PCOL, wormCard, moveCursor } from './menus.js';
@@ -140,7 +140,7 @@ export class Online {
       return wormCard(i, m.portraits[i], tags, !!owner);
     };
     m.put('room-select', `<div class="head">SELECT WORM</div><div class="help">ROOM ${st.code} · ${st.seats.length}/${MAX_RACERS} here</div>
-      <div class="grid">${CHARS.map(card).join('')}</div>`,
+      <div class="grid">${PICKABLE.map(card).join('')}</div>`,
     {
       pick: (v) => {
         const s = mine.find((q) => q.char < 0 && this.humans[q.local].dev === 'touch') || mine.find((q) => q.char < 0);

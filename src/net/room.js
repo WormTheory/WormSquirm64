@@ -10,7 +10,7 @@
 //                   deny {why}
 //                   start {track, racers: [{char, human}], seats, seatIdx: [worm number for each seat]}
 //                   s {c, st, w}                                   (a snapshot of the race; see net/mirror.js)
-export const PROTO = 11, MAX_RACERS = 8;
+export const PROTO = 12, MAX_RACERS = 8;
 const LOBBY = 'open-games-v' + PROTO; // (a new protocol gets its own list, so nobody's shown a game they can't join)
 
 // A room code: four letters, no look-alikes.

@@ -3,7 +3,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { canvasTex } from './view.js';
 import { centreNear } from './sim/track.js';
-import { FALL_TIME, DEAD_TIME, DROP_PART, OUT_TIME, LIE_PART, BITE_TIME, BITE_LIE, PLASTER_PART, PAT_END, CHAIN, HAIL, VISIT, carried } from './sim/events.js';
+import { FALL_TIME, DEAD_TIME, DROP_PART, OUT_TIME, LIE_PART, BITE_TIME, BITE_LIE, PLASTER_PART, PAT_END, CHAIN, MONKEY, HAIL, VISIT, carried } from './sim/events.js';
 
 const lam = (color, o) => new THREE.MeshLambertMaterial({ color, flatShading: true, ...o });
 const RAIN_BOX = 26;
@@ -267,7 +267,9 @@ export class FxView {
     if (mk) {
       if (this.monkeyAt) { const dx = mk.x - this.monkeyAt[0], dz = mk.z - this.monkeyAt[1]; if (dx * dx + dz * dz > 1e-4) M.rotation.y = Math.atan2(dx, dz); }
       this.monkeyAt = [mk.x, mk.z];
-      M.position.set(mk.x, 0.2 + 0.12 * Math.abs(Math.sin(time * 14)), mk.z);
+      // (It arrives by falling out of the sky.)
+      const fallen = Math.min(1, race.weather.t / MONKEY.drop);
+      M.position.set(mk.x, 0.2 + 0.12 * Math.abs(Math.sin(time * 14)) + 34 * (1 - fallen) ** 2, mk.z);
       M.userData.arms.forEach((a, k) => { a.rotation.z = (k ? -1 : 1) * (0.5 + 0.3 * Math.sin(time * 12)); a.position.y = 2.2; });
       M.userData.legs.forEach((l, k) => { l.rotation.x = Math.sin(time * 16 + k * Math.PI) * 0.8; });
     } else this.monkeyAt = null;

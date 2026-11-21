@@ -1,7 +1,7 @@
 // The screens before and between races: title, game mode, who's playing on what, worm select,
 // track select, and plain button dialogs (pause, results). Everything can be clicked or tapped,
 // and steered from the keyboard or any controller.
-import { CHARS } from './characters.js';
+import { CHARS, PICKABLE } from './characters.js';
 import { DEVICE_NAMES, devsOf } from './input.js';
 import { drawTrackMap } from './hud.js';
 import { buildTrack, CUPS } from './sim/track.js';
@@ -406,7 +406,7 @@ export class Menus {
         ? `<span class="tag" style="background:${PCOL[k]}">${p.char === i ? 'P' + (k + 1) + ' OK' : 'P' + (k + 1)}</span>` : '').join('');
       return wormCard(i, this.portraits[i], tags, s.players.some((p) => p.char === i));
     };
-    this.put('worms', `<div class="head">SELECT WORM</div><div class="grid">${CHARS.map(card).join('')}</div>`,
+    this.put('worms', `<div class="head">SELECT WORM</div><div class="grid">${PICKABLE.map(card).join('')}</div>`,
     {
       pick: (v) => {
         const ps = s.players, p = ps.find((q) => q.dev === 'touch' && q.char < 0) || ps.find((q) => q.char < 0);

@@ -19,12 +19,16 @@
 import { locate, pointAt } from './track.js';
 import { stun, popped } from './items.js';
 import { makeAi } from './ai.js';
+import { makeWorm } from './worm.js';
 
-export const EVENT_KINDS = ['none', 'rain', 'heat', 'bird', 'stomp', 'moon', 'twister', 'quake', 'frost', 'hail', 'dizzy', 'split', 'check', 'brand', 'monkey', 'chain'];
+export const EVENT_KINDS = ['none', 'rain', 'heat', 'bird', 'stomp', 'moon', 'twister', 'quake', 'frost', 'hail', 'dizzy', 'split', 'check', 'brand', 'monkey', 'chain', 'wormx'];
 // The three things the hand does to one worm: seconds for the whole visit, and when in it the deed is done.
 export const VISIT = { len: 4, at: 1.7 };
 export const MAX_WORMS = 16;
-const MONKEY = { speed: 17, reach: 1.6, cap: 24, toss: 1.4, scatter: 13, high: 8 };
+// (drop: seconds it takes to fall out of the sky at the start; flee: seconds it spends running off at the end.)
+export const MONKEY = { speed: 17, reach: 1.6, cap: 24, toss: 1.4, scatter: 13, high: 8, drop: 0.9, flee: 2.2 };
+// Worm X: the number its kind of worm has, and its entrance: run seconds to come from back behind the leader to ahead in front.
+export const X_CHAR = 8, XIN = { run: 2.6, back: 24, ahead: 5, len: 3.4 };
 export const HAIL = { fall: 1.1, every: 0.22, reach: 1.8, high: 20 }; // seconds a stone takes to land, seconds between stones, how near it must land, how high it starts
 const TWIST = { len: 12, speed: 9, reach: 3, secs: 1.6, high: 6.5 };
 const MOON = { len: 17, pick: 2.6, rear: 1.7, back: 1.3, speed: 10.5 }; // seconds: the whole event, before a worm is chosen, rearing up, turning back; and how fast the wolf runs
@@ -38,8 +42,8 @@ const STEP_EVERY = 0.75, FOOT_R = 5;
 // kinds: which events may happen (all of them if not given).
 export function makeEvents(race, on, freq = 5, kinds = null) {
   const wait = 5 / Math.max(1, Math.min(10, freq));
-  const may = ['rain', 'heat', 'stomp', 'moon', 'bird', 'twister', 'quake', 'frost', 'hail', 'dizzy', 'split', 'check', 'brand', 'monkey', 'chain'].filter((k) => !kinds || kinds.includes(k)); // (each as likely as the next)
-  return { on, wait, may, twister: null, monkey: null, chain: null, visit: -1, type: 'none', t: 0, next: on && may.length ? race.rng.range(8, 14) * wait : Infinity, bird: null, stomp: null, wolf: -1 };
+  const may = ['rain', 'heat', 'stomp', 'moon', 'bird', 'twister', 'quake', 'frost', 'hail', 'dizzy', 'split', 'check', 'brand', 'monkey', 'chain', 'wormx'].filter((k) => !kinds || kinds.includes(k)); // (each as likely as the next)
+  return { on, wait, may, twister: null, monkey: null, chain: null, xin: null, visit: -1, type: 'none', t: 0, next: on && may.length ? race.rng.range(8, 14) * wait : Infinity, bird: null, stomp: null, wolf: -1 };
 }
 
 // The worms the hand may call on for a visit (the knife will cut a piece of a worm again, into quarters and eighths, while there's room for more worms).
@@ -70,7 +74,18 @@ export function chosen(race) {
   if (wx.type === 'bird' && wx.bird && wx.bird.target >= 0) return [wx.bird.target];
   if (wx.type === 'moon') { const w = race.worms.find((o) => o.wolf > 0 || o.howl > 0); return w ? [w.idx] : []; }
   if (wx.type === 'chain' && wx.chain) return [wx.chain.a, wx.chain.b];
+  if (wx.type === 'wormx' && wx.xin) return [wx.xin.idx];
   return [];
+}
+
+// Worm X's entrance: he's run up the road past the leader, from well behind to just ahead, whatever the leader does.
+function enterX(race, ev) {
+  const x = ev.xin, w = race.worms[x.idx], lead = race.worms[x.lead], tr = race.track, L = tr.length;
+  const u = Math.min(1, ev.t / XIN.run), e = u * u * (3 - 2 * u), off = -XIN.back + (XIN.back + XIN.ahead) * e;
+  const p = pointAt(tr, lead.s + off, x.side * tr.hw * 0.5), l = locate(tr, p.x, p.z, -1);
+  w.x = p.x; w.z = p.z; w.s = l.s; w.hint = l.i; w.prog = lead.prog + off;
+  w.lap = Math.max(1, Math.min(race.laps, Math.floor(w.prog / L) + 1));
+  w.look = w.aim = Math.atan2(l.tx, l.tz); w.hold = 0.2; w.spasm = null; w.queued = null; w.boost = 0.3;
 }
 
 // (kind can be given, to start a particular event: the tests do.)
@@ -101,6 +116,15 @@ export function begin(race, ev, force) {
     const able = visitable(race, kind, live);
     if (!able.length) { ev.type = 'none'; ev.next = rng.range(2, 5); return; } // (nobody suitable: try something else shortly)
     ev.visit = pick(able).idx; ev.done = false; ev.len = VISIT.len;
+  } else if (kind === 'wormx') {
+    // A stranger joins the race, once: he comes up from behind the leader and goes straight past.
+    if (!live.length || race.worms.length >= MAX_WORMS || race.worms.some((w) => w.char === X_CHAR)) { ev.type = 'none'; ev.next = rng.range(2, 5); return; }
+    const lead = live.reduce((a, b) => (b.prog > a.prog ? b : a)), w = makeWorm(race.worms.length, X_CHAR, false, lead.x, lead.z);
+    w.ai = makeAi(rng); w.lap = lead.lap; w.rank = race.worms.length;
+    race.worms.push(w);
+    ev.xin = { idx: w.idx, lead: lead.idx, side: rng() < 0.5 ? -1 : 1 }; ev.len = XIN.len;
+    enterX(race, ev);
+    race.events.push({ type: 'newcomer', idx: w.idx });
   } else if (kind === 'chain') {
     // Two worms that aren't chained to anyone yet: one picked, and whoever's nearest it.
     const able = chainable(live);
@@ -119,13 +143,14 @@ export function begin(race, ev, force) {
   } else if (kind === 'monkey') {
     if (live.length < 2) { ev.type = 'none'; ev.next = rng.range(2, 5); return; }
     const lead = live.reduce((a, b) => (b.prog > a.prog ? b : a), live[0]), p = pointAt(tr, lead.s + 14, 0);
-    ev.monkey = { x: p.x, z: p.z, held: [], thrown: -1 }; ev.len = MONKEY.cap + MONKEY.toss + 1;
+    ev.monkey = { x: p.x, z: p.z, held: [], thrown: -1 }; ev.len = MONKEY.drop + MONKEY.cap + MONKEY.toss + MONKEY.flee;
   } else if (kind === 'dizzy') { ev.len = rng.range(7, 9); for (const w of race.worms) w.wise = rng.range(1.2, 5); }
   else if (kind === 'rain' || kind === 'heat') {
     ev.len = rng.range(WEATHER_FOR[0], WEATHER_FOR[1]);
     for (const w of race.worms) { w.wash = null; w.bake = rng.range(0.15, 1.1); } // (bake: hurts a second, on average)
   } else if (kind === 'bird') {
-    const prey = pick(live), a = rng.range(0, Math.PI * 2);
+    // (It takes a chained worm's partner too, so it leaves a chained pair alone if they're all but the last.)
+    const fair = live.filter((w) => w.chain < 0 || live.length > 2), prey = pick(fair.length ? fair : live), a = rng.range(0, Math.PI * 2);
     ev.bird = { target: prey.idx, x: prey.x + Math.cos(a) * 40, z: prey.z + Math.sin(a) * 40, h: BIRD_HIGH, got: false, ax: Math.cos(a), az: Math.sin(a) };
     ev.len = BIRD_IN + BIRD_OUT;
   } else {
@@ -235,6 +260,8 @@ export function stepEvents(race, dt) {
         }
       }
     }
+  } else if (ev.type === 'wormx') {
+    if (ev.t < XIN.run) enterX(race, ev);
   } else if (ev.type === 'chain') {
     const c = ev.chain, pair = [race.worms[c.a], race.worms[c.b]];
     if (pair.some((w) => !w || w.out)) ev.t = ev.len; // (one of them has gone: never mind)
@@ -255,7 +282,10 @@ export function stepEvents(race, dt) {
     }
   } else if (ev.type === 'monkey') {
     const mk = ev.monkey, tr = race.track;
-    if (mk.thrown < 0) {
+    if (ev.t < MONKEY.drop) {
+      // (Still falling out of the sky.)
+    } else if (mk.thrown < 0) {
+      if (!mk.landed) { mk.landed = true; race.events.push({ type: 'stomp', x: mk.x, z: mk.z }); }
       // Gathering. The leader first, then whoever's nearest, until there's nobody left on the road to take.
       const free = live.filter((w) => !w.finished && !mk.held.includes(w.idx));
       let prey = null, best = Infinity;
@@ -267,9 +297,11 @@ export function stepEvents(race, dt) {
         mk.x += ((prey.x - mk.x) / d) * go; mk.z += ((prey.z - mk.z) / d) * go;
         if (d < MONKEY.reach) { mk.held.push(prey.idx); prey.spasm = null; prey.queued = null; prey.star = 0; race.events.push({ type: 'monkeygrab', idx: prey.idx }); }
       }
-      if ((!prey && !waiting && mk.held.length) || ev.t > MONKEY.cap) {
+      if ((!prey && !waiting && mk.held.length) || ev.t > MONKEY.drop + MONKEY.cap) {
         // It has them all: up they go, each to come down somewhere round about.
-        mk.thrown = ev.t; ev.len = ev.t + MONKEY.toss + 1;
+        mk.thrown = ev.t; ev.len = ev.t + MONKEY.toss + MONKEY.flee;
+        // (And which way it will run off afterwards: straight across the road and away over the fields.)
+        { const l = locate(tr, mk.x, mk.z, -1), side = l.lat < 0 ? -1 : 1; mk.fx = l.tz * side; mk.fz = -l.tx * side; }
         for (const i of mk.held) { const a = rng.range(0, Math.PI * 2), r = MONKEY.scatter * Math.sqrt(rng()); race.worms[i].toss = { x0: mk.x, z0: mk.z, x1: mk.x + Math.cos(a) * r, z1: mk.z + Math.sin(a) * r }; }
         race.events.push({ type: 'monkeythrow' });
       }
@@ -277,6 +309,7 @@ export function stepEvents(race, dt) {
       mk.held.forEach((i, k) => { const w = race.worms[i]; w.x = mk.x; w.z = mk.z; w.lift = 2.6 + k * 0.5; });
     } else {
       const u = Math.min(1, (ev.t - mk.thrown) / MONKEY.toss);
+      if (u >= 1) { mk.x += mk.fx * 30 * dt; mk.z += mk.fz * 30 * dt; } // its work done, it runs for it
       for (const i of mk.held) {
         const w = race.worms[i], ts = w.toss;
         if (!ts) continue;
@@ -336,7 +369,13 @@ export function stepEvents(race, dt) {
       b.x += b.ax * 16 * dt * (0.3 + u); b.z += b.az * 16 * dt * (0.3 + u);
       b.h = 1.2 + BIRD_HIGH * u * u;
       prey.x = b.x; prey.z = b.z; prey.lift = Math.max(0.01, b.h - 1);
-      if (u >= 1) { prey.out = true; prey.lift = 0; race.events.push({ type: 'eaten', idx: prey.idx }); }
+      // A worm chained to its prey goes too, dangling underneath, and is fed to the chicks as well.
+      const mate = race.worms[prey.chain] && !race.worms[prey.chain].out ? race.worms[prey.chain] : null;
+      if (mate) { mate.x = b.x; mate.z = b.z; mate.lift = Math.max(0.01, b.h - 3.4); mate.spasm = null; mate.queued = null; mate.fall = 0; }
+      if (u >= 1) {
+        prey.out = true; prey.lift = 0; race.events.push({ type: 'eaten', idx: prey.idx });
+        if (mate) { mate.out = true; mate.lift = 0; race.events.push({ type: 'eaten', idx: mate.idx }); }
+      }
     }
   } else if (ev.type === 'moon') {
     const wolf = race.worms[ev.wolf];
@@ -367,7 +406,7 @@ export function stepEvents(race, dt) {
         if (d < 1.5) {
           prey.safe = 7;
           if (prey.star > 0 || prey.giant > 0) { wolf.stun = 1; race.events.push({ type: 'hit', idx: wolf.idx }); } // a starred worm is too much for it
-          else if (!popped(race, prey)) { prey.patch = 0; drop(race, prey, 'bitten'); }
+          else if (!popped(race, prey)) drop(race, prey, 'bitten');
         }
       }
     }
@@ -385,7 +424,7 @@ export function stepEvents(race, dt) {
   }
   if (ev.t >= ev.len) {
     if (race.worms[ev.wolf]) race.worms[ev.wolf].wolf = 0;
-    ev.type = 'none'; ev.bird = null; ev.stomp = null; ev.wolf = -1; ev.twister = null; ev.hail = null; ev.visit = -1; ev.chain = null;
+    ev.type = 'none'; ev.bird = null; ev.stomp = null; ev.wolf = -1; ev.twister = null; ev.hail = null; ev.visit = -1; ev.chain = null; ev.xin = null;
     if (ev.monkey) { for (const i of ev.monkey.held) { const w = race.worms[i]; if (w.lift > 0 || w.toss) { w.lift = 0; w.toss = null; } } ev.monkey = null; }
     for (const w of race.worms) { w.slide = null; w.wasSpasm = null; }
     ev.next = ev.on ? rng.range(GAP[0], GAP[1]) * ev.wait : Infinity; // (an event started by hand with events off isn't followed by more)

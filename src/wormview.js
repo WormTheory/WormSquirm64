@@ -41,6 +41,10 @@ const STYLES = {
   SPASM:    { lat: 0.2,  latF: 25, vert: 0.2,  vertF: 31, hop: 1.0,  lag: 0.01, jit: 0.25 },
 };
 
+// Where plasters go, in the order they're stuck on: which ball of the body, and how far round its side. (Not the
+// fourth ball, which is the scarlet letter's, nor the second, which has Worm X's mark: nothing sits on anything else.)
+const PLASTER_AT = [[4, 0], [2, 0], [6, 0], [5, 0.95], [7, 0], [5, -0.95], [8, 0]];
+
 function accessory(kind, head, lam) {
   const add = (geo, color, x, y, z, rx = 0, rz = 0) => {
     const m = new THREE.Mesh(geo, lam(color));
@@ -60,6 +64,10 @@ function accessory(kind, head, lam) {
   } else if (kind === 'horns') {
     add(new THREE.ConeGeometry(0.1, 0.36, 4), 0xf0e8c0, -0.22, 0.5, -0.05, 0, 0.35);
     add(new THREE.ConeGeometry(0.1, 0.36, 4), 0xf0e8c0, 0.22, 0.5, -0.05, 0, -0.35);
+  } else if (kind === 'mask') {
+    // Worm X: a black hood over the top and back of the head (the eyes show through it), with a white band round it.
+    const hood = add(BALL, 0x141418, 0, 0.1, -0.15); hood.scale.set(0.57, 0.55, 0.57);
+    add(new THREE.CylinderGeometry(0.6, 0.6, 0.08, 9), 0xf4f4f4, 0, 0.04, -0.15); // (the white band)
   } else if (kind === 'stache') {
     add(new THREE.ConeGeometry(0.1, 0.36, 4), 0x201008, -0.17, -0.05, 0.42, 0, Math.PI / 2 + 0.3);
     add(new THREE.ConeGeometry(0.1, 0.36, 4), 0x201008, 0.17, -0.05, 0.42, 0, -Math.PI / 2 - 0.3);
@@ -138,13 +146,22 @@ export class WormView {
         m.add(kit);
       } else {
         m = new THREE.Mesh(BALL, mats[i === 3 ? 2 : i % 2]);
-        if (i === 4) {
-          // The plaster the hand sticks on a bitten worm.
-          const strip = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.2, 0.8), new THREE.MeshLambertMaterial({ color: 0xe8c090 }));
-          const pad = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.24, 0.7), new THREE.MeshLambertMaterial({ color: 0xf8f0e0 }));
-          this.plaster = new THREE.Group();
-          this.plaster.add(strip, pad); this.plaster.position.y = 0.92; this.plaster.visible = false;
-          m.add(this.plaster);
+        // The plasters the hand sticks on a bitten worm: one more each time, each in a place of its own.
+        PLASTER_AT.forEach(([seg, round], k) => {
+          if (seg !== i) return;
+          const strip = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.2, 0.62), new THREE.MeshLambertMaterial({ color: 0xe8c090 }));
+          const pad = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.24, 0.55), new THREE.MeshLambertMaterial({ color: 0xf8f0e0 }));
+          const turn = new THREE.Group(), lean = new THREE.Group(), p = new THREE.Group();
+          p.add(strip, pad); p.position.y = 0.92; p.rotation.y = (k % 2 ? -1 : 1) * (0.25 + 0.2 * k);
+          lean.rotation.z = round; lean.add(p); turn.add(lean); turn.visible = false; turn.userData.seg = seg;
+          m.add(turn);
+          (this.plasters || (this.plasters = []))[k] = turn;
+        });
+        if (i === 1 && char.acc === 'mask') {
+          // Worm X's mark: a black X on a yellow patch, on his back just behind the head.
+          const patch = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.1, 8), new THREE.MeshLambertMaterial({ color: 0xf8d020 }));
+          patch.position.y = 0.9; m.add(patch);
+          for (const s of [-1, 1]) { const bar = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.14, 1), new THREE.MeshLambertMaterial({ color: 0x101010 })); bar.position.y = 0.93; bar.rotation.y = s * 0.78; m.add(bar); }
         }
       }
       m.scale.setScalar(r);
@@ -173,6 +190,16 @@ export class WormView {
   }
 
   // Lays the body out in a straight line behind the head.
+  // Shows the first n plasters, each turned to lie across the body where its ball is (the balls themselves don't turn).
+  showPlasters(n) {
+    this.plasters.forEach((p, k) => {
+      p.visible = k < n;
+      if (!p.visible) return;
+      const seg = p.userData.seg, f = this.meshes[seg - 1].position, b = this.meshes[Math.min(SEGS - 1, seg + 1)].position;
+      p.rotation.y = Math.atan2(f.x - b.x, f.z - b.z);
+    });
+  }
+
   reset(w) {
     this.at = ANIM; this.hopT = 0; this.seen = w.count; this.act = null; this.hopMul = 1; this.lastT = null;
     this.taps = w.taps; this.tw = 0; this.hurts = w.hurts || 0; this.flash = 0; this.winT = 0;
@@ -189,15 +216,16 @@ export class WormView {
     this.letter.visible = !!w.scarlet;
     // (Its point towards the head: the balls of the body don't turn, so the letter is turned to lie along them.)
     if (w.scarlet) { const f = this.meshes[2].position, b = this.meshes[4].position; this.letter.rotation.y = Math.atan2(f.x - b.x, f.z - b.z) + Math.PI; }
-    this.wolfKit.visible = false; this.plaster.visible = w.patch > 0; this.meshes[0].rotation.x = 0; this.meshes[0].rotation.z = 0;
-    const pose = VICTORY[this.kind];
+    this.wolfKit.visible = false; this.showPlasters(w.patch); this.meshes[0].rotation.x = 0; this.meshes[0].rotation.z = 0;
+    const pose = VICTORY[this.kind] || VICTORY[2], small = Math.max(0.2, 0.62 ** (w.cuts || 0));
     let hx = 0, hz = 1;
     for (let i = 0; i < SEGS; i++) {
-      const [x, y, z] = pose(i, this.winT, this.rad[i]), m = this.meshes[i], sh = this.shadows[i];
-      m.position.set(w.x + x, y, w.z + z); m.scale.setScalar(this.rad[i]);
+      // (A piece of a worm dances the same dance at its own size.)
+      const [x0, y0, z0] = pose(i, this.winT, this.rad[i]), m = this.meshes[i], sh = this.shadows[i], x = x0 * small, y = y0 * small, z = z0 * small;
+      m.position.set(w.x + x, y, w.z + z); m.scale.setScalar(this.rad[i] * small);
       this.px[i] = w.x + x; this.pz[i] = w.z + z;
       if (i === 1) { hx = this.px[0] - this.px[1]; hz = this.pz[0] - this.pz[1]; }
-      sh.visible = true; sh.position.set(w.x + x, 0.04, w.z + z); sh.scale.setScalar(this.rad[i] * Math.max(0.35, 1 - (y - this.rad[i]) * 0.25));
+      sh.visible = true; sh.position.set(w.x + x, 0.04, w.z + z); sh.scale.setScalar(this.rad[i] * small * Math.max(0.35, 1 - (y - this.rad[i] * small) * 0.25));
     }
     // The head faces the way the body leads, or the camera's usual side when it's standing straight up.
     this.meshes[0].rotation.y = Math.hypot(hx, hz) > 0.05 ? Math.atan2(hx, hz) : 0;
@@ -214,7 +242,7 @@ export class WormView {
     const small = (w.shrunk > 0 ? 0.55 : 1) * (wolf ? 1.3 : 1) * (w.giant > 0 ? 1.9 : 1) * Math.max(0.2, 0.62 ** (w.cuts || 0)), flat = w.flat > 0 || (w.fall > 0 && w.dead), gap = GAP * small;
     const bitten = w.fall > 0 && w.bit;
     this.wolfKit.visible = wolf;
-    this.plaster.visible = (bitten && BITE_TIME - w.fall >= BITE_LIE + PLASTER_PART) || w.patch > 0;
+    this.showPlasters((w.patch || 0) + (bitten && BITE_TIME - w.fall >= BITE_LIE + PLASTER_PART ? 1 : 0));
     for (const e of this.eyes) e.material.color.setHex(wolf ? 0xff2020 : 0xffffff);
     const back = w.fall > 0 && !w.dead && !w.bit && track ? centreNear(track, w.x, w.z) : null;
     let held = false, onBack = false, rear = false, hx = back ? back.x : 0, hz = back ? back.z : 0;

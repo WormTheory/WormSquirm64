@@ -32,7 +32,7 @@ export function makeWorm(idx, char, human, x, z) {
     items: 0, item: -1,     // how many items it's had, and the last one
     dead: false, pit: false, // whether its "fall" is a death by baking, or a real fall into nothing (otherwise it just lies off the road)
     wolf: 0, howl: 0,       // whether the blood moon has made it a were-wolf-worm, and seconds left of rearing up to change
-    bit: false, safe: 0, patch: 0, // bitten by the wolf (and lying there); seconds before it can be bitten again; seconds its plaster stays on
+    bit: false, safe: 0, patch: 0, // bitten by the wolf (and lying there); seconds before it can be bitten again; how many plasters it wears
     hold: 0,                // seconds it's being kept still (while the hand does something to it)
     // Things that stay with a worm through a cup: cut in two (half; second marks the half that was made, twin the other one's number),
     // money it's been given, and whether it's been branded with a scarlet letter.

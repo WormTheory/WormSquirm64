@@ -6,7 +6,7 @@ import { makeAi, stepAi } from './ai.js';
 import { makeItems, stepItems, stun, popped, STUN } from './items.js';
 import { makeEvents, stepEvents, wash, drop, CHAIN } from './events.js';
 
-const TIMERS = ['stun', 'boost', 'star', 'shrunk', 'flat', 'howl', 'safe', 'patch', 'slow', 'shield', 'giant', 'hold'];
+const TIMERS = ['stun', 'boost', 'star', 'shrunk', 'flat', 'howl', 'safe', 'slow', 'shield', 'giant', 'hold'];
 
 export const STEP = 1 / 60;
 const COUNTDOWN = 5;       // seconds before GO (the track's name shows for the first of them)
@@ -34,7 +34,7 @@ export class Race {
       const loc = locate(this.track, w.x, w.z, -1);
       w.hint = loc.i; w.s = loc.s; w.prog = -3 - 2.2 * i;
       w.ai = r.human ? null : makeAi(this.rng);
-      w.out = !!r.out; w.cuts = r.cuts || (r.half ? 1 : 0); w.half = w.cuts > 0; w.pid = r.pid || ''; w.second = !!w.pid; w.money = r.money || 0; w.scarlet = !!r.scarlet; w.patch = r.plaster ? Infinity : 0; w.chain = r.chain >= 0 ? r.chain : -1;
+      w.out = !!r.out; w.cuts = r.cuts || (r.half ? 1 : 0); w.half = w.cuts > 0; w.pid = r.pid || ''; w.second = !!w.pid; w.money = r.money || 0; w.scarlet = !!r.scarlet; w.patch = +r.plaster || 0; w.chain = r.chain >= 0 ? r.chain : -1;
       return w;
     });
     // The pieces of a worm that's been cut up know which worm they came from.
@@ -124,7 +124,7 @@ export class Race {
         if (w.fall <= 0) {
           if (!w.dead && !w.bit) { const p = pointAt(tr, w.s, 0); w.x = p.x; w.z = p.z; } // (a baked or bitten worm is revived where it lies)
           this.events.push({ type: 'respawn', idx: w.idx, revived: w.dead });
-          if (w.bit) w.patch = Infinity; // (it wears its plaster from now on, through the rest of a cup)
+          if (w.bit) w.patch = Math.min(7, w.patch + 1); // (one more plaster, worn from now on through the rest of a cup)
           w.bit = false;
           w.fall = 0; w.dead = false; w.stun = 0.4; w.heat = 0;
         }
