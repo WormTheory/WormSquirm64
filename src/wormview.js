@@ -246,11 +246,12 @@ export class WormView {
     // (Its point towards the head: the balls of the body don't turn, so the letter is turned to lie along them.)
     if (w.scarlet) { const f = this.meshes[2].position, b = this.meshes[4].position; this.letter.rotation.y = Math.atan2(f.x - b.x, f.z - b.z) + Math.PI; }
     this.wolfKit.visible = false; this.showPlasters(w.patch); this.meshes[0].rotation.x = 0; this.meshes[0].rotation.z = 0;
-    const pose = VICTORY[this.kind] || VICTORY[2], small = Math.max(0.2, 0.62 ** (w.cuts || 0));
+    // (tight: on the podium there's less room, and the dance is kept closer in.)
+    const pose = VICTORY[this.kind] || VICTORY[2], small = Math.max(0.2, 0.62 ** (w.cuts || 0)), tight = this.tight || 1;
     let hx = 0, hz = 1;
     for (let i = 0; i < this.n; i++) {
       // (A piece of a worm dances the same dance at its own size.)
-      const [x0, y0, z0] = pose(i, this.winT, this.rad[i]), m = this.meshes[i], sh = this.shadows[i], x = x0 * small, y = y0 * small, z = z0 * small;
+      const [x0, y0, z0] = pose(i, this.winT, this.rad[i]), m = this.meshes[i], sh = this.shadows[i], x = x0 * small * tight, y = y0 * small, z = z0 * small * tight;
       m.position.set(w.x + x, y, w.z + z); m.scale.setScalar(this.rad[i] * small);
       this.px[i] = w.x + x; this.pz[i] = w.z + z;
       if (i === 1) { hx = this.px[0] - this.px[1]; hz = this.pz[0] - this.pz[1]; }

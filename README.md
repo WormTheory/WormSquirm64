@@ -60,7 +60,8 @@ python3 -m http.server 8000   # then open http://localhost:8000
   makes every lunge slide on; hail comes down on them, with a shadow to warn of each stone; and in a mix-up every
   worm goes the opposite way to where it's looking.
   The hand also pays calls on single worms: it cuts one in two with a kitchen knife (from then on there are two
-  smaller worms, both worked by the same player, and the better-placed one scores; a half can be cut again into
+  smaller worms, both worked by the same player; the points and money it had are split between them, and from then on
+  each piece scores for itself; a half can be cut again into
   quarters, and those into eighths), presents one with a check for
   $30.00 (shown on the score screen, and it adds up), or brands one with a scarlet letter A (shown by its name).
   It can chain two worms together, carrying them
@@ -82,6 +83,15 @@ python3 -m http.server 8000   # then open http://localhost:8000
   its own band and feel. The last lap is faster and a semitone higher, and a player in the first three hears an extra
   layer. Music and sound each have a volume slider in the options. `node tools/musiccheck.mjs` prints what each song
   contains (`node tools/musiccheck.mjs race0` draws its tune too), since a test can't listen.
+
+## The medal ceremony
+
+A Grand Prix ends on a podium past the finish line (`src/ceremony.js`). The top three dance on it and each says a
+few words, bronze first, typed out on screen to noises in that worm's own voice. Every worm has one loud personality
+(`PERSONAS`: humble, timid, pompous, bubbly, dim, brooding, cocky, bitter; Worm X is mysterious) and a voice to go
+with it, the same every time. An evil clone is a villain with its original's voice an octave down. A worm nobody has
+written for yet gets a plain voice and plain lines, so a new kind of worm needs only an entry in that list. A button
+hurries a speech along. `tools/ceremonytest.cjs` plays a cup through and watches it.
 
 ## Online play
 

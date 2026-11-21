@@ -123,6 +123,13 @@ export const hailHit = () => burst(2600, 0.07, 0.05, 'bandpass');
 export const chop = () => { burst(1800, 0.09, 0.22, 'highpass'); tone('square', 180, 70, 0.14, 0.16, 0.02); };
 // A chain going on: links rattling, and the lock.
 export const clank = () => { for (let i = 0; i < 5; i++) tone('square', 2200 + (i % 2) * 700, 1800, 0.04, 0.07, i * 0.06); tone('triangle', 520, 180, 0.18, 0.2, 0.34); burst(3000, 0.08, 0.12, 'highpass'); };
+// One letter of a worm talking: a short note in its voice. v: { wave, pitch, spread, slide, growl }; code: the letter,
+// which decides how far from the voice's pitch this note is (the same letter always sounds the same).
+export function blip(v, code) {
+  const k = ((code * 2654435761) >>> 0) / 4294967296, f = v.pitch * (1 + v.spread * (k * 2 - 1)), len = Math.min(0.11, 1.6 / v.rate);
+  tone(v.wave, f, f * v.slide, len, 0.1);
+  if (v.growl) tone('square', f * 0.5 * 1.03, f * 0.5 * v.slide, len, 0.07);
+}
 // A jab from a syringe; and a glass tank bursting.
 export const jab = () => { tone('sine', 1500, 700, 0.12, 0.12); tone('square', 300, 520, 0.2, 0.06, 0.08); };
 export const smash = () => { burst(5200, 0.35, 0.22, 'highpass'); burst(1200, 0.18, 0.2); for (let i = 0; i < 6; i++) tone('triangle', 2600 + i * 420, 1800, 0.07, 0.06, 0.03 + i * 0.04); };

@@ -284,7 +284,7 @@ export function stepEvents(race, dt) {
           w.cuts++;
           const l = locate(race.track, w.x, w.z, w.hint), t = { ...w, idx: race.worms.length, tired: {}, spasm: null, queued: null, ai: w.ai ? makeAi(rng) : null, wash: null, spring: null, spin: null, slide: null, second: true, pid: w.pid + String(w.cuts), from: w.idx, chain: -1 };
           // What it was wearing is shared out: the chain, the letter and the plasters, in that order, the front
-          // piece taking the first half of them and the back piece the rest. Its money is split too.
+          // piece taking the first half of them and the back piece the rest. The money it has at that moment is split evenly.
           {
             const mate = race.worms[w.chain], things = [...(mate ? ['chain'] : []), ...(w.scarlet ? ['letter'] : []), ...Array(w.patch).fill('plaster')];
             const back = things.slice(Math.ceil(things.length / 2));
@@ -292,7 +292,7 @@ export function stepEvents(race, dt) {
             if (t.scarlet) w.scarlet = false;
             w.patch -= t.patch;
             if (back.includes('chain')) { t.chain = mate.idx; mate.chain = t.idx; w.chain = -1; }
-            t.money = Math.floor(w.money / 2); w.money -= t.money;
+            t.money = w.money / 2; w.money = t.money; // (down the middle, to the cent)
           }
           w.half = t.half = true; w.twin = t.idx; t.twin = w.idx;
           w.x += l.tx * 0.9; w.z += l.tz * 0.9; t.x -= l.tx * 1.1; t.z -= l.tz * 1.1;

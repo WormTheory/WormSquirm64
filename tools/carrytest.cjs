@@ -47,8 +47,10 @@ const { chromium } = require('playwright');
   await ws(() => { const r = window.__ws.race; while (r.clock < 2) r.step(1 / 60); }); await page.waitForTimeout(600); await shot('race2');
   // Half a worm cut again makes two quarters.
   const halfIdx = await ws(() => window.__ws.race.worms.find((w) => w.half).idx);
+  await ws((i) => { const w = window.__ws.race.worms[i]; window.__ws.session.points[w.char + (w.pid ? 'b' + w.pid : '')] = 9; }, halfIdx);
   await ws((i) => window.__ws.event('split', i), halfIdx); await page.waitForTimeout(4500); await shot('quarters');
   check('cutting a half makes two quarters, ten worms in all', await ws((i) => { const r = window.__ws.race; return r.worms.length === 10 && r.worms[i].cuts === 2 && r.worms[9].cuts === 2 && r.worms.filter((w) => w.root === r.worms[i].root).length === 3 && r.both(i).length === 3; }, halfIdx));
+  check('and the points the half had are shared between the quarters', await ws((i) => { const r = window.__ws.race, k = (w) => w.char + (w.pid ? 'b' + w.pid : ''), p = window.__ws.session.points; return p[k(r.worms[i])] === 4.5 && p[k(r.worms[9])] === 4.5; }, halfIdx));
   // The beach, looking out to sea, for the island's shore.
   await ws(() => { window.__ws.quick(1, 2); const r = window.__ws.race; while (r.clock < 1) r.step(1 / 60); window.__ws.G.players[0].cam.pitch = 0.12; window.__ws.G.players[0].cam.yaw += 1.6; });
   await page.waitForTimeout(700); await shot('shore');

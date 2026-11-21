@@ -15,6 +15,7 @@ import { Online, CSS as ONLINE_CSS } from './online.js';
 import { MirrorRace, snapshot } from './net/mirror.js';
 import { makePortraits } from './portraits.js';
 import { DomPainter } from './dompaint.js';
+import { Ceremony } from './ceremony.js';
 import { settings, allowedEvents, autoMode } from './settings.js';
 import { playSong, songSpeed, songShift, songLevel, raceSong } from './music.js';
 import { begin as beginEvent } from './sim/events.js';
@@ -76,6 +77,7 @@ const LAYOUTS = [
 // eaten: the worms (by number) the bird has taken, who stay gone for the rest of a cup or of a room. nest: where they went.
 let G = null, session = null, net = null, phase = 'menu', acc = 0, clockT = 0, lastBeep = 9, lastSnap = 0;
 let nest = null;
+let ceremony = null; // the medal ceremony at the end of a cup, while it's on
 // What sticks to a worm from race to race, through a cup or an online room: eaten by the bird, cut in two, money it's
 // been given, a scarlet letter. A worm is known by its number, with a 'b' and the piece's own name on the end for a
 // piece that a cut made. pieces: those names, for each worm that's been cut; cuts: how many times each piece has been.
@@ -233,21 +235,21 @@ function pause(on) {
   menus.dialog('<div class="head">PAUSED</div>', [{ label: 'RESUME', fn: () => pause(false) }, { label: 'QUIT', fn: toTitle }], () => pause(false), true);
 }
 
-// Whose points a worm's are: its own kind's, or, for an evil clone and the pieces of one, the clone's.
-const pk = (w) => (w.evil ? 'e' : '') + w.char;
+// Points are kept for each worm on its own, and a piece cut off a worm is a worm on its own: when the knife falls the
+// points so far are split down the middle, as the money is, and from then on each piece earns for itself.
+const pk = keyOf, score = (w) => +(session.points[pk(w)] || 0).toFixed(2);
 function showResults() {
   const race = G.race, mine = new Set(G.players.filter((p) => !p.spectator).flatMap((p) => G.race.worms.filter((w) => w.root === G.race.worms[p.me].root).map((w) => w.idx))), gp = session && session.mode === 'gp';
   // If the bird ate everybody who was playing, it's a draw: no places and no points.
   const humans = race.worms.filter((w) => w.human), draw = humans.length > 0 && humans.every((w) => w.out);
   remember(race);
   const pts = (w, i) => (w.out || draw ? 0 : POINTS[i] || 0);
-  // (A worm that's been cut in two scores what its better half earned, once.)
-  if (gp) { const got = {}; race.order.forEach((w, i) => { got[pk(w)] = Math.max(got[pk(w)] || 0, pts(w, i)); }); for (const c in got) session.points[c] = (session.points[c] || 0) + got[c]; }
+  if (gp) race.order.forEach((w, i) => { session.points[pk(w)] = (session.points[pk(w)] || 0) + pts(w, i); });
   // A worm's name on the score screen: its colour, a scarlet letter if it wears one, which half it is if it's been cut in two, and its money.
-  const cash = (w) => (w.money ? ' <b class="money">&#36;' + w.money + '.00</b>' : '');
+  const cash = (w) => (w.money ? ' <b class="money">&#36;' + w.money.toFixed(2) + '</b>' : '');
   const dot = (w) => `<i class="dot" style="background:${hex(charOf(w).color)}"></i> ${w.scarlet ? '<b class="scarlet">A</b> ' : ''}${w.cuts > 1 ? FRACTION[w.cuts] + ' of ' : w.half ? (w.second ? 'Back of ' : 'Front of ') : ''}${charOf(w).name}${cash(w)}`;
   const rows = race.order.map((w, i) => `<tr class="${mine.has(w.idx) ? 'me' : ''}"><td>${w.out || draw ? '' : i + 1 + ORD[i]}</td><td>${dot(w)}</td>
-    <td>${w.out ? 'eaten by a bird' : w.finished ? fmtTime(w.finishTime) : 'still squirming'}</td>${gp ? `<td>+${pts(w, i)}</td><td>${session.points[pk(w)]}</td>` : ''}</tr>`).join('');
+    <td>${w.out ? 'eaten by a bird' : w.finished ? fmtTime(w.finishTime) : 'still squirming'}</td>${gp ? `<td>+${pts(w, i)}</td><td>${score(w)}</td>` : ''}</tr>`).join('');
   const html = `<div class="head">${draw ? 'DRAW' : TRACKS[G.trackIdx].name.toUpperCase()}</div>${draw ? '<div class="help">Everybody playing was eaten.</div>' : ''}<table class="t">${rows}</table>`;
   playSong('results');
   if (net) {
@@ -260,13 +262,18 @@ function showResults() {
   } else if (session.round < session.cup.tracks.length - 1 && !draw) { // (a draw ends the cup: there's nobody left to race the rest)
     menus.dialog(html, [{ label: 'NEXT RACE', fn: () => { session.round++; startRace(session.cup.tracks[session.round]); } }, { label: 'QUIT', fn: toTitle }]);
   } else {
-    menus.dialog(html, [{ label: 'FINAL STANDINGS', fn: () => {
-      // (One line for each worm, however many pieces it's in: a scarlet letter on either piece shows, and the money adds up.)
-      const whole = race.worms.filter((w) => w.root === w.idx).map((w) => { const ps = race.worms.filter((o) => o.root === w.idx); return { ...w, half: false, cuts: 0, scarlet: ps.some((o) => o.scarlet), money: ps.reduce((n, o) => n + o.money, 0), gone: ps.every((o) => o.out) }; });
-      const final = whole.sort((a, b) => session.points[pk(b)] - session.points[pk(a)]);
-      menus.dialog(`<div class="head">${session.cup.name.toUpperCase()}</div><table class="t">${final.map((w, i) =>
-        `<tr class="${mine.has(w.idx) ? 'me' : ''}"><td>${i + 1}${ORD[i]}</td><td>${dot(w)}</td><td>${session.points[pk(w)]} pts${w.gone ? ' (eaten)' : ''}</td></tr>`).join('')}</table>`,
+    menus.dialog(html, [{ label: 'MEDAL CEREMONY', fn: () => {
+      // (One line for each worm, and each piece of a cut worm is a worm.)
+      const whole = race.worms.map((w) => ({ ...w, gone: w.out }));
+      const final = whole.sort((a, b) => score(b) - score(a));
+      // First the top three get their medals and say their piece; then the table.
+      const table = () => menus.dialog(`<div class="head">${session.cup.name.toUpperCase()}</div><table class="t">${final.map((w, i) =>
+        `<tr class="${mine.has(w.idx) ? 'me' : ''}"><td>${i + 1}${ORD[i]}</td><td>${dot(w)}</td><td>${score(w)} pts${w.gone ? ' (eaten)' : ''}</td></tr>`).join('')}</table>`,
       [{ label: 'MAIN MENU', fn: toTitle }]);
+      const top = final.slice(0, 3).map((f) => ({ w: race.worms[f.idx], gone: f.gone, chained: f.chain >= 0, money: f.money, scarlet: f.scarlet }));
+      menus.hide();
+      phase = 'ceremony';
+      ceremony = new Ceremony({ scene: G.scene, race, views: G.views, top, layer: hudLayer, cup: session.cup.name, done: () => { phase = 'after-ceremony'; table(); } });
     } }]);
   }
 }
@@ -310,7 +317,12 @@ function react(e, mine) {
       nest.feed(charOf(w).color);
       break;
     }
-    case 'cut': sfx.chop(); break;
+    case 'cut': {
+      sfx.chop();
+      // (In a cup, the points the worm had are shared between the two pieces.)
+      if (session && session.points) { const a = pk(G.race.worms[e.idx]), b = pk(G.race.worms[e.twin]), half = (session.points[a] || 0) / 2; session.points[a] = half; session.points[b] = half; }
+      break;
+    }
     case 'paid': sfx.kaching(); break;
     case 'chained': sfx.clank(); break;
     case 'jab': sfx.jab(); break;
@@ -505,10 +517,11 @@ function frame(now, hidden) {
   if (phase === 'menu' && G) demoRace(dt);
   if (phase === 'race') stepRace(dt, !menus.active, now);
   else if (phase === 'after') stepRace(dt, false, now); // the race carries on behind the results
+  const medals = phase === 'ceremony' || phase === 'after-ceremony';
   if (!hidden) {
     hudLayer.clear();
     // (Behind the score screen there are no players' views: see below.)
-    for (const p of phase === 'after' ? [] : G.players) {
+    for (const p of phase === 'after' || medals ? [] : G.players) {
       p.hud.update(G.race, p.me, dt);
       // The camera follows a smoothed point, so a flop doesn't shake the whole picture.
       // (If the bird has had this player's worm but another piece of it is still going, they follow that.)
@@ -534,7 +547,11 @@ function frame(now, hidden) {
     G.race.worms.forEach((w, i) => G.views[i].update(w, clockT, G.race.track));
     G.fx.update(G.race, clockT, dt);
     if (nest) { nest.update(clockT, dt); if (nest.watching) nest.watch(G.race, dt); }
-    if (phase === 'after') {
+    if (medals) {
+      // The medal ceremony runs itself: its own camera, and its words on the HUD. (It stays on behind the final table.)
+      if (phase === 'ceremony') { const nav = inputs.nav(); ceremony.step(dt, nav.ok || nav.start); } else ceremony.aim(dt);
+      view([0, 0, 1, 1], ceremony.camera);
+    } else if (phase === 'after') {
       // Behind the score screen: one picture, circling the worms dancing past the finish line (or, if nobody's
       // finished, the line itself).
       const done = G.race.worms.filter((w) => w.finished && !w.out), mid = pointAt(G.race.track, 7, 0), a = clockT * 0.35;
@@ -588,7 +605,7 @@ requestAnimationFrame(frame);
 // For the tests, and for poking at a race from the browser console.
 // quick(n, track) starts a VS race at once with n players on made-up devices.
 window.__ws = {
-  get race() { return G.race; }, get phase() { return phase; }, get G() { return G; }, get net() { return net; }, get nest() { return nest; }, menus, inputs, online, settings,
+  get race() { return G.race; }, get phase() { return phase; }, get G() { return G; }, get net() { return net; }, get nest() { return nest; }, get ceremony() { return ceremony; }, get session() { return session; }, menus, inputs, online, settings,
   // event(kind, worm) starts a random event now (and, for the bird, says which worm it's after).
   event(kind, target) {
     const r = G.race;
