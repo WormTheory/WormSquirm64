@@ -56,6 +56,7 @@ export const TRACKS = [
 export const CUPS = [
   { name: 'Wormroom Cup', tracks: [0, 1, 2, 3] },
   { name: 'Squirm Cup', tracks: [4, 5, 6, 7] },
+  { name: 'Ultimate Grand Prix', tracks: [0, 1, 2, 3, 4, 5, 6, 7] },
 ];
 export const POINTS = [9, 6, 3, 1];
 

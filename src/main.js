@@ -80,19 +80,22 @@ let nest = null;
 // been given, a scarlet letter. A worm is known by its number, with a 'b' and the piece's own name on the end for a
 // piece that a cut made. pieces: those names, for each worm that's been cut; cuts: how many times each piece has been.
 const keyOf = (w) => w.char + (w.pid ? 'b' + w.pid : '');
-let carry = { eaten: new Set(), pieces: {}, cuts: {}, scarlet: new Set(), plaster: new Set(), money: {} };
-const resetCarry = () => { carry = { eaten: new Set(), pieces: {}, cuts: {}, scarlet: new Set(), plaster: new Set(), money: {} }; nest = null; };
+let carry = { eaten: new Set(), pieces: {}, cuts: {}, scarlet: new Set(), plaster: new Set(), chains: [], money: {} };
+const resetCarry = () => { carry = { eaten: new Set(), pieces: {}, cuts: {}, scarlet: new Set(), plaster: new Set(), chains: [], money: {} }; nest = null; };
 const resetCarryKeepNest = () => { const n = nest; resetCarry(); nest = n; };
 // A plain list of racers [{char, human}], with all that put on: the pieces cut off worms are added on the end.
 const notePiece = (w) => { if (w.pid) { const l = carry.pieces[w.char] || (carry.pieces[w.char] = []); if (!l.includes(w.pid)) l.push(w.pid); } };
 function dress(base) {
   const out = base.map((r) => ({ ...r, pid: '' }));
   for (const r of base) for (const pid of carry.pieces[r.char] || []) out.push({ char: r.char, human: r.human, pid });
-  for (const r of out) { const k = keyOf(r); r.cuts = carry.cuts[k] || 0; r.half = r.cuts > 0; r.second = !!r.pid; r.out = carry.eaten.has(k); r.money = carry.money[k] || 0; r.scarlet = carry.scarlet.has(k); r.plaster = carry.plaster.has(k); }
+  for (const r of out) { const k = keyOf(r); r.cuts = carry.cuts[k] || 0; r.half = r.cuts > 0; r.second = !!r.pid; r.out = carry.eaten.has(k); r.money = carry.money[k] || 0; r.scarlet = carry.scarlet.has(k); r.plaster = carry.plaster.has(k); r.chain = -1; }
+  // (Chains: each end is told the other's place in the list.)
+  for (const [ka, kb] of carry.chains) { const a = out.findIndex((r) => keyOf(r) === ka), b = out.findIndex((r) => keyOf(r) === kb); if (a >= 0 && b >= 0 && !out[a].out && !out[b].out) { out[a].chain = b; out[b].chain = a; } }
   return out;
 }
 // Notes what the race just run has done to its worms.
 function remember(race) {
+  carry.chains = race.worms.filter((w) => w.chain > w.idx).map((w) => [keyOf(w), keyOf(race.worms[w.chain])]);
   for (const w of race.worms) {
     const k = keyOf(w);
     carry.cuts[k] = w.cuts; notePiece(w);
@@ -188,6 +191,7 @@ const online = new Online(menus, inputs, TRACKS, {
     net = { room, msg }; session = null;
     // (A guest learns what's stuck to whom from the host's list.)
     resetCarryKeepNest();
+    msg.racers.forEach((r, i) => { if (r.chain > i && msg.racers[r.chain]) carry.chains.push([keyOf(r), keyOf(msg.racers[r.chain])]); });
     for (const r of msg.racers) { const k = keyOf(r); if (r.out) carry.eaten.add(k); carry.cuts[k] = r.cuts || 0; notePiece(r); if (r.scarlet) carry.scarlet.add(k); if (r.plaster) carry.plaster.add(k); carry.money[k] = r.money || 0; }
     const locals = [];
     msg.seats.forEach((s, k) => { if (s.peer === room.self && online.humans[s.local]) locals.push({ devs: online.humans[s.local].devs, me: msg.seatIdx[k] }); });
@@ -303,6 +307,7 @@ function react(e, mine) {
     }
     case 'cut': sfx.chop(); break;
     case 'paid': sfx.kaching(); break;
+    case 'chained': sfx.clank(); break;
     case 'branded': sfx.sizzle(0.2); break;
     case 'monkeygrab': sfx.ook(me ? 0.16 : 0.08); break;
     case 'monkeythrow': sfx.twirl(0.16); break;
@@ -345,7 +350,7 @@ function direct(e) {
       break;
     case 'omen': focus(e.idx, 3, 6); break;                           // an event is about to pick on this worm: be there first
     case 'howl': focus(e.idx, 3, 9); break;                           // the blood moon's choice
-    case 'grab': case 'cut': case 'paid': case 'branded': focus(e.idx, 3, 5); break;
+    case 'grab': case 'cut': case 'paid': case 'branded': case 'chained': focus(e.idx, 3, 5); break;
     case 'finish': focus(e.idx, 2, 3.5); break;
     case 'squash': case 'twirl': case 'hailhit': case 'monkeygrab': focus(e.idx, 1, 3); break;
     default:
@@ -574,6 +579,7 @@ window.__ws = {
     beginEvent(r, r.weather, kind);
     if (kind === 'bird' && target !== undefined) r.weather.bird.target = target;
     if (['split', 'check', 'brand'].includes(kind) && target !== undefined) r.weather.visit = target;
+    return r.weather.type;
   },
   quick(n = 1, track = 0, cpu = true) {
     const devs = ['kbR', 'kbL', 'pad0', 'pad1'];

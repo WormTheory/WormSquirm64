@@ -121,5 +121,7 @@ export const pop = (vol = 0.14) => { tone('square', 1500, 300, 0.07, vol); burst
 export const hailHit = () => burst(2600, 0.07, 0.05, 'bandpass');
 // The knife coming down; a cash register; and the monkey.
 export const chop = () => { burst(1800, 0.09, 0.22, 'highpass'); tone('square', 180, 70, 0.14, 0.16, 0.02); };
+// A chain going on: links rattling, and the lock.
+export const clank = () => { for (let i = 0; i < 5; i++) tone('square', 2200 + (i % 2) * 700, 1800, 0.04, 0.07, i * 0.06); tone('triangle', 520, 180, 0.18, 0.2, 0.34); burst(3000, 0.08, 0.12, 'highpass'); };
 export const kaching = () => { tone('square', 1319, 1319, 0.06, 0.12); tone('square', 1976, 1976, 0.3, 0.12, 0.07); burst(6000, 0.2, 0.06, 'highpass'); };
 export const ook = (vol = 0.12) => { tone('square', 520, 760, 0.08, vol); tone('square', 520, 820, 0.08, vol, 0.11); tone('square', 900, 600, 0.12, vol, 0.22); };

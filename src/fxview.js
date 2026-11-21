@@ -3,7 +3,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { canvasTex } from './view.js';
 import { centreNear } from './sim/track.js';
-import { FALL_TIME, DEAD_TIME, DROP_PART, OUT_TIME, LIE_PART, BITE_TIME, BITE_LIE, PLASTER_PART, PAT_END, HAIL, VISIT, carried } from './sim/events.js';
+import { FALL_TIME, DEAD_TIME, DROP_PART, OUT_TIME, LIE_PART, BITE_TIME, BITE_LIE, PLASTER_PART, PAT_END, CHAIN, HAIL, VISIT, carried } from './sim/events.js';
 
 const lam = (color, o) => new THREE.MeshLambertMaterial({ color, flatShading: true, ...o });
 const RAIN_BOX = 26;
@@ -75,8 +75,11 @@ function makeVisitor() {
   const rod = new THREE.Mesh(new THREE.BoxGeometry(0.18, 2.6, 0.18), lam(0x30343c)); rod.position.set(0, -2.1, 0.35);
   const hot = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.2, 0.9), new THREE.MeshBasicMaterial({ color: 0xff5a1c })); hot.position.set(0, -3.45, 0.35);
   iron.add(rod, hot);
-  g.add(knife, check, iron);
-  g.userData.props = { split: knife, check, brand: iron };
+  // (And a length of chain, dangling.)
+  const chain = new THREE.Group();
+  for (let i = 0; i < 6; i++) { const l = new THREE.Mesh(new THREE.BoxGeometry(i % 2 ? 0.12 : 0.34, 0.42, i % 2 ? 0.34 : 0.12), lam(0x8a8e98)); l.position.set(0, -0.9 - i * 0.36, 0.35); chain.add(l); }
+  g.add(knife, check, iron, chain);
+  g.userData.props = { split: knife, check, brand: iron, chain };
   g.visible = false;
   return g;
 }
@@ -111,6 +114,8 @@ export class FxView {
     this.dropGeo = new THREE.BoxGeometry(0.22, 0.22, 0.22); this.poolGeo = new THREE.CircleGeometry(1, 11);
     this.bloodMat = new THREE.MeshBasicMaterial({ color: 0xc01010 });
     this.hands = race.worms.map(() => null); // one hand per worm, made the first time it's needed
+    // Chains between worms: links are made as they're needed and shared out each frame.
+    this.links = []; this.linkGeo = new THREE.BoxGeometry(0.16, 0.16, 0.42); this.linkMat = lam(0x8a8e98);
     // Item boxes: a spinning cube with a question mark on it.
     const tex = canvasTex(16, 16, (c) => {
       const g = c.createLinearGradient(0, 0, 16, 16);
@@ -230,11 +235,29 @@ export class FxView {
     // and then goes back up where it came from.
     while (this.hands.length < race.worms.length) this.hands.push(null); // (a worm cut in two adds one)
     // The hand's visit to one worm: down with what it's brought, the deed, and away again.
-    const visit = race.worms[race.weather.visit], V = this.visitor;
+    // (For a chain, it comes down between the two worms once they're side by side.)
+    const ch = race.weather.type === 'chain' ? race.weather.chain : null, ca = ch && race.worms[ch.a], cb = ch && race.worms[ch.b];
+    const visit = ca && cb ? (race.weather.t >= ch.t0 ? { x: (ca.x + cb.x) / 2, z: (ca.z + cb.z) / 2 } : null) : race.worms[race.weather.visit], V = this.visitor;
     V.visible = !!visit;
+    // Every chain: a sagging row of links from one worm's neck to the other's.
+    let nl = 0;
+    for (const a of race.worms) {
+      const b = race.worms[a.chain];
+      if (!b || b.idx < a.idx || a.out || b.out) continue;
+      const N = 9, d = Math.hypot(b.x - a.x, b.z - a.z), sag = Math.max(0, 1 - d / CHAIN.len) * 0.35, ya = 0.5 + (a.lift || 0), yb = 0.5 + (b.lift || 0);
+      for (let i = 0; i < N; i++) {
+        let m = this.links[nl++];
+        if (!m) { m = new THREE.Mesh(this.linkGeo, this.linkMat); this.scene.add(m); this.links.push(m); }
+        const u = (i + 0.5) / N;
+        m.visible = true;
+        m.position.set(a.x + (b.x - a.x) * u, Math.max(0.1, ya + (yb - ya) * u - sag * Math.sin(Math.PI * u)), a.z + (b.z - a.z) * u);
+        m.rotation.set(0, Math.atan2(b.x - a.x, b.z - a.z), i % 2 ? Math.PI / 2 : 0);
+      }
+    }
+    for (; nl < this.links.length; nl++) this.links[nl].visible = false;
     if (visit) {
-      const t = race.weather.t, down = Math.min(1, t / (VISIT.at - 0.35)), strike = Math.max(0, 1 - Math.abs(t - VISIT.at) / 0.18);
-      for (const k in V.userData.props) V.userData.props[k].visible = k === race.weather.type && !(k === 'check' && t > VISIT.at + 0.3);
+      const t = race.weather.t - (ch ? ch.t0 : 0), down = Math.min(1, t / (VISIT.at - 0.35)), strike = Math.max(0, 1 - Math.abs(t - VISIT.at) / 0.18);
+      for (const k in V.userData.props) V.userData.props[k].visible = k === race.weather.type && !(k === 'check' && t > VISIT.at + 0.3) && !(k === 'chain' && t > CHAIN.at);
       // (The knife and the iron come down hard at the moment itself; the check is just held out.)
       V.position.set(visit.x, 5.2 + 30 * (1 - down) ** 2 - (race.weather.type === 'check' ? 1.2 * down : 1.7 * strike) + Math.max(0, t - VISIT.at - 0.7) ** 2 * 26, visit.z - 0.3);
     }
@@ -251,10 +274,17 @@ export class FxView {
     race.worms.forEach((w, i) => {
       let h = this.hands[i];
       const busy = w.fall > 0 && !w.out;
-      if (!busy && !(h && h.visible)) return;
+      // (Two worms to be chained that are too far apart are each carried to the spot by a hand.)
+      const toted = ch && ch.far && race.weather.t < ch.t0 && (i === ch.a || i === ch.b);
+      if (!busy && !toted && !(h && h.visible)) return;
       if (!h) { h = this.hands[i] = makeHand(); this.scene.add(h); }
       const { jug, water, plaster } = h.userData;
       plaster.visible = false;
+      if (toted && !busy) {
+        jug.visible = false; water.visible = false; h.visible = true;
+        h.position.set(w.x, 1.75 + (w.lift || 0) + 26 * (1 - Math.min(1, race.weather.t / CHAIN.grab)) ** 2, w.z - 0.3);
+        return;
+      }
       if (!busy) { h.position.y += dt * 26; water.visible = false; if (h.position.y > 40) h.visible = false; return; } // job done: away
       jug.visible = w.dead;
       if (w.bit) {

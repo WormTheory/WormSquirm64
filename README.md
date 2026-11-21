@@ -2,7 +2,7 @@
 
 A kart racer without the karts. You are a worm. Every button does something; none of them does it well.
 
-What's here so far: eight tracks in two cups (the Wormroom Cup and the Squirm Cup), eight worms, Grand Prix and
+What's here so far: eight tracks in two cups (the Wormroom Cup and the Squirm Cup) and an Ultimate Grand Prix of all eight, eight worms, Grand Prix and
 VS Race, computer worms filling the empty places, items, optional random events, music, split screen for up to
 four, and online play with room codes and a list of open games.
 
@@ -63,7 +63,9 @@ python3 -m http.server 8000   # then open http://localhost:8000
   smaller worms, both worked by the same player, and the better-placed one scores; a half can be cut again into
   quarters, and those into eighths), presents one with a check for
   $30.00 (shown on the score screen, and it adds up), or brands one with a scarlet letter A (shown by its name).
-  All three last through a cup. And a monkey gathers up every worm, leader first, then throws the lot in
+  It can chain two worms together, carrying them
+  to the same spot first if they're far apart: they can't get further apart than the chain allows, and must dance
+  side by side at the end. All of these last through a cup. And a monkey gathers up every worm, leader first, then throws the lot in
   the air to land where they may.
 - **The hand.** A worm that falls off is lowered back onto the road by a giant hand, and one that bakes to death
   has a jug of water poured over it. How often events come is a slider in the options.
@@ -108,6 +110,9 @@ node tools/trackcheck.mjs      # each track's length and tightest bend; a bend t
 letter carry over.
 
 `tools/spectest.cjs` starts a race in Spectator Mode and checks the list, the AUTO VIEW button and the cuts.
+
+`tools/chaintest.cjs` chains two worms in a cup and checks they stay chained into the next race;
+`node tools/chainstats.mjs` measures how well chains hold over a dozen races.
 
 `tools/nettest.cjs` plays a whole online race between two tabs of a headless browser (host, join from the
 open games list, race, results, back to the lobby, host leaves) and says what passed.

@@ -11,7 +11,7 @@ import { chosen } from './sim/events.js';
 export const FRACTION = ['', '\u00bd', '\u00bc', '\u215b', '1/16', '1/32', '1/64', '1/128'];
 
 const EVENT_WORDS = { rain: 'RAIN!', heat: 'HEATWAVE!', bird: 'BIRD!', stomp: 'LOOK OUT!', moon: 'BLOOD MOON!', twister: 'TORNADO!', quake: 'EARTHQUAKE!', frost: 'FROST!', hail: 'HAIL!', dizzy: 'MIX-UP! TURN ROUND!',
-  split: 'SPLIT!', check: 'CHECK FOR $30.00!', brand: 'SCARLET LETTER!', monkey: 'MONKEY M-M-M-MADNESS!' };
+  split: 'SPLIT!', check: 'CHECK FOR $30.00!', brand: 'SCARLET LETTER!', monkey: 'MONKEY M-M-M-MADNESS!', chain: 'CHAIN!' };
 const EVENT_TINT = { rain: 'rgba(20,40,90,.16)', heat: 'rgba(255,110,0,.22)', moon: 'rgba(170,0,10,.3)', frost: 'rgba(190,225,255,.22)', twister: 'rgba(60,60,70,.14)', hail: 'rgba(70,90,120,.16)', dizzy: 'rgba(150,40,200,.2)' };
 
 export const CSS = `
@@ -201,7 +201,7 @@ export class PlayerHud {
         const ax = o.scarlet ? text('A ', left + os * 1.4, oy, os, o.out ? '#8a5a5a' : '#f02020') : 0;
         const nx = left + os * 1.4 + ax + text(CHARS[o.char].name + (o.cuts ? ' ' + FRACTION[o.cuts] : ''), left + os * 1.4 + ax, oy, os, o.out ? '#8a8e96' : o.idx === me ? '#ffe24a' : '#fff');
         // The worm an event has picked out gets a flashing red triangle pointing at its name, for as long as the event lasts.
-        if (o.idx === marked && flash) {
+        if (marked.includes(o.idx) && flash) {
           const tx = Math.round(nx + os * 0.5), ty = oy + os * 0.55;
           c.beginPath(); c.moveTo(tx, ty); c.lineTo(tx + os * 0.95, ty - os * 0.6); c.lineTo(tx + os * 0.95, ty + os * 0.6); c.closePath();
           c.fillStyle = '#f02020'; c.fill(); c.lineWidth = 1; c.strokeStyle = '#000'; c.stroke();

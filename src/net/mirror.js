@@ -5,7 +5,7 @@ import { buildTrack } from '../sim/track.js';
 import { gridSlot } from '../sim/race.js';
 import { makeWorm, ACTIONS } from '../sim/worm.js';
 import { makeItems, ENT_TYPES } from '../sim/items.js';
-import { EVENT_KINDS } from '../sim/events.js';
+import { EVENT_KINDS, CHAIN } from '../sim/events.js';
 
 const DELAY = 0.1, PER = 17; // seconds shown behind the host; numbers per worm in a snapshot
 const STATES = ['countdown', 'racing', 'done'];
@@ -34,11 +34,15 @@ export function snapshot(race) {
   else if (wx.twister) ev.push(r2(wx.twister.x), r2(wx.twister.z));
   else if (wx.monkey) ev.push(r2(wx.monkey.x), r2(wx.monkey.z));
   else if (wx.visit >= 0) ev.push(wx.visit);
+  else if (wx.chain) ev.push(wx.chain.a, wx.chain.b, wx.chain.far ? 1 : 0);
   else if (wx.stomp) for (const f of wx.stomp.steps) ev.push(r2(f.x), r2(f.z), r2(f.t));
   else if (wx.hail) for (const h of wx.hail) ev.push(r2(h.x), r2(h.z), r2(h.t));
   // x: worms made since the start (the back halves of worms cut in two): which worm each is, whether a player's, and its other half's number.
   const x = race.worms.slice(race.base).map((o) => [o.char, o.human ? 1 : 0, o.from, o.pid, o.root]);
-  return { t: 's', c: Math.round(race.clock * 1000) / 1000, st: STATES.indexOf(race.state), w, x, b: race.items.boxes.map((b) => (b.t > 0 ? 0 : 1)).join(''), e, ev };
+  // ch: who's chained to whom, in pairs.
+  const ch = [];
+  for (const o of race.worms) if (o.chain > o.idx) ch.push(o.idx, o.chain);
+  return { t: 's', c: Math.round(race.clock * 1000) / 1000, st: STATES.indexOf(race.state), w, x, ch, b: race.items.boxes.map((b) => (b.t > 0 ? 0 : 1)).join(''), e, ev };
 }
 
 export class MirrorRace {
@@ -49,14 +53,14 @@ export class MirrorRace {
     this.worms = racers.map((r, i) => {
       const p = gridSlot(this.track, i), w = makeWorm(i, r.char, !!r.human, p.x, p.z);
       w.aim = w.look = Math.atan2(p.tx, p.tz);
-      w.out = !!r.out; w.cuts = r.cuts || (r.half ? 1 : 0); w.half = w.cuts > 0; w.pid = r.pid || ''; w.second = !!w.pid; w.money = r.money || 0; w.scarlet = !!r.scarlet; w.patch = r.plaster ? 1 : 0;
+      w.out = !!r.out; w.cuts = r.cuts || (r.half ? 1 : 0); w.half = w.cuts > 0; w.pid = r.pid || ''; w.second = !!w.pid; w.money = r.money || 0; w.scarlet = !!r.scarlet; w.patch = r.plaster ? 1 : 0; w.chain = r.chain >= 0 ? r.chain : -1;
       return w;
     });
     for (const w of this.worms) if (w.pid) { const o = this.worms.find((x) => x.char === w.char && !x.pid); if (o) { w.root = o.idx; w.twin = o.idx; if (o.twin < 0) o.twin = w.idx; } }
     this.order = [...this.worms];
     this.base = this.worms.length;
     this.items = makeItems(this.track);
-    this.weather = { type: 'none', t: 0, bird: null, stomp: null, twister: null, monkey: null, visit: -1 };
+    this.weather = { type: 'none', t: 0, bird: null, stomp: null, twister: null, monkey: null, chain: null, visit: -1 };
     this.buf = []; this.rc = null; this.pend = {}; this.mine = new Set(); this.sentAt = 0; this.feet = 0;
   }
 
@@ -159,6 +163,12 @@ export class MirrorRace {
     wx.type = kind; wx.t = E[1] + (this.rc - a.c);
     wx.bird = kind === 'bird' && E.length >= 5 ? { x: E[2], z: E[3], h: E[4], target: E.length >= 6 ? E[5] : -1 } : null;
     wx.monkey = kind === 'monkey' && E.length >= 4 ? { x: E[2] + (b.ev[0] === E[0] && b.ev.length >= 4 ? (b.ev[2] - E[2]) * f : 0), z: E[3] + (b.ev[0] === E[0] && b.ev.length >= 4 ? (b.ev[3] - E[3]) * f : 0) } : null;
+    wx.chain = kind === 'chain' && E.length >= 5 ? { a: E[2], b: E[3], far: !!E[4], t0: E[4] ? CHAIN.carry : 0 } : null;
+    if (a.ch) {
+      const was = this.worms.map((w) => w.chain);
+      for (const w of this.worms) w.chain = -1;
+      for (let i = 0; i + 1 < a.ch.length; i += 2) if (this.worms[a.ch[i]] && this.worms[a.ch[i + 1]]) { this.worms[a.ch[i]].chain = a.ch[i + 1]; this.worms[a.ch[i + 1]].chain = a.ch[i]; if (was[a.ch[i]] < 0) ev.push({ type: 'chained', idx: a.ch[i], other: a.ch[i + 1] }); }
+    }
     wx.visit = (kind === 'split' || kind === 'check' || kind === 'brand') && E.length >= 3 ? E[2] : -1;
     wx.twister = kind === 'twister' && E.length >= 4 ? { x: E[2] + (b.ev[0] === E[0] && b.ev.length >= 4 ? (b.ev[2] - E[2]) * f : 0), z: E[3] + (b.ev[0] === E[0] && b.ev.length >= 4 ? (b.ev[3] - E[3]) * f : 0) } : null;
     if (kind === 'quake' && Math.floor(wx.t / 1.2) !== this.tremors) { this.tremors = Math.floor(wx.t / 1.2); ev.push({ type: 'tremor' }); }
