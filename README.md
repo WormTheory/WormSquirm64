@@ -109,7 +109,7 @@ are copied to an evil clone and are kept by both pieces of a worm that's cut.
   cast, a swap meet, a makeover, a tax audit, a knot, an adoption (a baby that trips other worms), a marriage (a chain,
   and points shared), and two worms fused into one. `tools/eventtest.cjs` runs each of them.
 - **Items** (`src/sim/items.js`): a compost heap, a salt shaker, a fishing hook, a leaf umbrella, a decoy worm, a magnet,
-  a garden hose, a worm whistle, a shovel, a banana bunch, hot sauce, a mirror, hiccups, a coupon and a mystery egg.
+  a garden hose, a worm whistle, a shovel, a banana bunch, hot sauce, a mirror, hiccups, $1.50 and a mystery egg.
   `tools/itemtest.cjs` uses every item.
 - **Mutations** (`src/sim/genes.js`): twenty more, from gills to photosynthesis; the list in that file says what each does.
 

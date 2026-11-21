@@ -7,7 +7,7 @@ import { airOf, GENE } from './genes.js';
 export const ITEMS = ['BOOST', 'PEEL', 'PEBBLE', 'HOMING', 'STAR', 'ZAP', 'MOLE', 'GLUE', 'SWAP', 'SPRING', 'BUBBLE', 'GIANT',
   'COMPOST', 'SALT', 'HOOK', 'BROLLY', 'DECOY', 'MAGNET', 'HOSE', 'WHISTLE', 'SHOVEL', 'BUNCH', 'SAUCE', 'MIRROR', 'HICCUPS', 'COUPON', 'EGG'];
 export const ITEM_NAMES = ['WORMSHROOM', 'SQUIRMANA PEEL', 'PEBBLE', 'HOMING PEBBLE', 'SQUIRM STAR', 'LIGHTNING', 'MOLE', 'GLUE POT', 'SWITCHEROO', 'SPRING', 'BUBBLE', 'GIANT GRUB',
-  'COMPOST HEAP', 'SALT SHAKER', 'FISHING HOOK', 'LEAF UMBRELLA', 'DECOY WORM', 'MAGNET', 'GARDEN HOSE', 'WORM WHISTLE', 'SHOVEL', 'BANANA BUNCH', 'HOT SAUCE', 'MIRROR', 'HICCUPS', 'COUPON', 'MYSTERY EGG'];
+  'COMPOST HEAP', 'SALT SHAKER', 'FISHING HOOK', 'LEAF UMBRELLA', 'DECOY WORM', 'MAGNET', 'GARDEN HOSE', 'WORM WHISTLE', 'SHOVEL', 'BANANA BUNCH', 'HOT SAUCE', 'MIRROR', 'HICCUPS', '$1.50', 'MYSTERY EGG'];
 export const ENT_TYPES = ['peel', 'pebble', 'homing', 'mole', 'glue', 'compost', 'salt', 'decoy'];
 const SPRING = { secs: 0.9, dist: 13, high: 4.6 }, GLUE_R = 1.6;
 const BOX_BACK = 4;       // seconds before a taken box comes back
