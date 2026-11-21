@@ -43,7 +43,7 @@ export const TRACKS = [
     id: 'banshee-wormwalk', name: 'Banshee Wormwalk', width: 14, laps: 3,
     pts: [[-34.1, -3.5], [-22.7, -20.1], [-1.5, -26.6], [20.5, -24.5], [36.1, -18.3], [39.8, -3.4], [33.1, 13.8], [23.8, 27.1], [6.1, 29.8], [-14.5, 23.5], [-30.6, 14.2]],
     theme: { sky: 0x101830, fog: 0x182040, ground: ['#28303c', '#2c3440'], road: ['#8a6038', '#7a5430', '#966a40'], line: null,
-      kerb: ['#5a3c20', '#3a2410'], wall: ['#6a4828', '#2a1a0c'], hill: 0x1c2438, mesa: false, sea: 0x0c1c3c, dark: true, props: [['deadtree', 40]] },
+      kerb: ['#5a3c20', '#3a2410'], wall: ['#6a4828', '#2a1a0c'], hill: 0x1c2438, mesa: false, dark: true, props: [['deadtree', 40]] },
   },
   {
     id: 'wormbow-road', name: 'Wormbow Road', width: 17, laps: 3, open: true,

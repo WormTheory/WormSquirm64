@@ -314,15 +314,17 @@ export class WormView {
         if (w.pit) {
           const e = FALL_TIME - w.fall;
           if (e < DROP_PART) y -= e * e * 30;
-          else { held = true; y = Math.max(big, 10 - 6.6 * ((e - DROP_PART) / (FALL_TIME - DROP_PART)) - i * 0.36); }
+          else { held = true; y = Math.max(big, 10 - 6.6 * ((e - DROP_PART) / (FALL_TIME - DROP_PART)) - i * 0.36 * small); }
         } else {
           // Over the wall: it lies on its back, squirming, until the hand lifts it and carries it home.
           const e = OUT_TIME - w.fall;
           if (e < LIE_PART) { y = big; lat = 0.3 * Math.sin(time * 16 - i * 1.1); onBack = true; }
-          else { held = true; const c = carried(w, back || w, (e - LIE_PART) / (OUT_TIME - LIE_PART)); hx = c[0]; hz = c[1]; y = Math.max(big, c[2] - i * 0.36); }
+          else { held = true; const c = carried(w, back || w, (e - LIE_PART) / (OUT_TIME - LIE_PART)); hx = c[0]; hz = c[1]; y = Math.max(big, c[2] - i * 0.36 * small); }
         }
       }
-      if (w.lift > 0) y = Math.max(y, w.lift - i * 0.45 * Math.min(1, w.lift / 3));
+      if (w.lift > 0) y = Math.max(y, w.lift - i * 0.45 * small * Math.min(1, w.lift / 3));
+      // (Wobbles are as big as the worm is: a small piece of one shakes a small way.)
+      lat *= small;
       let x = px[i] + dz * lat, z = pz[i] - dx * lat;
       const m = this.meshes[i];
       if (held && back) { x = hx + 0.1 * Math.sin(time * 9 + i); z = hz; }

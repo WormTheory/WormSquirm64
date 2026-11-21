@@ -446,7 +446,7 @@ export class NestView {
     // Once the first worm has been fed, the view turns to look down on the race from the nest: the race is drawn first,
     // and the nest, its branch and the chicks are drawn over it, in the way. watching says that's so.
     this.watching = false;
-    this.raceCam = new THREE.PerspectiveCamera(52, 4 / 3, 0.5, 500);
+    this.raceCam = new THREE.PerspectiveCamera(52, 4 / 3, 0.5, 900);
     this.eye = new THREE.Vector3();
   }
 

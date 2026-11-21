@@ -84,6 +84,19 @@ export function buildWorld(tr) {
   scene.background = new THREE.Color(th.sky);
   scene.fog = new THREE.Fog(th.fog, th.space ? 90 : 50, th.space ? 330 : 230);
   scene.userData.sky = scene.background.clone(); scene.userData.fog = scene.fog.color.clone(); // (the weather tints these and puts them back)
+  if (!th.space) {
+    // The horizon. Far ground fades to the fog's colour, which isn't the sky's, so without this the floor seems to
+    // stop at a hard line in the distance. A wall of the fog's own colour stands all round, a long way off, solid up
+    // to the horizon and thinning out to nothing above it, so ground, haze and sky run into each other. (It uses
+    // the fog's colour itself, not a copy, so it changes with the weather.)
+    const geo = new THREE.CylinderGeometry(470, 470, 130, 40, 6, true), pos = geo.attributes.position, col = [];
+    for (let i = 0; i < pos.count; i++) { const k = Math.max(0, Math.min(1, (pos.getY(i) + 61) / 85)); col.push(1, 1, 1, 1 - k * k * (3 - 2 * k)); }
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 4));
+    const haze = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, fog: false, side: THREE.BackSide, depthWrite: false }));
+    haze.material.color = scene.fog.color;
+    haze.position.y = 25; haze.renderOrder = -1;
+    scene.add(haze);
+  }
   scene.add(new THREE.AmbientLight(0xffffff, 2.2));
   const sun = new THREE.DirectionalLight(0xfff0d0, 1.6);
   sun.position.set(40, 80, 20);

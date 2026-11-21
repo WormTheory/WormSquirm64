@@ -42,7 +42,7 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPrefer
 renderer.setScissorTest(true);
 const inputs = new Inputs(canvas);
 const menus = new Menus(panel, inputs, TRACKS, menuRace);
-const titleCam = new THREE.PerspectiveCamera(62, 4 / 3, 0.5, 500);
+const titleCam = new THREE.PerspectiveCamera(62, 4 / 3, 0.5, 900);
 
 // The picture is drawn small (240 lines on its short side) and stretched, as the old machines did.
 // (Left alone it's 240 lines on the short side and never more than 640 on the long one; the options can set the pixel size instead.)
@@ -127,7 +127,7 @@ function setupRace(trackIdx, racers, locals, mirror) {
     return {
       devs: h.devs, me: h.me, rect: rects[i], drag: i === dragOwner, spectator: !!h.spectator, auto: true,
       cam: { yaw: w.aim, pitch: 0.4, fx: w.x, fz: w.z },
-      camera: new THREE.PerspectiveCamera(62, 4 / 3, 0.5, 500),
+      camera: new THREE.PerspectiveCamera(62, 4 / 3, 0.5, 900),
       hud: new PlayerHud(hudLayer, huds, rects[i], { split: locals.length > 1, showOrder: locals.length <= 2, inputs: h.devs.includes('touch') ? inputs : null }),
     };
   });
@@ -137,7 +137,7 @@ function setupRace(trackIdx, racers, locals, mirror) {
     const tr = race.track;
     let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
     for (let i = 0; i < tr.N; i++) { x0 = Math.min(x0, tr.px[i]); x1 = Math.max(x1, tr.px[i]); z0 = Math.min(z0, tr.pz[i]); z1 = Math.max(z1, tr.pz[i]); }
-    overview = new THREE.PerspectiveCamera(50, 4 / 3, 0.5, 500);
+    overview = new THREE.PerspectiveCamera(50, 4 / 3, 0.5, 900);
     overview.position.set((x0 + x1) / 2, Math.max(x1 - x0, z1 - z0) * 1.05, (z0 + z1) / 2 + 30);
     overview.lookAt((x0 + x1) / 2, 0, (z0 + z1) / 2);
   }
