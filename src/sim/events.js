@@ -24,7 +24,7 @@ import { GENES, GENE, MOST, airOf } from './genes.js';
 import { KINDS2, VISITS2, begin2, step2, always2, deed2 } from './events2.js';
 
 export const EVENT_KINDS = ['none', 'rain', 'heat', 'bird', 'stomp', 'moon', 'twister', 'quake', 'frost', 'hail', 'dizzy', 'split', 'check', 'brand', 'monkey', 'chain', 'wormx', 'clone', 'gene',
-  'fog', 'wind', 'flood', 'night', 'lowgrav', 'mower', 'sprinkler', 'roadworks', 'sinkhole', 'reverse', 'moles', 'chicken', 'ants', 'snail', 'frog', 'birds2', 'pace', 'fisher', 'swapmeet', 'makeover', 'tax', 'knot', 'adoption', 'fused', 'marry'];
+  'fog', 'wind', 'night', 'lowgrav', 'mower', 'sprinkler', 'roadworks', 'sinkhole', 'reverse', 'moles', 'chicken', 'ants', 'snail', 'frog', 'birds2', 'pace', 'fisher', 'swapmeet', 'makeover', 'tax', 'knot', 'adoption', 'fused', 'marry'];
 // The three things the hand does to one worm: seconds for the whole visit, and when in it the deed is done.
 export const VISIT = { len: 4, at: 1.7 };
 // Seconds a gene splice lasts in all; and seconds a worm is away at the nest when it isn't eaten there.
@@ -38,7 +38,7 @@ export const HAIL = { fall: 1.1, every: 0.22, reach: 1.8, high: 20 }; // seconds
 const TWIST = { len: 12, speed: 9, reach: 3, secs: 1.6, high: 6.5 };
 const MOON = { len: 17, pick: 2.6, rear: 1.7, back: 1.3, speed: 10.5 }; // seconds: the whole event, before a worm is chosen, rearing up, turning back; and how fast the wolf runs
 const GAP = [10, 20];          // quiet seconds between events
-const WEATHER_FOR = [8, 12];   // how long rain or a heatwave lasts
+const WEATHER_FOR = [9, 13];   // how long rain (which floods the road as it goes on) or a heatwave lasts
 const BIRD_IN = 2.6, BIRD_OUT = 3;   // seconds for the bird to come down, and to leave with its catch
 const BIRD_HIGH = 34;
 const STEP_EVERY = 0.75, FOOT_R = 5;
@@ -48,8 +48,7 @@ const STEP_EVERY = 0.75, FOOT_R = 5;
 export function makeEvents(race, on, freq = 5, kinds = null) {
   const wait = 5 / Math.max(1, Math.min(10, freq));
   const may = ['rain', 'heat', 'stomp', 'moon', 'bird', 'twister', 'quake', 'frost', 'hail', 'dizzy', 'split', 'check', 'brand', 'monkey', 'chain', 'wormx', 'clone', 'gene',
-  'fog', 'wind', 'flood', 'night', 'lowgrav', 'mower', 'sprinkler', 'roadworks', 'sinkhole', 'reverse', 'moles', 'chicken', 'ants', 'snail', 'frog', 'birds2', 'pace', 'fisher', 'swapmeet', 'makeover', 'tax', 'knot', 'adoption', 'fused', 'marry'].filter((k) => !kinds || kinds.includes(k)); // (each as likely as the next,
-  if (may.includes('gene')) may.push('gene');                                // but for the gene splice, which is in twice)
+  'fog', 'wind', 'night', 'lowgrav', 'mower', 'sprinkler', 'roadworks', 'sinkhole', 'reverse', 'moles', 'chicken', 'ants', 'snail', 'frog', 'birds2', 'pace', 'fisher', 'swapmeet', 'makeover', 'tax', 'knot', 'adoption', 'fused', 'marry'].filter((k) => !kinds || kinds.includes(k));
   return { on, wait, may, twister: null, monkey: null, chain: null, xin: null, clone: null, gene: -1, visit: -1, type: 'none', t: 0, next: on && may.length ? race.rng.range(8, 14) * wait : Infinity, bird: null, stomp: null, wolf: -1 };
 }
 
@@ -64,6 +63,15 @@ export const VISITS = ['split', 'check', 'brand', 'clone', 'gene', ...VISITS2];
 // The evil clone's tank: when it's lowered, when its fluid drains, when
 // the clone breaks out, and when it's all over.
 export const CLONE = { down: [2, 3.2], drain: [3.2, 4.5], out: 4.6, len: 5.6 };
+
+// How likely each event is beside the rest: the gene splice comes twice as often as most, the bird half as often,
+// and the two birds a quarter as often.
+const ODDS = { gene: 2, bird: 0.5, birds2: 0.25 };
+function pickKind(rng, kinds) {
+  let x = rng() * kinds.reduce((n, k) => n + (ODDS[k] || 1), 0);
+  for (const k of kinds) { x -= ODDS[k] || 1; if (x <= 0) return k; }
+  return kinds[kinds.length - 1];
+}
 
 // An event is settled on a moment before it starts (OMEN seconds), along with the worm it's coming for, if it's
 // that sort. Nothing shows yet; it's so that anyone just watching can be looking at the right worm when it happens.
@@ -81,7 +89,7 @@ export function chainGang(race, w) {
   return seen;
 }
 function foresee(race, ev) {
-  const rng = race.rng, live = race.worms.filter((w) => !w.out && !w.finished), kind = rng.pick(ev.may);
+  const rng = race.rng, live = race.worms.filter((w) => !w.out && !w.finished), kind = pickKind(rng, ev.may);
   let idx = -1;
   if (VISITS.includes(kind)) { const able = visitable(race, kind, live); if (able.length) idx = rng.pick(able).idx; }
   else if ((kind === 'bird' || kind === 'moon') && live.length >= 2) idx = rng.pick(live).idx;
@@ -148,12 +156,12 @@ export function begin(race, ev, force, target) {
   // (What was foreseen happens, to the worm foreseen if it's still there to be had.)
   const omen = !force && ev.omen ? ev.omen : force && target !== undefined ? { kind: force, idx: target } : null, pick = (able) => (omen && able.find((w) => w.idx === omen.idx)) || rng.pick(able);
   ev.omen = null;
-  let kind = force || (omen ? omen.kind : rng.pick(ev.may));
+  let kind = force || (omen ? omen.kind : pickKind(rng, ev.may));
   // (A wolf needs someone to hunt, and the bird always leaves someone to race: failing that, whatever else is allowed, or nothing.)
   if ((kind === 'moon' || kind === 'bird') && live.length < 2) {
     const other = ev.may.filter((k) => k !== 'moon' && k !== 'bird');
     if (!other.length) { ev.next = rng.range(GAP[0], GAP[1]) * ev.wait; return; }
-    kind = rng.pick(other);
+    kind = pickKind(rng, other);
   }
   // (Two birds: one, and then, when it's gone, another.)
   if (kind === 'birds2') { ev.again = true; ev.title = 'birds2'; kind = 'bird'; }

@@ -53,7 +53,8 @@ export class Fx2 {
     this.scene.fog.near = this.fog0[0] + (1.5 - this.fog0[0]) * this.murk; this.scene.fog.far = this.fog0[1] + (15 - this.fog0[1]) * this.murk;
     this.dark += Math.sign((k === 'night' ? 1 : 0) - this.dark) * Math.min(Math.abs((k === 'night' ? 1 : 0) - this.dark), dt * 1.2);
     for (const [l, full] of this.lights) l.intensity = full * (1 - 0.8 * this.dark);
-    if (k === 'flood') this.get('water').position.y = -0.3 + 0.62 * Math.min(1, wx.t / 1.5, Math.max(0, (wx.len || 99) - wx.t));
+    // Rain that goes on floods the road: the water comes up after a few seconds, and goes down as the rain stops.
+    if (k === 'rain' && wx.t > 2.5) this.get('water').position.y = -0.3 + 0.62 * Math.min(1, (wx.t - 2.5) / 3, Math.max(0, (wx.len || 99) - wx.t));
     if (k === 'wind' && d.length >= 2) {
       // Leaves, going past on the wind, round wherever the leader is.
       const at = (race.order || race.worms).find((w) => !w.out) || race.worms[0];

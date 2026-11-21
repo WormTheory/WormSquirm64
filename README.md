@@ -66,7 +66,7 @@ python3 -m http.server 8000   # then open http://localhost:8000
   $30.00 (shown on the score screen, and it adds up), or brands one with a scarlet letter A (shown by its name).
   It can chain two worms together, carrying them
   to the same spot first if they're far apart: they can't get further apart than the chain allows, and must dance
-  side by side at the end. All of these last through a cup. A syringe can splice its genes (twice as likely as any other event;
+  side by side at the end. All of these last through a cup. A syringe can splice its genes (twice as likely as most events; the bird is half as likely and the two birds a quarter;
   see below), or take what's needed to grow an evil clone of it: a tank of green is lowered onto the road, drains,
   and out breaks 'Evil' whoever, in the opposite colours, with the same mutations and none of the accessories, to race
   for itself from then on. When a worm is cut in two, what it was wearing is shared between the pieces.
@@ -102,7 +102,7 @@ are copied to an evil clone and are kept by both pieces of a worm that's cut.
 
 ## The newer events, items and mutations
 
-- **Events** (`src/sim/events2.js`, drawn by `src/fxview2.js`): fog, wind, a flood, night, low gravity, a lawnmower that
+- **Events** (`src/sim/events2.js`, drawn by `src/fxview2.js`): fog, wind, night, low gravity, a lawnmower that
   splits what it runs over, a sprinkler, roadworks, a sinkhole that stays, and a spell of everyone going the other way
   round; a mole uprising, a chicken, an ant parade for whoever's last, a snail trailing glue, a frog with a long
   tongue, two birds one after the other, and a pace worm nobody may pass; and more calls from the hand: a fisherman's

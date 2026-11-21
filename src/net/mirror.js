@@ -25,7 +25,7 @@ const r2 = (v) => Math.round(v * 100) / 100;
 export function snapshot(race) {
   const w = [];
   for (const o of race.worms) {
-    let flags = (o.out ? 32 : 0) | (o.dead ? 64 : 0) | (o.pit ? 128 : 0) | (o.wolf > 0 ? 256 : 0) | (o.howl > 0 ? 512 : 0) | (o.bit ? 1024 : 0) | (o.patch > 0 ? 2048 : 0) | (o.slow > 0 ? 4096 : 0) | (o.shield > 0 ? 8192 : 0) | (o.giant > 0 ? 16384 : 0) | (o.scarlet ? 32768 : 0) | ((o.cuts & 7) << 16) | (Math.min(7, o.patch) << 19) | ((o.nested & 3) << 22) | (o.glam ? 1 << 24 : 0) | (o.knot > 0 ? 1 << 25 : 0) | (o.fusedTo >= 0 ? 1 << 26 : 0);
+    let flags = (o.out ? 32 : 0) | (o.dead ? 64 : 0) | (o.pit ? 128 : 0) | (o.wolf > 0 ? 256 : 0) | (o.howl > 0 ? 512 : 0) | (o.bit ? 1024 : 0) | (o.patch > 0 ? 2048 : 0) | (o.slow > 0 ? 4096 : 0) | (o.shield > 0 ? 8192 : 0) | (o.giant > 0 ? 16384 : 0) | (o.scarlet ? 32768 : 0) | ((o.cuts & 7) << 16) | (Math.min(7, o.patch) << 19) | ((o.nested & 3) << 22) | (o.glam ? 1 << 24 : 0) | (o.knot > 0 ? 1 << 25 : 0) | (o.fusedTo >= 0 ? 1 << 26 : 0) | (o.wed >= 0 ? 1 << 27 : 0);
     FLAGS.forEach((k, i) => { if (o[k] > 0) flags |= 1 << i; });
     w.push(r2(o.x), r2(o.z), o.count, Math.max(0, ACTIONS.indexOf(o.action)), o.taps, Math.round(o.prog * 10) / 10, o.lap, o.rank,
       o.finished ? r2(o.finishTime) : -1, flags, r2(o.fall), r2(o.lift), r2(o.heat), o.hurts, o.items, o.item, o.money);
@@ -136,7 +136,7 @@ export class MirrorRace {
       if ((fl & 8) && !(w.shrunk > 0)) zapped = true;
       if ((fl & 16) && !(w.flat > 0)) ev.push({ type: 'squash', idx: i });
       FLAGS.forEach((name, bit) => { w[name] = fl & (1 << bit) ? 1 : 0; });
-      w.glam = !!(fl & (1 << 24)); w.knot = fl & (1 << 25) ? 1 : 0; w.fusedTo = fl & (1 << 26) ? 0 : -1;
+      w.wed = fl & (1 << 27) ? 0 : -1; w.glam = !!(fl & (1 << 24)); w.knot = fl & (1 << 25) ? 1 : 0; w.fusedTo = fl & (1 << 26) ? 0 : -1;
       if ((fl & 32) && !w.out && !(fl & (1 << 26))) ev.push({ type: 'eaten', idx: i }); // (a worm that's been fused into another is gone, but not eaten)
       w.out = !!(fl & 32);
       if (A[k + 10] > 0 && !(w.fall > 0) && !((fl >> 22) & 3)) ev.push({ type: fl & 64 ? 'die' : fl & 1024 ? 'bitten' : 'fall', idx: i });

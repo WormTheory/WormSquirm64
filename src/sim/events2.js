@@ -6,7 +6,7 @@ import { GENE } from './genes.js';
 import { drop, cutWorm, MAX_WORMS } from './events.js';
 
 // The ones that run by themselves...
-export const KINDS2 = ['fog', 'wind', 'flood', 'night', 'lowgrav', 'mower', 'sprinkler', 'roadworks', 'sinkhole', 'reverse', 'moles', 'chicken', 'ants', 'snail', 'frog', 'birds2', 'pace'];
+export const KINDS2 = ['fog', 'wind', 'night', 'lowgrav', 'mower', 'sprinkler', 'roadworks', 'sinkhole', 'reverse', 'moles', 'chicken', 'ants', 'snail', 'frog', 'birds2', 'pace'];
 // ...and the ones that are the hand calling on one worm, as the knife and the check are.
 export const VISITS2 = ['fisher', 'swapmeet', 'makeover', 'tax', 'knot', 'adoption', 'fused'];
 
@@ -23,7 +23,6 @@ export function begin2(race, ev, kind, live) {
   ev.data = [];
   if (kind === 'fog' || kind === 'night' || kind === 'lowgrav') ev.len = rng.range(10, 13);
   else if (kind === 'wind') { const a = rng.range(0, Math.PI * 2); ev.data = [Math.cos(a), Math.sin(a)]; ev.len = 10; }
-  else if (kind === 'flood') { ev.len = rng.range(10, 13); for (const w of race.worms) w.wash = null; }
   else if (kind === 'reverse') ev.len = 10;
   else if (kind === 'mower') {
     // It starts behind the worm at the back and drives up the road, faster than anything can squirm.
@@ -58,13 +57,6 @@ export function step2(race, ev, dt, live) {
   if (k === 'wind') {
     // A gale: everyone's blown the same way, and wings are a sail.
     for (const w of live) if (!(w.fall > 0) && !(w.lift > 0) && !w.finished && !(w.star > 0)) { const f = 3.2 * (1 + 0.6 * w.mut[GENE.wings]); w.x += d[0] * f * dt; w.z += d[1] * f * dt; }
-  } else if (k === 'flood') {
-    // The road's under water: worms drift about in it (but for those with gills), and anything with a fin is in its element.
-    for (const w of live) {
-      if (w.finished || w.fall > 0 || w.lift > 0 || w.mut[GENE.gills]) continue;
-      if (!w.wash || (w.wash.t -= dt) <= 0) { const a = rng.range(0, Math.PI * 2), v = rng.range(1, 3); w.wash = { x: Math.cos(a) * v, z: Math.sin(a) * v, t: rng.range(1, 2.5) }; }
-      w.x += w.wash.x * dt; w.z += w.wash.z * dt;
-    }
   } else if (k === 'mower') {
     const mw = ev.mow;
     mw.s += 20 * dt;

@@ -11,7 +11,7 @@ const { chromium } = require('playwright');
   page.on('pageerror', (e) => errs.push(e.message));
   const ws = (fn, arg) => page.evaluate(fn, arg);
   const check = (what, ok) => { console.log((ok ? 'ok    ' : 'FAIL  ') + what); if (!ok) fails.push(what); };
-  const KINDS = ['fog', 'wind', 'flood', 'night', 'lowgrav', 'mower', 'sprinkler', 'roadworks', 'sinkhole', 'reverse', 'moles', 'chicken', 'ants', 'snail', 'frog', 'pace', 'fisher', 'swapmeet', 'makeover', 'tax', 'knot', 'adoption', 'marry', 'fused', 'birds2'];
+  const KINDS = ['fog', 'wind', 'night', 'lowgrav', 'mower', 'sprinkler', 'roadworks', 'sinkhole', 'reverse', 'moles', 'chicken', 'ants', 'snail', 'frog', 'pace', 'fisher', 'swapmeet', 'makeover', 'tax', 'knot', 'adoption', 'marry', 'fused', 'birds2'];
   await page.goto(url); await page.waitForTimeout(800);
   await ws(() => window.__ws.quick(1, 0)); await page.waitForTimeout(6000);
   const me = await ws(() => window.__ws.G.players[0].me);
@@ -29,7 +29,7 @@ const { chromium } = require('playwright');
     await page.waitForTimeout(150);
   }
   console.log(bad.length ? bad.join('\n') : 'every event began and ended');
-  check('all 25 newer events begin and end', bad.length === 0);
+  check('all the newer events begin and end', bad.length === 0);
   const state = await ws((me) => { const r = window.__ws.race, w = r.worms[me]; return { glam: w.glam, holes: (r.holes || []).length, babies: (r.babies || []).length, wed: r.worms.filter((o) => o.wed >= 0).length, fused: r.worms.filter((o) => o.fusedTo >= 0).length, heads: w.mut[12], worms: r.worms.length, stuck: r.worms.filter((o) => !o.out && o.lift > 0).length }; }, me);
   console.log(JSON.stringify(state));
   check('what they leave behind is there: a makeover, a hole, a baby, a married couple, a fused worm', state.glam && state.holes === 1 && state.babies === 1 && state.wed === 2 && state.fused === 1 && state.heads >= 1);

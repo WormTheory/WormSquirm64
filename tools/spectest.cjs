@@ -22,6 +22,10 @@ const { chromium } = require('playwright');
   await page.screenshot({ path: `${out}/spec-picked.png` });
   await page.mouse.click(row.ax, row.ay); await page.waitForTimeout(300);
   check('the button turns auto back on', await ws(() => window.__ws.G.players[0].auto));
+  // An item picked up shows beside the worm's name for a moment.
+  await ws(() => { const r = window.__ws.race, w = r.worms.find((o) => !o.out && !o.finished); window.__ws.give(w.idx, 15); });
+  await page.waitForTimeout(500); await page.screenshot({ path: `${out}/spec-item.png` });
+  check('the list notes the item', await ws(() => { const g = window.__ws.G.players[0].hud.got || {}; return Object.values(g).some((x) => x.t > 0 && x.item === 15); }));
   await ws(() => window.__ws.event('brand', 3)); await page.waitForTimeout(1500);
   check('auto view cuts to the worm the hand visits', await ws(() => window.__ws.G.players[0].me === 3));
   await page.screenshot({ path: `${out}/spec-event.png` });

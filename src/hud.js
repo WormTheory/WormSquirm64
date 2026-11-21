@@ -11,9 +11,9 @@ import { GENE_NAMES } from './sim/genes.js';
 // How much of a worm a piece is, by how many times it's been cut.
 export const FRACTION = ['', '\u00bd', '\u00bc', '\u215b', '1/16', '1/32', '1/64', '1/128'];
 
-const EVENT_WORDS = { rain: 'RAIN!', heat: 'HEATWAVE!', bird: 'BIRD!', stomp: 'LOOK OUT!', moon: 'BLOOD MOON!', twister: 'TORNADO!', quake: 'EARTHQUAKE!', frost: 'FROST!', hail: 'HAIL!', dizzy: 'MIX-UP! TURN ROUND!',
+const EVENT_WORDS = { rain: 'RAIN AND FLOOD!', heat: 'HEATWAVE!', bird: 'BIRD!', stomp: 'LOOK OUT!', moon: 'BLOOD MOON!', twister: 'TORNADO!', quake: 'EARTHQUAKE!', frost: 'FROST!', hail: 'HAIL!', dizzy: 'MIX-UP! TURN ROUND!',
   split: 'SPLIT!', check: 'CHECK FOR $30.00!', brand: 'SCARLET LETTER!', monkey: 'MONKEY M-M-M-MADNESS!', chain: 'CHAIN!', wormx: 'WORM X!', clone: 'EVIL CLONE!', gene: 'GENE SPLICE!',
-  fog: 'FOG!', wind: 'WIND!', flood: 'FLOOD!', night: 'NIGHT!', lowgrav: 'LOW GRAVITY!', mower: 'LAWNMOWER!', sprinkler: 'SPRINKLER!', roadworks: 'ROADWORKS!', sinkhole: 'SINKHOLE!', reverse: 'REVERSE!',
+  fog: 'FOG!', wind: 'WIND!', night: 'NIGHT!', lowgrav: 'LOW GRAVITY!', mower: 'LAWNMOWER!', sprinkler: 'SPRINKLER!', roadworks: 'ROADWORKS!', sinkhole: 'SINKHOLE!', reverse: 'REVERSE!',
   moles: 'MOLE UPRISING!', chicken: 'CHICKEN!', ants: 'ANT PARADE!', snail: 'SNAIL!', frog: 'FROG!', birds2: 'EARLY BIRD SPECIAL!', pace: 'PACE WORM!', fisher: 'FISHERMAN!', swapmeet: 'SWAP MEET!', makeover: 'MAKEOVER!',
   tax: 'TAX AUDIT!', knot: 'KNOT!', adoption: 'ADOPTION!', fused: 'FUSED!', marry: 'MARRIAGE!' };
 const EVENT_TINT = { rain: 'rgba(20,40,90,.16)', heat: 'rgba(255,110,0,.22)', moon: 'rgba(170,0,10,.3)', frost: 'rgba(190,225,255,.22)', twister: 'rgba(60,60,70,.14)', hail: 'rgba(70,90,120,.16)', dizzy: 'rgba(150,40,200,.2)',
@@ -210,6 +210,12 @@ export class PlayerHud {
         // (A branded worm has its scarlet A before its name; half a worm is marked as one.)
         const ax = o.scarlet ? text('A ', left + os * 1.4, oy, os, o.out ? '#8a5a5a' : '#f02020') : 0;
         const nx = left + os * 1.4 + ax + text(charOf(o).name + (o.cuts ? ' ' + FRACTION[o.cuts] : ''), left + os * 1.4 + ax, oy, os, o.out ? '#8a8e96' : o.idx === me ? '#ffe24a' : '#fff');
+        // For a spectator: what a worm has just picked up, beside its name for a couple of seconds.
+        if (this.watching) {
+          const got = this.got || (this.got = {}), g = got[o.idx] || (got[o.idx] = { n: o.items, t: 0 });
+          if (o.items !== g.n) { g.n = o.items; g.t = 2.2; g.item = o.item; }
+          if (g.t > 0) { g.t -= dt; text(ITEM_NAMES[g.item] || '', nx + os * (marked.includes(o.idx) ? 2 : 0.6), oy + os * 0.08, os * 0.85, '#7cf0ff'); }
+        }
         // The worm an event has picked out gets a flashing red triangle pointing at its name, for as long as the event lasts.
         if (marked.includes(o.idx) && flash) {
           const tx = Math.round(nx + os * 0.5), ty = oy + os * 0.55;

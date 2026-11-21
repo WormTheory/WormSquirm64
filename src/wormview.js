@@ -27,6 +27,7 @@ const SEGS = 10, GAP = 0.5;
 const ANIM = 0.65; // seconds one press's wobble lasts, however short the lunge under it
 const BALL = new THREE.SphereGeometry(1, 7, 5);
 const DISC = new THREE.CircleGeometry(1, 8);
+const BAND = new THREE.TorusGeometry(1, 0.2, 5, 12);
 const BOX = new THREE.BoxGeometry(1, 1, 1), CONE = new THREE.ConeGeometry(1, 1, 5), RING = new THREE.TorusGeometry(1, 0.09, 4, 9);
 // A bat's wing: a ragged triangle, drawn flat and stood up by whoever uses it.
 const WING = (() => { const sh = new THREE.Shape(); sh.moveTo(-0.5, 0.3); sh.lineTo(0.5, 0.42); sh.lineTo(0.36, 0.05); sh.lineTo(0.22, 0.16); sh.lineTo(0.08, -0.18); sh.lineTo(-0.1, 0.06); sh.lineTo(-0.3, -0.25); sh.lineTo(-0.5, 0.3); return new THREE.ShapeGeometry(sh); })();
@@ -219,8 +220,8 @@ export class WormView {
     this.girth = girthOf(mut);
     // (On legs like a person's or a horse's it stands up off the ground.)
     this.stand = mut[GENE.human] || mut[GENE.horse] ? 0.7 * this.girth : 0;
-    const sig = mut.join('') + (w.glam ? 'g' : '');
-    if (sig !== this.sig) { this.sig = sig; this.grow(mut, w.glam); }
+    const sig = mut.join('') + (w.glam ? 'g' : '') + (w.wed >= 0 ? 'w' : '');
+    if (sig !== this.sig) { this.sig = sig; this.grow(mut, w.glam, w.wed >= 0); }
     const n = segsOf(mut);
     if (n < this.n) {
       // Shorter: balls come out from ahead of the two small ones at the tail, and are kept in case it grows again.
@@ -260,7 +261,7 @@ export class WormView {
   // What mutations add to the body: legs, wings, a fin, warts, spikes, fur, more heads. Each piece hangs off one ball
   // of the body (by its number, or counted from the tail if negative) and is put there, turned to face along the
   // body, every frame; the balls themselves don't turn. Rebuilt whenever the worm's mutations change.
-  grow(mut, glam) {
+  grow(mut, glam, wed) {
     for (const a of this.extras) this.group.remove(a.obj);
     this.extras = [];
     const lam = (color) => new THREE.MeshLambertMaterial({ color, flatShading: true });
@@ -314,6 +315,8 @@ export class WormView {
       put(seg, g, { every: true });
     }
     const every = (step, fn) => { for (let seg = 1; seg < 40; seg += step) { const g = new THREE.Group(); fn(g, seg); put(seg, g, { every: true }); } };
+    // Married: a gold wedding band, round it just behind the head.
+    if (wed) { const g = new THREE.Group(), gold = new THREE.MeshLambertMaterial({ color: 0xf8c820, emissive: 0x402800 }); const ring = part(g, BAND, gold, 0, 0, 0, 0, 0, 0, 1.1, 1.1, 1.1); ring.rotation.y = 0; put(2, g); }
     // A makeover: a wig, and lipstick.
     if (glam) { const g = new THREE.Group(), hair = lam(0xf8d040); part(g, BALL, hair, 0, 0.75, -0.25, 0, 0, 0, 1.1, 0.7, 1.05); for (const s of [-1, 1]) part(g, BALL, hair, s * 0.85, 0.05, -0.3, 0, 0, 0, 0.42, 0.9, 0.5); part(g, BALL, lam(0xe01848), 0, -0.3, 0.95, 0, 0, 0, 0.42, 0.16, 0.2); put(0, g); }
     // Gills: dark slits behind the head.

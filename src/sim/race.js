@@ -81,7 +81,7 @@ export class Race {
       }
       let here = locate(tr, w.x, w.z, w.hint);
       if (back) here = { ...here, tx: -here.tx, tz: -here.tz }; // (reverse: forwards is the other way)
-      w.wet = wet || this.weather.type === 'flood' || this.weather.type === 'sprinkler';
+      w.wet = wet || this.weather.type === 'sprinkler';
       if (w.ai) stepAi(w.ai, w, here, dt, this.rng);
       // Looking generally the right way is as good as looking exactly the right way.
       // (In a mix-up everything's back to front: a worm goes the opposite way to where it looks. A computer worm
