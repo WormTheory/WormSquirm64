@@ -17,6 +17,6 @@ export const renderPx = (w, h) => settings.renderPx || autoRenderPx(w, h);
 export const uiPx = (w, h) => settings.uiPx || autoUiPx(w, h);
 // The random events that may happen, and whether the worms drive themselves: the debug switches only count while debug is on.
 export const EVENT_NAMES = { rain: 'RAIN', heat: 'HEATWAVE', bird: 'BIRD', stomp: 'FEET', moon: 'BLOOD MOON', twister: 'TORNADO', quake: 'EARTHQUAKE', frost: 'FROST', hail: 'HAIL', dizzy: 'MIX-UP',
-  split: 'SPLIT', check: 'CHECK FOR $30.00', brand: 'SCARLET LETTER', monkey: 'MONKEY MADNESS', chain: 'CHAIN', wormx: 'WORM X', clone: 'EVIL CLONE', long: 'LONG' };
+  split: 'SPLIT', check: 'CHECK FOR $30.00', brand: 'SCARLET LETTER', monkey: 'MONKEY MADNESS', chain: 'CHAIN', wormx: 'WORM X', clone: 'EVIL CLONE', gene: 'GENE SPLICE' };
 export const allowedEvents = () => Object.keys(EVENT_NAMES).filter((k) => !(settings.debug && settings.off && settings.off[k]));
 export const autoMode = () => !!(settings.debug && settings.auto);

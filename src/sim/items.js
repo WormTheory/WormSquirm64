@@ -2,6 +2,7 @@
 // can't be trusted to aim anything, it's used that instant. What you get leans on your place:
 // the front of the pack gets things to leave behind, the back gets things that catch up.
 import { locate, pointAt } from './track.js';
+import { airOf } from './genes.js';
 
 export const ITEMS = ['BOOST', 'PEEL', 'PEBBLE', 'HOMING', 'STAR', 'ZAP', 'MOLE', 'GLUE', 'SWAP', 'SPRING', 'BUBBLE', 'GIANT'];
 export const ITEM_NAMES = ['WORMSHROOM', 'SQUIRMANA PEEL', 'PEBBLE', 'HOMING PEBBLE', 'SQUIRM STAR', 'LIGHTNING', 'MOLE', 'GLUE POT', 'SWITCHEROO', 'SPRING', 'BUBBLE', 'GIANT GRUB'];
@@ -94,7 +95,7 @@ export function stepItems(race, dt) {
   for (const w of race.worms) {
     const sp = w.spring;
     if (!sp) continue;
-    sp.t += dt;
+    sp.t += dt * airOf(w.mut); // (wings make short work of being in the air)
     const u = Math.min(1, sp.t / SPRING.secs), p = pointAt(tr, sp.s0 + SPRING.dist * u, sp.lat * (1 - 0.6 * u));
     w.x = p.x; w.z = p.z; w.lift = u < 1 ? 0.01 + SPRING.high * Math.sin(Math.PI * u) : 0;
     if (u >= 1) w.spring = null;

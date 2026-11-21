@@ -5,13 +5,14 @@
 import { charOf, hex } from './characters.js';
 import { uiPx } from './settings.js';
 import { ITEM_NAMES } from './sim/items.js';
-import { chosen } from './sim/events.js';
+import { chosen, VISIT } from './sim/events.js';
+import { GENE_NAMES } from './sim/genes.js';
 
 // How much of a worm a piece is, by how many times it's been cut.
 export const FRACTION = ['', '\u00bd', '\u00bc', '\u215b', '1/16', '1/32', '1/64', '1/128'];
 
 const EVENT_WORDS = { rain: 'RAIN!', heat: 'HEATWAVE!', bird: 'BIRD!', stomp: 'LOOK OUT!', moon: 'BLOOD MOON!', twister: 'TORNADO!', quake: 'EARTHQUAKE!', frost: 'FROST!', hail: 'HAIL!', dizzy: 'MIX-UP! TURN ROUND!',
-  split: 'SPLIT!', check: 'CHECK FOR $30.00!', brand: 'SCARLET LETTER!', monkey: 'MONKEY M-M-M-MADNESS!', chain: 'CHAIN!', wormx: 'WORM X!', clone: 'EVIL CLONE!', long: 'LONG!' };
+  split: 'SPLIT!', check: 'CHECK FOR $30.00!', brand: 'SCARLET LETTER!', monkey: 'MONKEY M-M-M-MADNESS!', chain: 'CHAIN!', wormx: 'WORM X!', clone: 'EVIL CLONE!', gene: 'GENE SPLICE!' };
 const EVENT_TINT = { rain: 'rgba(20,40,90,.16)', heat: 'rgba(255,110,0,.22)', moon: 'rgba(170,0,10,.3)', frost: 'rgba(190,225,255,.22)', twister: 'rgba(60,60,70,.14)', hail: 'rgba(70,90,120,.16)', dizzy: 'rgba(150,40,200,.2)' };
 
 export const CSS = `
@@ -214,6 +215,17 @@ export class PlayerHud {
     }
 
     if (this.watching) text('WATCHING ' + charOf(w).name.toUpperCase(), X + W / 2, bottom - Math.max(9, m * 0.04), Math.max(9, m * 0.04), '#fff', 'center');
+
+    // A gene splice: once the needle's in, the screen says what it did, typed out green like a computer terminal.
+    if (race.weather.type === 'gene' && race.weather.gene >= 0 && race.weather.t >= VISIT.at) {
+      const line = '> MUTATION DETECTED: ' + GENE_NAMES[race.weather.gene], since = race.weather.t - VISIT.at, shown = line.slice(0, Math.floor(since * 30));
+      const size = Math.max(8, Math.min(m * 0.055, (W * 0.92) / (line.length * 0.62))), ty = Y + H * 0.56;
+      c.font = `bold ${Math.round(size)}px "Courier New",Courier,"Lucida Console",monospace`; c.textAlign = 'left'; c.textBaseline = 'top';
+      const full = c.measureText(line + '_').width, tx = Math.round(X + (W - full) / 2);
+      c.fillStyle = 'rgba(0,14,4,.78)'; c.fillRect(tx - size * 0.6, ty - size * 0.45, full + size * 1.2, size * 1.9);
+      c.strokeStyle = '#1c8a3a'; c.lineWidth = 1; c.strokeRect(tx - size * 0.6 + 0.5, ty - size * 0.45 + 0.5, full + size * 1.2 - 1, size * 1.9 - 1);
+      c.fillStyle = '#3cff6c'; c.fillText(shown + (Math.floor(since * 3) % 2 === 0 ? '_' : ''), tx, Math.round(ty));
+    }
 
     // Place, bottom left.
     const ps = Math.max(26, m * 0.17), py = bottom - ps;

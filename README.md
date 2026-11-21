@@ -66,8 +66,8 @@ python3 -m http.server 8000   # then open http://localhost:8000
   $30.00 (shown on the score screen, and it adds up), or brands one with a scarlet letter A (shown by its name).
   It can chain two worms together, carrying them
   to the same spot first if they're far apart: they can't get further apart than the chain allows, and must dance
-  side by side at the end. All of these last through a cup. A syringe can make a worm half as long again (the Long mutation,
-  which adds up), or take what's needed to grow an evil clone of it: a tank of green is lowered onto the road, drains,
+  side by side at the end. All of these last through a cup. A syringe can splice its genes (twice as likely as any other event;
+  see below), or take what's needed to grow an evil clone of it: a tank of green is lowered onto the road, drains,
   and out breaks 'Evil' whoever, in the opposite colours, with the same mutations and none of the accessories, to race
   for itself from then on. When a worm is cut in two, what it was wearing is shared between the pieces.
   And once in a cup a masked stranger, Worm X, joins the race from behind
@@ -83,6 +83,22 @@ python3 -m http.server 8000   # then open http://localhost:8000
   its own band and feel. The last lap is faster and a semitone higher, and a player in the first three hears an extra
   layer. Music and sound each have a volume slider in the options. `node tools/musiccheck.mjs` prints what each song
   contains (`node tools/musiccheck.mjs race0` draws its tune too), since a test can't listen.
+
+## Gene Splice
+
+The hand injects one worm and it mutates; which mutation is settled when the event is chosen, and the screen says so
+in green terminal type ("> MUTATION DETECTED: LONG"). Mutations (`src/sim/genes.js`) all stack, last through a cup,
+are copied to an evil clone and are kept by both pieces of a worm that's cut.
+
+- **Long / Short**: a quarter longer or shorter. **Fat / Narrow**: a quarter fatter or thinner, the same length.
+- **Legs**, of three sorts (a spider's, a person's, a horse's): five per cent faster for each.
+- **Wings**: half as fast again through the air (off a spring, in a tornado). **Fin**: a quarter faster in the rain.
+- **Poisonous**: the chick that eats it dies. With all three chicks dead, the bird only drops a worm in the nest, and
+  it jumps back onto the road.
+- **Spikes**: a chick that eats it brings it straight back up, unharmed.
+- **Fur** and **Extra Head** are for show.
+
+`tools/genetest.cjs` checks the numbers and the nest, and takes a picture of every mutation.
 
 ## The medal ceremony
 

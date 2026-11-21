@@ -5,6 +5,7 @@ import { buildTrack } from '../sim/track.js';
 import { gridSlot } from '../sim/race.js';
 import { makeWorm, ACTIONS } from '../sim/worm.js';
 import { makeItems, ENT_TYPES } from '../sim/items.js';
+import { noGenes, GENES } from '../sim/genes.js';
 import { EVENT_KINDS, CHAIN, VISITS } from '../sim/events.js';
 
 const DELAY = 0.1, PER = 17; // seconds shown behind the host; numbers per worm in a snapshot
@@ -23,7 +24,7 @@ const r2 = (v) => Math.round(v * 100) / 100;
 export function snapshot(race) {
   const w = [];
   for (const o of race.worms) {
-    let flags = (o.out ? 32 : 0) | (o.dead ? 64 : 0) | (o.pit ? 128 : 0) | (o.wolf > 0 ? 256 : 0) | (o.howl > 0 ? 512 : 0) | (o.bit ? 1024 : 0) | (o.patch > 0 ? 2048 : 0) | (o.slow > 0 ? 4096 : 0) | (o.shield > 0 ? 8192 : 0) | (o.giant > 0 ? 16384 : 0) | (o.scarlet ? 32768 : 0) | ((o.cuts & 7) << 16) | (Math.min(7, o.patch) << 19) | (Math.min(7, o.long) << 22);
+    let flags = (o.out ? 32 : 0) | (o.dead ? 64 : 0) | (o.pit ? 128 : 0) | (o.wolf > 0 ? 256 : 0) | (o.howl > 0 ? 512 : 0) | (o.bit ? 1024 : 0) | (o.patch > 0 ? 2048 : 0) | (o.slow > 0 ? 4096 : 0) | (o.shield > 0 ? 8192 : 0) | (o.giant > 0 ? 16384 : 0) | (o.scarlet ? 32768 : 0) | ((o.cuts & 7) << 16) | (Math.min(7, o.patch) << 19) | ((o.nested & 3) << 22);
     FLAGS.forEach((k, i) => { if (o[k] > 0) flags |= 1 << i; });
     w.push(r2(o.x), r2(o.z), o.count, Math.max(0, ACTIONS.indexOf(o.action)), o.taps, Math.round(o.prog * 10) / 10, o.lap, o.rank,
       o.finished ? r2(o.finishTime) : -1, flags, r2(o.fall), r2(o.lift), r2(o.heat), o.hurts, o.items, o.item, o.money);
@@ -33,7 +34,7 @@ export function snapshot(race) {
   if (wx.bird) ev.push(r2(wx.bird.x), r2(wx.bird.z), r2(wx.bird.h), wx.bird.target);
   else if (wx.twister) ev.push(r2(wx.twister.x), r2(wx.twister.z));
   else if (wx.monkey) ev.push(r2(wx.monkey.x), r2(wx.monkey.z));
-  else if (wx.visit >= 0) { ev.push(wx.visit); if (wx.clone) ev.push(r2(wx.clone.x), r2(wx.clone.z)); }
+  else if (wx.visit >= 0) { ev.push(wx.visit); if (wx.clone) ev.push(r2(wx.clone.x), r2(wx.clone.z)); else if (wx.gene >= 0) ev.push(wx.gene); }
   else if (wx.xin) ev.push(wx.xin.idx);
   else if (wx.chain) ev.push(wx.chain.a, wx.chain.b, wx.chain.far ? 1 : 0);
   else if (wx.stomp) for (const f of wx.stomp.steps) ev.push(r2(f.x), r2(f.z), r2(f.t));
@@ -43,25 +44,27 @@ export function snapshot(race) {
   // ch: who's chained to whom, in pairs.
   const ch = [];
   for (const o of race.worms) for (const m of o.chains) if (m > o.idx) ch.push(o.idx, m);
-  return { t: 's', c: Math.round(race.clock * 1000) / 1000, st: STATES.indexOf(race.state), w, x, ch, b: race.items.boxes.map((b) => (b.t > 0 ? 0 : 1)).join(''), e, ev };
+  // m: each worm's mutations, a digit for each kind (left out while nobody has any). ck: chicks still alive.
+  const m = race.worms.some((o) => o.mut.some((n) => n)) ? race.worms.map((o) => o.mut.join('')) : undefined;
+  return { t: 's', c: Math.round(race.clock * 1000) / 1000, st: STATES.indexOf(race.state), w, x, ch, m, ck: race.chicks, b: race.items.boxes.map((b) => (b.t > 0 ? 0 : 1)).join(''), e, ev };
 }
 
 export class MirrorRace {
   constructor({ trackDef, racers }) {
     this.track = buildTrack(trackDef);
     this.laps = trackDef.laps;
-    this.clock = -5; this.state = 'countdown'; this.events = [];
+    this.clock = -5; this.state = 'countdown'; this.events = []; this.chicks = 3;
     this.worms = racers.map((r, i) => {
       const p = gridSlot(this.track, i), w = makeWorm(i, r.char, !!r.human, p.x, p.z);
       w.aim = w.look = Math.atan2(p.tx, p.tz);
-      w.out = !!r.out; w.cuts = r.cuts || (r.half ? 1 : 0); w.half = w.cuts > 0; w.pid = r.pid || ''; w.second = !!w.pid; w.evil = w.pid[0] === 'e'; w.long = r.long || 0; w.money = r.money || 0; w.scarlet = !!r.scarlet; w.patch = +r.plaster || 0; w.chains = (r.chains || []).slice();
+      w.out = !!r.out; w.cuts = r.cuts || (r.half ? 1 : 0); w.half = w.cuts > 0; w.pid = r.pid || ''; w.second = !!w.pid; w.evil = w.pid[0] === 'e'; w.mut = (r.mut || noGenes()).slice(); w.money = r.money || 0; w.scarlet = !!r.scarlet; w.patch = +r.plaster || 0; w.chains = (r.chains || []).slice();
       return w;
     });
     for (const w of this.worms) if (w.pid && w.pid !== 'e') { const o = this.worms.find((x) => x.char === w.char && x.pid === (w.evil ? 'e' : '')); if (o) { w.root = o.idx; w.twin = o.idx; if (o.twin < 0) o.twin = w.idx; } } // (an evil clone, 'e', is a worm of its own)
     this.order = [...this.worms];
     this.base = this.worms.length;
     this.items = makeItems(this.track);
-    this.weather = { type: 'none', t: 0, bird: null, stomp: null, twister: null, monkey: null, chain: null, xin: null, clone: null, visit: -1 };
+    this.weather = { type: 'none', t: 0, bird: null, stomp: null, twister: null, monkey: null, chain: null, xin: null, clone: null, gene: -1, visit: -1 };
     this.buf = []; this.rc = null; this.pend = {}; this.mine = new Set(); this.sentAt = 0; this.feet = 0;
   }
 
@@ -131,9 +134,11 @@ export class MirrorRace {
       FLAGS.forEach((name, bit) => { w[name] = fl & (1 << bit) ? 1 : 0; });
       if ((fl & 32) && !w.out) ev.push({ type: 'eaten', idx: i });
       w.out = !!(fl & 32);
-      if (A[k + 10] > 0 && !(w.fall > 0)) ev.push({ type: fl & 64 ? 'die' : fl & 1024 ? 'bitten' : 'fall', idx: i });
+      if (A[k + 10] > 0 && !(w.fall > 0) && !((fl >> 22) & 3)) ev.push({ type: fl & 64 ? 'die' : fl & 1024 ? 'bitten' : 'fall', idx: i });
       if ((fl & 512) && !(w.howl > 0)) ev.push({ type: fl & 256 ? 'unwolf' : 'howl', idx: i });
-      w.wolf = fl & 256 ? 1 : 0; w.howl = fl & 512 ? 1 : 0; w.bit = !!(fl & 1024); w.patch = (fl >> 19) & 7; w.long = (fl >> 22) & 7;
+      w.wolf = fl & 256 ? 1 : 0; w.howl = fl & 512 ? 1 : 0; w.bit = !!(fl & 1024); w.patch = (fl >> 19) & 7;
+      { const nested = (fl >> 22) & 3; if (nested && !w.nested) ev.push({ type: 'nested', idx: i, how: nested === 1 ? 'spat' : 'visit', poison: w.mut[GENES.indexOf('poison')] > 0 }); w.nested = nested; }
+      if (a.m && a.m[i]) { const now = [...a.m[i]].map(Number); now.forEach((n, g) => { if (n > (w.mut[g] || 0)) ev.push({ type: 'mutation', idx: i, gene: g }); }); w.mut = now; }
       if (!(A[k + 10] > 0) && w.fall > 0) ev.push({ type: 'respawn', idx: i, revived: w.dead });
       w.fall = A[k + 10]; w.dead = !!(fl & 64); w.pit = !!(fl & 128);
       // (Off the ground: the bird has it, or the tornado, or it's on a spring.)
@@ -174,6 +179,8 @@ export class MirrorRace {
     }
     wx.visit = VISITS.includes(kind) && E.length >= 3 ? E[2] : -1;
     wx.clone = kind === 'clone' && E.length >= 5 ? { x: E[3], z: E[4] } : null;
+    wx.gene = kind === 'gene' && E.length >= 4 ? E[3] : -1;
+    if (a.ck !== undefined) this.chicks = a.ck;
     wx.twister = kind === 'twister' && E.length >= 4 ? { x: E[2] + (b.ev[0] === E[0] && b.ev.length >= 4 ? (b.ev[2] - E[2]) * f : 0), z: E[3] + (b.ev[0] === E[0] && b.ev.length >= 4 ? (b.ev[3] - E[3]) * f : 0) } : null;
     if (kind === 'quake' && Math.floor(wx.t / 1.2) !== this.tremors) { this.tremors = Math.floor(wx.t / 1.2); ev.push({ type: 'tremor' }); }
     if (wx.bird && b.ev[0] === a.ev[0] && b.ev.length >= 5) { wx.bird.x += (b.ev[2] - E[2]) * f; wx.bird.z += (b.ev[3] - E[3]) * f; wx.bird.h += (b.ev[4] - E[4]) * f; }

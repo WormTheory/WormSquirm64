@@ -20,10 +20,13 @@ import { locate, pointAt } from './track.js';
 import { stun, popped } from './items.js';
 import { makeAi } from './ai.js';
 import { makeWorm } from './worm.js';
+import { GENES, GENE, MOST, airOf } from './genes.js';
 
-export const EVENT_KINDS = ['none', 'rain', 'heat', 'bird', 'stomp', 'moon', 'twister', 'quake', 'frost', 'hail', 'dizzy', 'split', 'check', 'brand', 'monkey', 'chain', 'wormx', 'clone', 'long'];
+export const EVENT_KINDS = ['none', 'rain', 'heat', 'bird', 'stomp', 'moon', 'twister', 'quake', 'frost', 'hail', 'dizzy', 'split', 'check', 'brand', 'monkey', 'chain', 'wormx', 'clone', 'gene'];
 // The three things the hand does to one worm: seconds for the whole visit, and when in it the deed is done.
 export const VISIT = { len: 4, at: 1.7 };
+// Seconds a gene splice lasts in all; and seconds a worm is away at the nest when it isn't eaten there.
+export const GENE_LEN = 5.8, NEST_TIME = 6.2;
 export const MAX_WORMS = 16;
 // (drop: seconds it takes to fall out of the sky at the start; flee: seconds it spends running off at the end.)
 export const MONKEY = { speed: 17, reach: 1.6, cap: 24, toss: 1.4, scatter: 13, high: 8, drop: 0.9, flee: 2.2 };
@@ -42,20 +45,20 @@ const STEP_EVERY = 0.75, FOOT_R = 5;
 // kinds: which events may happen (all of them if not given).
 export function makeEvents(race, on, freq = 5, kinds = null) {
   const wait = 5 / Math.max(1, Math.min(10, freq));
-  const may = ['rain', 'heat', 'stomp', 'moon', 'bird', 'twister', 'quake', 'frost', 'hail', 'dizzy', 'split', 'check', 'brand', 'monkey', 'chain', 'wormx', 'clone', 'long'].filter((k) => !kinds || kinds.includes(k)); // (each as likely as the next)
-  return { on, wait, may, twister: null, monkey: null, chain: null, xin: null, clone: null, visit: -1, type: 'none', t: 0, next: on && may.length ? race.rng.range(8, 14) * wait : Infinity, bird: null, stomp: null, wolf: -1 };
+  const may = ['rain', 'heat', 'stomp', 'moon', 'bird', 'twister', 'quake', 'frost', 'hail', 'dizzy', 'split', 'check', 'brand', 'monkey', 'chain', 'wormx', 'clone', 'gene'].filter((k) => !kinds || kinds.includes(k)); // (each as likely as the next,
+  if (may.includes('gene')) may.push('gene');                                // but for the gene splice, which is in twice)
+  return { on, wait, may, twister: null, monkey: null, chain: null, xin: null, clone: null, gene: -1, visit: -1, type: 'none', t: 0, next: on && may.length ? race.rng.range(8, 14) * wait : Infinity, bird: null, stomp: null, wolf: -1 };
 }
 
 // The worms the hand may call on for a visit (the knife will cut a piece of a worm again, into quarters and eighths, while there's room for more worms).
 const visitable = (race, kind, live) => live.filter((w) => !(w.fall > 0) && !(w.lift > 0) && (kind !== 'split' || (w.cuts < 7 && race.worms.length < MAX_WORMS)) && !(kind === 'brand' && w.scarlet)
-  && !(kind === 'long' && w.long >= LONG_MOST)
   // (A worm is cloned once, and its clone never.)
   && !(kind === 'clone' && (w.evil || race.worms.length >= MAX_WORMS || race.worms.some((o) => o.evil && o.char === w.char))));
 // The events that are a hand calling on one worm.
-export const VISITS = ['split', 'check', 'brand', 'clone', 'long'];
-// The most times a worm can be lengthened. And the evil clone's tank: when it's lowered, when its fluid drains, when
+export const VISITS = ['split', 'check', 'brand', 'clone', 'gene'];
+// The evil clone's tank: when it's lowered, when its fluid drains, when
 // the clone breaks out, and when it's all over.
-export const LONG_MOST = 4, CLONE = { down: [2, 3.2], drain: [3.2, 4.5], out: 4.6, len: 5.6 };
+export const CLONE = { down: [2, 3.2], drain: [3.2, 4.5], out: 4.6, len: 5.6 };
 
 // An event is settled on a moment before it starts (OMEN seconds), along with the worm it's coming for, if it's
 // that sort. Nothing shows yet; it's so that anyone just watching can be looking at the right worm when it happens.
@@ -138,6 +141,8 @@ export function begin(race, ev, force, target) {
       const a = race.worms[ev.visit], l = locate(tr, a.x, a.z, a.hint), p = pointAt(tr, l.s + 3.5, l.lat > 0 ? l.lat - 2.6 : l.lat + 2.6);
       ev.clone = { x: p.x, z: p.z, made: false }; ev.len = CLONE.len;
     }
+    // (The gene splice: which mutation it'll be is settled now. The event runs on a while after the needle, for the screen to say what it was.)
+    if (kind === 'gene') { ev.gene = Math.floor(rng() * GENES.length) % GENES.length; ev.len = GENE_LEN; }
   } else if (kind === 'wormx') {
     // A stranger joins the race, once: he comes up from behind the leader and goes straight past.
     if (!live.length || race.worms.length >= MAX_WORMS || race.worms.some((w) => w.char === X_CHAR)) { ev.type = 'none'; ev.next = rng.range(2, 5); return; }
@@ -220,7 +225,7 @@ export function stepEvents(race, dt) {
   for (const w of race.worms) {
     const sp = w.spin;
     if (!sp) continue;
-    sp.t += dt;
+    sp.t += dt * airOf(w.mut);
     const u = Math.min(1, sp.t / TWIST.secs), p = pointAt(race.track, sp.s0 + (sp.to - sp.s0) * u, 0);
     w.x = p.x; w.z = p.z; w.lift = u < 1 ? 0.01 + TWIST.high * Math.sin(Math.PI * u) : 0; w.stun = Math.max(w.stun, 0.3);
     if (u >= 1) { w.spin = null; w.stun = 0.5; }
@@ -271,7 +276,7 @@ export function stepEvents(race, dt) {
         const tr = race.track, L = tr.length, e = makeWorm(race.worms.length, w.char, false, ev.clone.x, ev.clone.z), l = locate(tr, e.x, e.z, -1);
         let ds = l.s - w.s;
         if (ds > L / 2) ds -= L; else if (ds < -L / 2) ds += L;
-        e.ai = makeAi(rng); e.evil = true; e.pid = 'e'; e.second = true; e.long = w.long;
+        e.ai = makeAi(rng); e.evil = true; e.pid = 'e'; e.second = true; e.mut = w.mut.slice();
         e.s = l.s; e.hint = l.i; e.prog = w.prog + ds; e.lap = Math.max(1, Math.min(race.laps, Math.floor(e.prog / L) + 1));
         e.look = e.aim = Math.atan2(l.tx, l.tz); e.stun = 0.7; e.rank = race.worms.length;
         race.worms.push(e);
@@ -284,14 +289,14 @@ export function stepEvents(race, dt) {
         ev.done = true;
         if (ev.type === 'check') { w.money += 30; race.events.push({ type: 'paid', idx: w.idx }); }
         else if (ev.type === 'brand') { w.scarlet = true; w.hurts++; race.events.push({ type: 'branded', idx: w.idx }); }
-        else if (ev.type === 'long') { w.long++; w.hurts++; race.events.push({ type: 'jab', idx: w.idx }); }
+        else if (ev.type === 'gene') { w.mut[ev.gene] = Math.min(MOST, w.mut[ev.gene] + 1); w.hurts++; race.events.push({ type: 'jab', idx: w.idx }); race.events.push({ type: 'mutation', idx: w.idx, gene: ev.gene }); }
         else if (ev.type === 'clone') { w.hurts++; race.events.push({ type: 'jab', idx: w.idx }); }
         else {
           // Cut in two: the worm becomes the front half, and a new worm, a copy of it in every way that matters, the back.
           // (The back is nobody's to drive, whoever had the worm: the computer takes it, and it races for itself.)
           // (Half a worm cut again makes two quarters, and so on down.)
           w.cuts++;
-          const l = locate(race.track, w.x, w.z, w.hint), t = { ...w, idx: race.worms.length, tired: {}, spasm: null, queued: null, human: false, ai: makeAi(rng), wash: null, spring: null, spin: null, slide: null, second: true, pid: w.pid + String(w.cuts), from: w.idx, chains: [] };
+          const l = locate(race.track, w.x, w.z, w.hint), t = { ...w, idx: race.worms.length, tired: {}, spasm: null, queued: null, human: false, ai: makeAi(rng), wash: null, spring: null, spin: null, slide: null, second: true, pid: w.pid + String(w.cuts), from: w.idx, chains: [], mut: w.mut.slice() };
           // What it was wearing is shared out: the chain, the letter and the plasters, in that order, the front
           // piece taking the first half of them and the back piece the rest. The money it has at that moment is split evenly.
           {
@@ -424,7 +429,19 @@ export function stepEvents(race, dt) {
       // the chicks together.
       const gang = chainGang(race, prey);
       gang.forEach((m, k) => { if (k) { m.x = b.x; m.z = b.z; m.lift = Math.max(0.01, b.h - 1 - 2.4 * k); m.spasm = null; m.queued = null; m.fall = 0; } });
-      if (u >= 1) for (const m of gang) { m.out = true; m.lift = 0; race.events.push({ type: 'eaten', idx: m.idx }); }
+      if (u >= 1) for (const m of gang) {
+        // At the nest. A chick eats it, unless it's covered in spikes (it comes straight back up, unharmed) or
+        // there are no chicks left (it's dropped in the nest and jumps out again). A poisonous worm does for the
+        // chick that ate it, spikes or no.
+        const how = race.chicks <= 0 ? 'visit' : m.mut[GENE.spikes] > 0 ? 'spat' : 'eaten', poison = race.chicks > 0 && m.mut[GENE.poison] > 0;
+        if (poison) race.chicks--;
+        m.lift = 0;
+        if (how === 'eaten') { m.out = true; race.events.push({ type: 'eaten', idx: m.idx, poison }); continue; }
+        // (It's away for as long as the nest takes, then it lands back on the road where the bird found it.)
+        const p = pointAt(race.track, m.s, 0);
+        Object.assign(m, { nested: how === 'spat' ? 1 : 2, fall: NEST_TIME, dead: false, bit: false, pit: false, spasm: null, queued: null, stun: 0, x: p.x, z: p.z });
+        race.events.push({ type: 'nested', idx: m.idx, how, poison });
+      }
     }
   } else if (ev.type === 'moon') {
     const wolf = race.worms[ev.wolf];
@@ -473,7 +490,7 @@ export function stepEvents(race, dt) {
   }
   if (ev.t >= ev.len) {
     if (race.worms[ev.wolf]) race.worms[ev.wolf].wolf = 0;
-    ev.type = 'none'; ev.bird = null; ev.stomp = null; ev.wolf = -1; ev.twister = null; ev.hail = null; ev.visit = -1; ev.chain = null; ev.xin = null; ev.clone = null;
+    ev.type = 'none'; ev.bird = null; ev.stomp = null; ev.wolf = -1; ev.twister = null; ev.hail = null; ev.visit = -1; ev.chain = null; ev.xin = null; ev.clone = null; ev.gene = -1;
     if (ev.monkey) { for (const i of ev.monkey.held) { const w = race.worms[i]; if (w.lift > 0 || w.toss) { w.lift = 0; w.toss = null; } } ev.monkey = null; }
     for (const w of race.worms) { w.slide = null; w.wasSpasm = null; }
     ev.next = ev.on ? rng.range(GAP[0], GAP[1]) * ev.wait : Infinity; // (an event started by hand with events off isn't followed by more)

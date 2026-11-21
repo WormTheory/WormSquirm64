@@ -90,7 +90,7 @@ function makeVisitor() {
   };
   const dna = syringe(0x40ff60), growth = syringe(0xb050f0);
   g.add(knife, check, iron, chain, dna, growth);
-  g.userData.props = { split: knife, check, brand: iron, chain, clone: dna, long: growth };
+  g.userData.props = { split: knife, check, brand: iron, chain, clone: dna, gene: growth };
   g.visible = false;
   return g;
 }
@@ -325,7 +325,7 @@ export class FxView {
     } else this.monkeyAt = null;
     race.worms.forEach((w, i) => {
       let h = this.hands[i];
-      const busy = w.fall > 0 && !w.out;
+      const busy = w.fall > 0 && !w.out && !w.nested;
       // (Two worms to be chained that are too far apart are each carried to the spot by a hand.)
       const toted = ch && ch.far && race.weather.t < ch.t0 && (i === ch.a || i === ch.b);
       if (!busy && !toted && !(h && h.visible)) return;
@@ -476,13 +476,14 @@ export class NestView {
     this.chicks = [-1.1, 0, 1.1].map((x, i) => {
       const g = new THREE.Group();
       const body = new THREE.Mesh(ball, lam(0xf0d048)); body.scale.set(0.62, 0.7, 0.62);
+      g.userData.body = body;
       // The beak: two halves on the front of the face, under the eyes, pointing at whoever's looking.
       const top = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.46, 4), lam(0xf08020)), bottom = top.clone();
       top.position.set(0, 0.14, 0.72); bottom.position.set(0, 0.06, 0.72);
       for (const ex of [-0.22, 0.22]) { const e = new THREE.Mesh(ball, new THREE.MeshBasicMaterial({ color: 0x101010 })); e.scale.setScalar(0.07); e.position.set(ex, 0.3, 0.52); g.add(e); }
       g.add(body, top, bottom);
       g.position.set(x, 1.1, i === 1 ? 0.5 : 0);
-      g.userData = { top, bottom };
+      g.userData = { top, bottom, body, dead: false };
       scene.add(g);
       return g;
     });
@@ -502,10 +503,23 @@ export class NestView {
 
   // Another worm for the chicks.
   // (stamp: when it was taken. Worms taken at the same moment, a chain gang, come in one beakful: one feeding.)
-  feed(color, stamp) {
+  // item: { color, mode, poison }. mode 'eat': a chick swallows it. 'spat': a chick swallows it and it comes straight
+  // back up (it's covered in spikes). 'visit': there's no chick left alive, so it's dropped in the nest and jumps out.
+  // A poisonous worm kills the chick that takes it.
+  feed(item, stamp) {
     const last = this.queue[this.queue.length - 1];
-    if (last && stamp !== undefined && last.stamp === stamp) last.colors.push(color); else this.queue.push({ stamp, colors: [color] });
+    if (last && stamp !== undefined && last.stamp === stamp) last.items.push(item); else this.queue.push({ stamp, items: [item] });
   }
+
+  // Makes the number of chicks alive agree with the race's count, once nothing's being fed (two poisonous worms
+  // in one beakful do for two chicks, and only one of them was seen to eat).
+  settle(alive) {
+    if (this.now || this.queue.length) return;
+    while (this.chicks.filter((c) => !c.userData.dead).length > Math.max(0, alive)) this.kill(this.chicks.find((c) => !c.userData.dead));
+  }
+
+  // A chick that ate something poisonous: it goes green and falls over, and that's that.
+  kill(c) { c.userData.dead = true; c.userData.body.material = lam(0x7a9a58); }
 
   // From now on: no sky behind the nest (the race is there instead), and the camera sits behind the chicks
   // looking out over their heads, so they fill the bottom of the picture.
@@ -529,21 +543,32 @@ export class NestView {
 
   update(time, dt) {
     if (!this.now && this.queue.length) {
-      const meal = this.queue.shift().colors.slice(0, 8);
-      this.now = { t: 0, chick: this.fed++ % 3, n: meal.length };
+      const meal = this.queue.shift().items.slice(0, 8);
+      // (The next chick along that's still alive gets it; with none alive, it's dropped in the middle of the nest.)
+      let chick = -1;
+      for (let k = 0; k < 3 && chick < 0; k++) { const i = (this.fed + k) % 3; if (!this.chicks[i].userData.dead) chick = i; }
+      this.fed++;
+      this.now = { t: 0, chick: chick < 0 ? 1 : chick, eater: chick >= 0, n: meal.length, items: meal };
       // A string of blobs for each worm in the beak, made as they're first needed.
       while (this.strands.length < meal.length) { const mat = lam(0xe88aa0); this.strands.push({ mat, balls: Array.from({ length: 7 }, (_, i) => { const m = new THREE.Mesh(this.strandGeo, mat); m.scale.setScalar(0.2 - i * 0.012); m.visible = false; this.scene.add(m); return m; }) }); }
-      meal.forEach((c, k) => this.strands[k].mat.color.setHex(c));
+      meal.forEach((it, k) => this.strands[k].mat.color.setHex(it.color));
     }
     const f = this.now;
     this.chicks.forEach((c, i) => {
       // They cheep (beaks opening and shutting) all the time, and gape wide when food's coming.
-      const eating = f && f.chick === i, open = eating && f.t < 3.4 ? 0.9 : 0.25 + 0.25 * Math.sin(time * 7 + i * 2);
+      if (c.userData.dead) {
+        // (On its side in the nest, beak shut.)
+        c.userData.top.rotation.x = c.userData.bottom.rotation.x = Math.PI / 2;
+        c.rotation.z += (1.45 - c.rotation.z) * Math.min(1, dt * 6); c.position.y += (0.85 - c.position.y) * Math.min(1, dt * 6);
+        return;
+      }
+      const eating = f && f.eater && f.chick === i, open = eating && f.t < 3.4 ? 0.9 : 0.25 + 0.25 * Math.sin(time * 7 + i * 2);
       c.userData.top.rotation.x = Math.PI / 2 - open; c.userData.bottom.rotation.x = Math.PI / 2 + open; // (a cone points up: a quarter turn lays it forwards)
       c.position.y = 1.1 + 0.08 * Math.sin(time * 9 + i * 1.7) + (eating && f.t > 3.4 && f.t < 3.9 ? 0.25 * Math.sin((f.t - 3.4) * Math.PI * 2) : 0);
     });
     this.parent.visible = !!f;
-    this.strands.forEach((s, k) => s.balls.forEach((m) => { m.visible = !!f && k < f.n && f.t < 3.4; }));
+    // (A worm that's swallowed is gone at the gulp. One that's spat out is gone for a moment and then back; one that's only visiting never goes.)
+    this.strands.forEach((s, k) => s.balls.forEach((m) => { const mode = f && k < f.n ? (f.eater ? f.items[k].mode : 'visit') : ''; m.visible = !!mode && (f.t < 3.4 || mode === 'visit' || (mode === 'spat' && f.t > 3.75)); }));
     if (!f) return;
     f.t += dt;
     // The parent flies in, hovers over a chick, drops the worm in, and leaves.
@@ -558,7 +583,21 @@ export class NestView {
       const hang = 0.26 * i, fan = (k - (f.n - 1) / 2) * 0.34;
       m.position.set(px + 1.6 + fan * (0.4 + i * 0.12) + 0.12 * Math.sin(time * 11 + i + k), py + 0.4 - hang - drop * (py - c.y - 0.2 - hang * 0.5), c.z + 0.1 + fan * 0.6);
     });
-    if (f.t > 3.4 && !f.gulped) { f.gulped = true; if (this.onGulp) this.onGulp(); }
+    // After the drop: a spat-out worm shoots back up out of the chick and away; a visitor lies in the nest a moment and
+    // then jumps out over the side.
+    for (let k = 0; k < f.n; k++) {
+      const mode = f.eater ? f.items[k].mode : 'visit', after = f.t - 3.4;
+      if (mode === 'eat' || after <= 0) continue;
+      this.strands[k].balls.forEach((m, i) => {
+        const fan = (k - (f.n - 1) / 2) * 0.5;
+        if (mode === 'spat') { const u = Math.max(0, after - 0.35); m.position.set(c.x + fan + 0.9 * u * u, c.y + 0.5 + 7 * u - 2 * u * u - i * 0.2 * Math.min(1, u * 3), c.z + 0.4 + 1.5 * u); }
+        else if (after < 1.1) m.position.set(c.x + fan + (i - 3) * 0.2, 0.95 + 0.06 * Math.sin(time * 20 + i), c.z + 0.5);
+        else { const u = after - 1.1; m.position.set(c.x + fan + (i - 3) * 0.2 * Math.max(0, 1 - u * 2), 0.95 + 6 * u - 7 * u * u - i * 0.18 * Math.min(1, u * 3), c.z + 0.5 + 5 * u); }
+      });
+    }
+    if (f.t > 3.4 && !f.gulped) { f.gulped = true; if (this.onGulp && f.eater) this.onGulp(); }
+    // (Poison takes a moment to work.)
+    if (f.t > 4.3 && f.eater && !f.poisoned && f.items.some((it) => it.poison)) { f.poisoned = true; this.kill(this.chicks[f.chick]); }
     if (f.t > 6.2) { this.now = null; this.setWatching(); }
   }
 }

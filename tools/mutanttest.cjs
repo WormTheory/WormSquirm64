@@ -19,17 +19,18 @@ const { chromium } = require('playwright');
   await page.waitForTimeout(5600);
   const me = await ws(() => window.__ws.G.players[0].me);
   await ws(() => { const r = window.__ws.race; while (r.clock < 3) r.step(1 / 60); window.__ws.G.players[0].cam.pitch = 0.3; });
-  // Long, twice.
-  await ws((me) => window.__ws.event('long', me), me); await page.waitForTimeout(1500); await shot('syringe'); await quiet();
-  await ws((me) => window.__ws.event('long', me), me); await quiet();
-  check('two injections make it long twice over', await ws((me) => window.__ws.race.worms[me].long === 2 && window.__ws.G.views[me].n === 23, me));
+  // Gene splices. (The test says which mutation each one is to be.)
+  const splice = async (gene) => { await ws(([me, gene]) => { window.__ws.event('gene', me); window.__ws.race.weather.gene = gene; }, [me, gene]); };
+  await splice(0); await page.waitForTimeout(2600); await shot('syringe'); await quiet();
+  await splice(0); await quiet();
+  check('two Long splices make it a quarter longer twice over (10 balls, then 13, then 16)', await ws((me) => window.__ws.race.worms[me].mut[0] === 2 && window.__ws.G.views[me].n === 16, me));
   await page.waitForTimeout(600); await shot('long');
   // The clone.
   await ws((me) => window.__ws.event('clone', me), me);
   await page.waitForTimeout(3000); await shot('tank');
   await page.waitForTimeout(1300); await shot('draining');
   await quiet(); await page.waitForTimeout(300);
-  const evil = await ws((me) => { const r = window.__ws.race, e = r.worms.find((w) => w.evil); return e && { idx: e.idx, char: e.char, long: e.long, same: e.char === r.worms[me].char, n: r.worms.length, human: e.human }; }, me);
+  const evil = await ws((me) => { const r = window.__ws.race, e = r.worms.find((w) => w.evil); return e && { idx: e.idx, char: e.char, long: e.mut[0], same: e.char === r.worms[me].char, n: r.worms.length, human: e.human }; }, me);
   check('an evil clone of the player\'s worm has joined, as long as it, driven by the computer', evil && evil.same && evil.long === 2 && evil.n === 9 && !evil.human);
   await ws((i) => { window.__ws.G.players[0].me = i; }, evil.idx); await page.waitForTimeout(700); await shot('evil');
   await ws((me) => { window.__ws.G.players[0].me = me; }, me);
@@ -37,7 +38,7 @@ const { chromium } = require('playwright');
   // Accessories shared out by the knife: a letter and three plasters.
   await ws((me) => { const w = window.__ws.race.worms[me]; w.scarlet = true; w.patch = 3; w.money = 30; window.__ws.event('split', me); }, me);
   await quiet();
-  const halves = await ws((me) => { const r = window.__ws.race, a = r.worms[me], b = r.worms[r.worms.length - 1]; return { a: [a.scarlet, a.patch, a.money], b: [b.scarlet, b.patch, b.money, b.long, b.root === me] }; }, me);
+  const halves = await ws((me) => { const r = window.__ws.race, a = r.worms[me], b = r.worms[r.worms.length - 1]; return { a: [a.scarlet, a.patch, a.money], b: [b.scarlet, b.patch, b.money, b.mut[0], b.root === me] }; }, me);
   console.log(JSON.stringify(halves));
   check('the front keeps the letter and one plaster, the back gets two plasters, and the money is halved', halves.a[0] && halves.a[1] === 1 && halves.a[2] === 15 && !halves.b[0] && halves.b[1] === 2 && halves.b[2] === 15 && halves.b[3] === 2 && halves.b[4]);
   await page.waitForTimeout(500); await shot('halves');
@@ -46,7 +47,7 @@ const { chromium } = require('playwright');
   const table = await page.locator('.panel table').innerText();
   check('the score screen names the evil clone', table.includes('Evil '));
   await key('Enter'); await page.waitForTimeout(900);
-  check('next race: the clone again, still long, still the computer\'s; the halves still long', await ws(() => { const r = window.__ws.race, e = r.worms.filter((w) => w.evil); return e.length === 1 && e[0].long === 2 && !e[0].human && e[0].root === e[0].idx && r.worms.filter((w) => w.half && w.long === 2).length === 2 && r.worms.length === 10; }));
+  check('next race: the clone again, still long, still the computer\'s; the halves still long', await ws(() => { const r = window.__ws.race, e = r.worms.filter((w) => w.evil); return e.length === 1 && e[0].mut[0] === 2 && !e[0].human && e[0].root === e[0].idx && r.worms.filter((w) => w.half && w.mut[0] === 2).length === 2 && r.worms.length === 10; }));
   console.log('errors:', errs.length ? errs : 'none');
   await browser.close();
   process.exit(fails.length || errs.length ? 1 : 0);

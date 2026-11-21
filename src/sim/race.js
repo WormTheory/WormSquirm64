@@ -1,5 +1,6 @@
 // One race: the worms, the countdown, laps, places and when it's over.
 import { makeRng } from './rng.js';
+import { noGenes } from './genes.js';
 import { buildTrack, locate, pointAt } from './track.js';
 import { makeWorm, pressAction, stepWorm, assistedAim } from './worm.js';
 import { makeAi, stepAi } from './ai.js';
@@ -19,7 +20,9 @@ export const gridSlot = (track, i) => pointAt(track, -3 - 2.2 * i, i % 2 ? -3 : 
 export class Race {
   // racers: [{char, human, out}], in grid order (first is on pole). out: already taken by the bird in an earlier race.
   // events: whether random events happen, eventFreq how often (1 to 10), and eventKinds which ones (all if not given).
-  constructor({ trackDef, seed = 1, racers, events = false, eventFreq = 5, eventKinds = null }) {
+  // chicks: how many of the bird's three chicks are still alive (a poisonous worm does for the one that eats it).
+  constructor({ trackDef, seed = 1, racers, events = false, eventFreq = 5, eventKinds = null, chicks = 3 }) {
+    this.chicks = chicks;
     this.track = buildTrack(trackDef);
     this.laps = trackDef.laps;
     this.rng = makeRng(seed);
@@ -34,7 +37,7 @@ export class Race {
       const loc = locate(this.track, w.x, w.z, -1);
       w.hint = loc.i; w.s = loc.s; w.prog = -3 - 2.2 * i;
       w.ai = r.human ? null : makeAi(this.rng);
-      w.out = !!r.out; w.cuts = r.cuts || (r.half ? 1 : 0); w.half = w.cuts > 0; w.pid = r.pid || ''; w.second = !!w.pid; w.evil = w.pid[0] === 'e'; w.long = r.long || 0; w.money = r.money || 0; w.scarlet = !!r.scarlet; w.patch = +r.plaster || 0; w.chains = (r.chains || []).slice();
+      w.out = !!r.out; w.cuts = r.cuts || (r.half ? 1 : 0); w.half = w.cuts > 0; w.pid = r.pid || ''; w.second = !!w.pid; w.evil = w.pid[0] === 'e'; w.mut = (r.mut || noGenes()).slice(); w.money = r.money || 0; w.scarlet = !!r.scarlet; w.patch = +r.plaster || 0; w.chains = (r.chains || []).slice();
       return w;
     });
     // The pieces of a worm that's been cut up know which worm they came from.
@@ -66,7 +69,9 @@ export class Race {
     const tr = this.track, L = tr.length, open = !!tr.def.open;
     stepEvents(this, dt);
     const n = this.worms.length; // (counted after the events, one of which can add a worm)
+    const wet = this.weather.type === 'rain';
     for (const w of this.worms) {
+      w.wet = wet;
       for (const k of TIMERS) if (w[k] > 0) w[k] = Math.max(0, w[k] - dt);
       if (w.out) continue;
       if (w.finished && w.spot) {
@@ -125,7 +130,7 @@ export class Race {
           if (!w.dead && !w.bit) { const p = pointAt(tr, w.s, 0); w.x = p.x; w.z = p.z; } // (a baked or bitten worm is revived where it lies)
           this.events.push({ type: 'respawn', idx: w.idx, revived: w.dead });
           if (w.bit) w.patch = Math.min(7, w.patch + 1); // (one more plaster, worn from now on through the rest of a cup)
-          w.bit = false;
+          w.bit = false; w.nested = 0;
           w.fall = 0; w.dead = false; w.stun = 0.4; w.heat = 0;
         }
         continue;

@@ -78,7 +78,7 @@ function aside(w) {
   if (w.chained) return "And thank you to whoever's on the other end of this chain. I had no say in it.";
   if (w.money) return 'I also have $' + w.money + '.00, which is nice.';
   if (w.scarlet) return 'Please stop looking at the letter.';
-  if (w.long) return "I'm also much longer than when I started.";
+  if (w.mut && w.mut.some((n) => n)) return "I'd also like to thank my new genes. All of them.";
   if (w.patch) return 'It only hurts when I squirm.';
   return '';
 }

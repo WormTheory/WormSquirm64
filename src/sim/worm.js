@@ -1,6 +1,8 @@
 // How a worm moves. Every button does the same thing underneath: one "spasm", a lunge of random
 // length in a direction that's only loosely where the worm was aiming. The names and the
 // animations differ; the odds never do.
+import { noGenes, speedOf as geneSpeed } from './genes.js';
+
 export const ACTIONS = ['SQUIRM', 'WIGGLE', 'UNDULATE', 'FLOP', 'WRITHE', 'THRASH', 'LURCH', 'SPASM'];
 
 export const TUNE = {
@@ -42,7 +44,9 @@ export function makeWorm(idx, char, human, x, z) {
     half: false, second: false, twin: -1, cuts: 0, pid: '', root: idx, from: -1, money: 0, scarlet: false,
     chains: [], // the numbers of the worms this one is chained to (a worm can be on several chains)
     evil: false, // an evil clone (of the worm with the same char)
-    long: 0, // a mutation: how many times it's been made half as long again
+    mut: noGenes(), // its mutations: how many of each it has (genes.js)
+    wet: false, // it's raining on it
+    nested: 0, // taken to the nest and coming back: 1 spat out by a chick, 2 dropped in with no chicks left to eat it
     lift: 0, out: false };  // how high a bird is carrying it, and whether it's out of the race for good
 }
 
@@ -86,7 +90,7 @@ function startSpasm(w, action, rng, rankFrac) {
 // How far a worm's lunges go just now, as a multiple of normal: items speed it up or shrink it,
 // baking slows it, and a flattened worm barely moves at all.
 export function speedOf(w) {
-  return (w.boost > 0 ? 1.8 : 1) * (w.star > 0 ? 1.5 : 1) * (w.shrunk > 0 ? 0.6 : 1) * (1 - 0.55 * Math.min(1, w.heat)) * (w.flat > 0 ? 0.12 : 1) * (w.slow > 0 ? 0.4 : 1) * (w.giant > 0 ? 1.3 : 1);
+  return geneSpeed(w.mut, w.wet) * (w.boost > 0 ? 1.8 : 1) * (w.star > 0 ? 1.5 : 1) * (w.shrunk > 0 ? 0.6 : 1) * (1 - 0.55 * Math.min(1, w.heat)) * (w.flat > 0 ? 0.12 : 1) * (w.slow > 0 ? 0.4 : 1) * (w.giant > 0 ? 1.3 : 1);
 }
 
 // Moves a worm on by dt. Returns the action if a new spasm started this step (for sound and the HUD).
