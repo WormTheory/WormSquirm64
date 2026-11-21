@@ -3,6 +3,21 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { CHARS } from './characters.js';
 import { centreNear } from './sim/track.js';
+
+// The red A, drawn once and shared.
+let scarlet = null;
+function scarletTex() {
+  if (scarlet) return scarlet;
+  const c = document.createElement('canvas');
+  c.width = c.height = 32;
+  const g = c.getContext('2d');
+  g.font = '900 30px "Arial Black", Impact, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.lineWidth = 5; g.strokeStyle = '#300000'; g.strokeText('A', 16, 18);
+  g.fillStyle = '#e01010'; g.fillText('A', 16, 18);
+  scarlet = new THREE.CanvasTexture(c);
+  scarlet.magFilter = THREE.NearestFilter; scarlet.colorSpace = THREE.SRGBColorSpace;
+  return scarlet;
+}
 import { FALL_TIME, DROP_PART, OUT_TIME, LIE_PART, BITE_TIME, PLASTER_PART, carried } from './sim/events.js';
 
 const SEGS = 10, GAP = 0.5;
@@ -141,6 +156,10 @@ export class WormView {
     // Four small markers that show an item at work on this worm: stars circling a stunned head,
     // sparkles round a starred worm, flames behind a boosted one.
     // A bubble: a see-through ball round the front of a worm that's protected.
+    // The scarlet letter: a red A that floats over the worm's back for all to see.
+    this.letter = new THREE.Sprite(new THREE.SpriteMaterial({ map: scarletTex(), alphaTest: 0.4, fog: false }));
+    this.letter.scale.set(0.9, 0.9, 1); this.letter.visible = false;
+    this.group.add(this.letter);
     this.bubble = new THREE.Mesh(BALL, new THREE.MeshLambertMaterial({ color: 0xa8e0ff, transparent: true, opacity: 0.32, depthWrite: false }));
     this.bubble.visible = false;
     this.group.add(this.bubble);
@@ -163,6 +182,8 @@ export class WormView {
     for (const m of this.mats) m.emissive.setRGB(0, 0, 0);
     for (const m of this.aura) m.visible = false;
     this.bubble.visible = false;
+    this.letter.visible = !!w.scarlet;
+    if (w.scarlet) { const c = this.meshes[3].position; this.letter.position.set(c.x, c.y + 1.1, c.z); }
     this.wolfKit.visible = false; this.plaster.visible = w.patch > 0; this.meshes[0].rotation.x = 0; this.meshes[0].rotation.z = 0;
     const pose = VICTORY[this.kind];
     let hx = 0, hz = 1;
@@ -185,7 +206,7 @@ export class WormView {
     if (w.finished) return this.celebrate(w, time);
     // (A were-wolf-worm is bigger. While it's changing, to or from, it flickers between the two.)
     const wolf = w.wolf > 0 ? !(w.howl > 0) || Math.floor(time * 14) % 2 === 0 : w.howl > 0 && Math.floor(time * 14) % 2 === 0;
-    const small = (w.shrunk > 0 ? 0.55 : 1) * (wolf ? 1.3 : 1) * (w.giant > 0 ? 1.9 : 1), flat = w.flat > 0 || (w.fall > 0 && w.dead), gap = GAP * small;
+    const small = (w.shrunk > 0 ? 0.55 : 1) * (wolf ? 1.3 : 1) * (w.giant > 0 ? 1.9 : 1) * (w.half ? 0.62 : 1), flat = w.flat > 0 || (w.fall > 0 && w.dead), gap = GAP * small;
     const bitten = w.fall > 0 && w.bit;
     this.wolfKit.visible = wolf;
     this.plaster.visible = (bitten && BITE_TIME - w.fall >= PLASTER_PART) || w.patch > 0;
@@ -278,6 +299,8 @@ export class WormView {
       sh.visible = !(w.fall > 0) && !(w.lift > 0);
       sh.position.set(x, 0.04, z); sh.scale.setScalar(k);
     }
+    this.letter.visible = !!w.scarlet;
+    if (w.scarlet) { const c = this.meshes[3].position; this.letter.position.set(c.x, c.y + 0.75 * small + 0.35, c.z); }
     this.bubble.visible = w.shield > 0 && !(w.fall > 0);
     if (this.bubble.visible) { const c = this.meshes[2].position; this.bubble.position.set(c.x, c.y + 0.2, c.z); this.bubble.scale.setScalar(1.75 * small * (1 + 0.04 * Math.sin(time * 6))); }
     const mode = w.fall > 0 || w.lift > 0 ? null : w.stun > 0 ? 'stun' : w.star > 0 ? 'star' : w.boost > 0 ? 'boost' : null;

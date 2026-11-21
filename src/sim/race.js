@@ -6,7 +6,7 @@ import { makeAi, stepAi } from './ai.js';
 import { makeItems, stepItems, stun, popped, STUN } from './items.js';
 import { makeEvents, stepEvents, wash, drop } from './events.js';
 
-const TIMERS = ['stun', 'boost', 'star', 'shrunk', 'flat', 'howl', 'safe', 'patch', 'slow', 'shield', 'giant'];
+const TIMERS = ['stun', 'boost', 'star', 'shrunk', 'flat', 'howl', 'safe', 'patch', 'slow', 'shield', 'giant', 'hold'];
 
 export const STEP = 1 / 60;
 const COUNTDOWN = 5;       // seconds before GO (the track's name shows for the first of them)
@@ -34,10 +34,13 @@ export class Race {
       const loc = locate(this.track, w.x, w.z, -1);
       w.hint = loc.i; w.s = loc.s; w.prog = -3 - 2.2 * i;
       w.ai = r.human ? null : makeAi(this.rng);
-      w.out = !!r.out;
+      w.out = !!r.out; w.half = !!r.half; w.second = !!r.second; w.money = r.money || 0; w.scarlet = !!r.scarlet;
       return w;
     });
+    // The two halves of a worm that's been cut in two know each other.
+    for (const w of this.worms) if (w.half && w.second) { const o = this.worms.find((x) => x.char === w.char && !x.second); if (o) { w.twin = o.idx; o.twin = w.idx; } }
     this.order = [...this.worms];
+    this.base = this.worms.length; // (how many started: a worm cut in two mid-race adds one)
     this.items = makeItems(this.track);
     this.weather = makeEvents(this, events, eventFreq, eventKinds);
   }
@@ -45,11 +48,13 @@ export class Race {
   get time() { return Math.max(0, this.clock); }
 
   // Hands a worm to the computer (its player went away).
-  toAi(i) { const w = this.worms[i]; if (!w.ai) { w.human = false; w.ai = makeAi(this.rng); } }
+  toAi(i) { for (const w of this.both(i)) if (!w.ai) { w.human = false; w.ai = makeAi(this.rng); } }
+  // A worm and, if it's been cut in two, its other half: one player works both.
+  both(i) { const w = this.worms[i], t = this.worms[w.twin]; return t ? [w, t] : [w]; }
 
-  press(i, action) { if (this.state !== 'countdown') pressAction(this.worms[i], action); }
+  press(i, action) { if (this.state !== 'countdown') for (const w of this.both(i)) pressAction(w, action); }
   // Where a player's camera is looking. The step turns this into where the worm aims.
-  setAim(i, yaw) { this.worms[i].look = yaw; }
+  setAim(i, yaw) { for (const w of this.both(i)) w.look = yaw; }
 
   step(dt = STEP) {
     this.clock += dt;
@@ -58,8 +63,9 @@ export class Race {
       this.state = 'racing';
       this.events.push({ type: 'go' });
     }
-    const tr = this.track, L = tr.length, n = this.worms.length, open = !!tr.def.open;
+    const tr = this.track, L = tr.length, open = !!tr.def.open;
     stepEvents(this, dt);
+    const n = this.worms.length; // (counted after the events, one of which can add a worm)
     for (const w of this.worms) {
       for (const k of TIMERS) if (w[k] > 0) w[k] = Math.max(0, w[k] - dt);
       if (w.out) continue;

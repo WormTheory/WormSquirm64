@@ -55,6 +55,11 @@ python3 -m http.server 8000   # then open http://localhost:8000
   A tornado comes down the road and whirls worms off to somewhere else; an earthquake tips them over; a frost
   makes every lunge slide on; hail comes down on them, with a shadow to warn of each stone; and in a mix-up every
   worm goes the opposite way to where it's looking.
+  The hand also pays calls on single worms: it cuts one in two with a kitchen knife (from then on there are two
+  smaller worms, both worked by the same player, and the better-placed one scores), presents one with a check for
+  $30.00 (shown on the score screen, and it adds up), or brands one with a scarlet letter A (shown by its name).
+  All three last through a cup. And a monkey in a ball gathers up every worm, leader first, then throws the lot in
+  the air to land where they may.
 - **The hand.** A worm that falls off is lowered back onto the road by a giant hand, and one that bakes to death
   has a jug of water poured over it. How often events come is a slider in the options.
 - **Wormbow Road** has no walls: a worm that goes over the edge falls and comes back in the middle of the road.
@@ -93,6 +98,9 @@ node tools/trackcheck.mjs      # each track's length and tightest bend; a bend t
 ```
 
 `tools/fxtest.cjs` takes screenshots of the second cup's tracks, each random event and the nest.
+
+`tools/carrytest.cjs` runs the first two races of a cup and checks that a split worm, its money and its scarlet
+letter carry over.
 
 `tools/nettest.cjs` plays a whole online race between two tabs of a headless browser (host, join from the
 open games list, race, results, back to the lobby, host leaves) and says what passed.

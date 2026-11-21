@@ -103,14 +103,21 @@ export function buildWorld(tr) {
   let ground;
   if (th.sea) {
     // An island: a disc of sand with the sea beneath and beyond it.
-    groundTex.repeat.set(18, 18);
-    ground = new THREE.Mesh(new THREE.RingGeometry(0.01, 120, 40, 10), groundMat);
-    const sea = new THREE.Mesh(new THREE.PlaneGeometry(900, 900, 12, 12), lam({ color: th.sea }));
+    groundTex.repeat.set(24, 24);
+    ground = new THREE.Mesh(new THREE.RingGeometry(0.01, 160, 48, 12), groundMat);
+    // The shore: a band of paler ground sloping down into the water, so the island ends in a beach and not a sharp edge.
+    const shore = new THREE.Mesh(new THREE.RingGeometry(160, 178, 48, 1), lam({ color: new THREE.Color(th.ground[1]).lerp(new THREE.Color(th.sea), 0.35) }));
+    const sp = shore.geometry.attributes.position;
+    for (let i = 0; i < sp.count; i++) if (Math.hypot(sp.getX(i), sp.getY(i)) > 170) sp.setZ(i, -0.6);
+    shore.rotation.x = -Math.PI / 2; shore.position.y = -0.15;
+    scene.add(shore);
+    const sea = new THREE.Mesh(new THREE.PlaneGeometry(1800, 1800, 16, 16), lam({ color: th.sea }));
     sea.rotation.x = -Math.PI / 2; sea.position.y = -0.6;
     scene.add(sea);
   } else {
-    groundTex.repeat.set(50, 50);
-    ground = new THREE.Mesh(new THREE.PlaneGeometry(700, 700, 28, 28), groundMat);
+    // (Far bigger than anyone can see to: the fog closes in long before its edge.)
+    groundTex.repeat.set(120, 120);
+    ground = new THREE.Mesh(new THREE.PlaneGeometry(1680, 1680, 48, 48), groundMat);
   }
   ground.rotation.x = -Math.PI / 2; ground.position.y = -0.15;
   scene.add(ground);

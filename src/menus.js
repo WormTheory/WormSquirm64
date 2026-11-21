@@ -30,6 +30,8 @@ export const CSS = `
 #ws .btn{font:inherit;font-size:clamp(13px,3.2vmin,26px);padding:.4em 1.1em;border:3px solid #000;border-radius:10px;color:#fff;
   background:linear-gradient(#5a6a90,#2a3658);box-shadow:0 5px 0 #000;cursor:pointer}
 #ws .btn:disabled{opacity:.4;cursor:default}
+#ws .scarlet{color:#f02020;font-style:normal}
+#ws .money{color:#6ae06a;font-style:normal}
 #ws .pad{position:relative;width:min(94%,46em,62vh);font-size:clamp(11px,2.3vmin,18px);font-style:normal;flex:none;container-type:inline-size}
 #ws .pad canvas{position:absolute;inset:0;width:100%;height:100%}
 #ws .pad span{position:absolute;line-height:1;margin-top:-.5em;white-space:nowrap}

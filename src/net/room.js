@@ -10,7 +10,7 @@
 //                   deny {why}
 //                   start {track, racers: [{char, human}], seats, seatIdx: [worm number for each seat]}
 //                   s {c, st, w}                                   (a snapshot of the race; see net/mirror.js)
-export const PROTO = 8, MAX_RACERS = 8;
+export const PROTO = 9, MAX_RACERS = 8;
 const LOBBY = 'open-games-v' + PROTO; // (a new protocol gets its own list, so nobody's shown a game they can't join)
 
 // A room code: four letters, no look-alikes.
@@ -94,8 +94,9 @@ export class Room {
 
   // Host only: change a lobby setting, start the race, come back to the lobby.
   set(key, value) { this.state[key] = value; this.sync(); }
-  // out: the worms (by number) the bird has already taken in this room. They line up as empty places.
-  start(out = new Set()) {
+  // dress: adds to the list of racers whatever has stuck to them in this room's earlier races (eaten by the bird,
+  // cut in two, and so on). A worm's other half goes on the end of the list, so the seats' worm numbers hold.
+  start(dress = (r) => r) {
     const st = this.state;
     if (st.seats.length < 2) st.cpu = true; // a race needs someone to race
     for (const s of st.seats) if (s.char < 0) s.char = this.free(0, 1); // anyone still choosing gets what's left
@@ -103,7 +104,7 @@ export class Room {
     const ai = st.cpu ? [0, 1, 2, 3, 4, 5, 6, 7].filter((c) => !used.has(c)) : [];
     const msg = {
       t: 'start', track: st.track,
-      racers: ai.map((char) => ({ char, human: false, out: out.has(char) })).concat(st.seats.map((s) => ({ char: s.char, human: true, out: out.has(s.char) }))),
+      racers: dress(ai.map((char) => ({ char, human: false })).concat(st.seats.map((s) => ({ char: s.char, human: true })))),
       seats: st.seats.map((s) => ({ peer: s.peer, local: s.local })), seatIdx: st.seats.map((_, k) => ai.length + k),
     };
     st.phase = 'race';

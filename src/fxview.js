@@ -3,7 +3,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { canvasTex } from './view.js';
 import { centreNear } from './sim/track.js';
-import { FALL_TIME, DEAD_TIME, DROP_PART, OUT_TIME, LIE_PART, BITE_TIME, PLASTER_PART, PAT_END, HAIL, carried } from './sim/events.js';
+import { FALL_TIME, DEAD_TIME, DROP_PART, OUT_TIME, LIE_PART, BITE_TIME, PLASTER_PART, PAT_END, HAIL, VISIT, carried } from './sim/events.js';
 
 const lam = (color, o) => new THREE.MeshLambertMaterial({ color, flatShading: true, ...o });
 const RAIN_BOX = 26;
@@ -58,8 +58,56 @@ function makeHand() {
   return g;
 }
 
+// The hand again, with the three things it brings to one worm: a kitchen knife, a check for $30.00, and a branding iron.
+function makeVisitor() {
+  const g = makeHand(), { jug, plaster } = g.userData;
+  jug.visible = false; plaster.visible = false; g.userData.water.visible = false;
+  const knife = new THREE.Group();
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.12, 3, 1.1), lam(0xd8dce4)); blade.position.set(0, -2.6, 0.35);
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.1, 0.5), lam(0x3a2414)); grip.position.set(0, -0.7, 0.35);
+  knife.add(blade, grip);
+  const check = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.2), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, map: canvasTex(64, 30, (c) => {
+    c.fillStyle = '#f0f4e0'; c.fillRect(0, 0, 64, 30); c.strokeStyle = '#2a7a3a'; c.lineWidth = 2; c.strokeRect(2, 2, 60, 26);
+    c.fillStyle = '#1a5a2a'; c.font = '900 15px "Arial Black", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('$30.00', 32, 16);
+  }) }));
+  check.position.set(0, -1.7, 0.4);
+  const iron = new THREE.Group();
+  const rod = new THREE.Mesh(new THREE.BoxGeometry(0.18, 2.6, 0.18), lam(0x30343c)); rod.position.set(0, -2.1, 0.35);
+  const hot = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.2, 0.9), new THREE.MeshBasicMaterial({ color: 0xff5a1c })); hot.position.set(0, -3.45, 0.35);
+  iron.add(rod, hot);
+  g.add(knife, check, iron);
+  g.userData.props = { split: knife, check, brand: iron };
+  g.visible = false;
+  return g;
+}
+
+// The monkey: a round-headed, big-eared monkey running inside a clear ball, arms up to carry its catch.
+function makeMonkey() {
+  const g = new THREE.Group(), ball = new THREE.SphereGeometry(1, 8, 6), brown = lam(0x8a5a30), tan = lam(0xf0c898);
+  const part = (mat, x, y, z, sx, sy, sz) => { const m = new THREE.Mesh(ball, mat); m.position.set(x, y, z); m.scale.set(sx, sy, sz); g.add(m); return m; };
+  part(brown, 0, 1.25, 0, 0.55, 0.65, 0.5);                                      // body
+  part(tan, 0, 1.2, 0.3, 0.36, 0.42, 0.3);                                       // tummy
+  part(brown, 0, 2.2, 0, 0.55, 0.5, 0.5);                                        // head
+  part(tan, 0, 2.12, 0.3, 0.4, 0.34, 0.3);                                       // face
+  for (const s of [-1, 1]) {
+    part(brown, s * 0.62, 2.3, 0, 0.26, 0.26, 0.12); part(tan, s * 0.62, 2.3, 0.06, 0.15, 0.15, 0.1); // ears
+    part(new THREE.MeshBasicMaterial({ color: 0x101010 }), s * 0.16, 2.24, 0.55, 0.06, 0.08, 0.05);  // eyes
+  }
+  g.userData.arms = [-1, 1].map((s) => part(brown, s * 0.65, 1.9, 0, 0.14, 0.5, 0.14));
+  g.userData.legs = [-1, 1].map((s) => part(brown, s * 0.25, 0.5, 0, 0.16, 0.45, 0.16));
+  const shell = new THREE.Mesh(new THREE.SphereGeometry(1.75, 10, 8), new THREE.MeshLambertMaterial({ color: 0xc8ecff, transparent: true, opacity: 0.25, depthWrite: false }));
+  shell.position.y = 1.55;
+  g.add(shell);
+  g.userData.shell = shell;
+  g.visible = false;
+  return g;
+}
+
 export class FxView {
   constructor(scene, race) {
+    this.visitor = makeVisitor(); scene.add(this.visitor);
+    this.monkey = makeMonkey(); scene.add(this.monkey);
+    this.monkeyAt = null;
     this.scene = scene;
     this.hands = race.worms.map(() => null); // one hand per worm, made the first time it's needed
     // Item boxes: a spinning cube with a question mark on it.
@@ -157,6 +205,26 @@ export class FxView {
 
     // The hand: it lowers a fallen worm back onto the road, or pours a jug of water over one that's baked,
     // and then goes back up where it came from.
+    while (this.hands.length < race.worms.length) this.hands.push(null); // (a worm cut in two adds one)
+    // The hand's visit to one worm: down with what it's brought, the deed, and away again.
+    const visit = race.worms[race.weather.visit], V = this.visitor;
+    V.visible = !!visit;
+    if (visit) {
+      const t = race.weather.t, down = Math.min(1, t / (VISIT.at - 0.35)), strike = Math.max(0, 1 - Math.abs(t - VISIT.at) / 0.18);
+      for (const k in V.userData.props) V.userData.props[k].visible = k === race.weather.type && !(k === 'check' && t > VISIT.at + 0.3);
+      // (The knife and the iron come down hard at the moment itself; the check is just held out.)
+      V.position.set(visit.x, 5.2 + 30 * (1 - down) ** 2 - (race.weather.type === 'check' ? 1.2 * down : 1.7 * strike) + Math.max(0, t - VISIT.at - 0.7) ** 2 * 26, visit.z - 0.3);
+    }
+    // The monkey, facing the way it's running, with its ball rolling round it.
+    const mk = race.weather.monkey, M = this.monkey;
+    M.visible = !!mk;
+    if (mk) {
+      if (this.monkeyAt) { const dx = mk.x - this.monkeyAt[0], dz = mk.z - this.monkeyAt[1]; if (dx * dx + dz * dz > 1e-4) { M.rotation.y = Math.atan2(dx, dz); M.userData.shell.rotation.x += Math.hypot(dx, dz) / 1.75; } }
+      this.monkeyAt = [mk.x, mk.z];
+      M.position.set(mk.x, 0.2 + 0.12 * Math.abs(Math.sin(time * 14)), mk.z);
+      M.userData.arms.forEach((a, k) => { a.rotation.z = (k ? -1 : 1) * (0.5 + 0.3 * Math.sin(time * 12)); a.position.y = 2.2; });
+      M.userData.legs.forEach((l, k) => { l.rotation.x = Math.sin(time * 16 + k * Math.PI) * 0.8; });
+    } else this.monkeyAt = null;
     race.worms.forEach((w, i) => {
       let h = this.hands[i];
       const busy = w.fall > 0 && !w.out;

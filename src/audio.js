@@ -73,7 +73,8 @@ export const caw = () => [0, 0.22].forEach((w) => tone('sawtooth', 1100, 620, 0.
 export const gulp = () => { tone('sine', 260, 90, 0.25, 0.2); tone('sine', 180, 320, 0.15, 0.15, 0.28); };
 export const eventSting = (kind) => ({ rain: [392, 330, 262], heat: [523, 554, 587], bird: [880, 660, 880], stomp: [196, 147, 98], moon: [220, 208, 147, 139],
   twister: [330, 392, 330, 392], quake: [98, 92, 98, 87], frost: [1047, 988, 880, 784],
-  hail: [784, 784, 659, 784], dizzy: [523, 370, 523, 370] }[kind] || [])
+  hail: [784, 784, 659, 784], dizzy: [523, 370, 523, 370],
+  split: [330, 330, 247], check: [784, 988, 1175, 1568], brand: [440, 415, 392, 370], monkey: [659, 784, 659, 784, 988] }[kind] || [])
   .forEach((f, i) => tone('square', f, f, 0.16, 0.1, i * 0.14));
 
 // Menu noises: moving between things, choosing one, going back, and a slider's click.
@@ -115,3 +116,7 @@ export const rumble = (vol = 0.25) => { burst(140, 0.8, vol); tone('sawtooth', 5
 // A bubble bursting, and a hailstone landing.
 export const pop = (vol = 0.14) => { tone('square', 1500, 300, 0.07, vol); burst(3000, 0.06, vol, 'highpass'); };
 export const hailHit = () => burst(2600, 0.07, 0.05, 'bandpass');
+// The knife coming down; a cash register; and the monkey.
+export const chop = () => { burst(1800, 0.09, 0.22, 'highpass'); tone('square', 180, 70, 0.14, 0.16, 0.02); };
+export const kaching = () => { tone('square', 1319, 1319, 0.06, 0.12); tone('square', 1976, 1976, 0.3, 0.12, 0.07); burst(6000, 0.2, 0.06, 'highpass'); };
+export const ook = (vol = 0.12) => { tone('square', 520, 760, 0.08, vol); tone('square', 520, 820, 0.08, vol, 0.11); tone('square', 900, 600, 0.12, vol, 0.22); };
