@@ -351,6 +351,7 @@ function direct(e) {
     case 'omen': focus(e.idx, 3, 6); break;                           // an event is about to pick on this worm: be there first
     case 'howl': focus(e.idx, 3, 9); break;                           // the blood moon's choice
     case 'grab': case 'cut': case 'paid': case 'branded': case 'chained': focus(e.idx, 3, 5); break;
+    case 'eaten': focus(e.idx, 3, 7, true); break;                    // stay for the whole feeding at the nest
     case 'finish': focus(e.idx, 2, 3.5); break;
     case 'squash': case 'twirl': case 'hailhit': case 'monkeygrab': focus(e.idx, 1, 3); break;
     default:
