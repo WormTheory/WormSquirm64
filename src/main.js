@@ -500,7 +500,8 @@ function frame(now, hidden) {
   else if (phase === 'after') stepRace(dt, false, now); // the race carries on behind the results
   if (!hidden) {
     hudLayer.clear();
-    for (const p of G.players) {
+    // (Behind the score screen there are no players' views: see below.)
+    for (const p of phase === 'after' ? [] : G.players) {
       p.hud.update(G.race, p.me, dt);
       // The camera follows a smoothed point, so a flop doesn't shake the whole picture.
       // (If the bird has had this player's worm but another piece of it is still going, they follow that.)
@@ -526,7 +527,16 @@ function frame(now, hidden) {
     G.race.worms.forEach((w, i) => G.views[i].update(w, clockT, G.race.track));
     G.fx.update(G.race, clockT, dt);
     if (nest) { nest.update(clockT, dt); if (nest.watching) nest.watch(G.race, dt); }
-    if (G.players.length) {
+    if (phase === 'after') {
+      // Behind the score screen: one picture, circling the worms dancing past the finish line (or, if nobody's
+      // finished, the line itself).
+      const done = G.race.worms.filter((w) => w.finished && !w.out), mid = pointAt(G.race.track, 7, 0), a = clockT * 0.35;
+      const cx = done.length ? done.reduce((n, w) => n + w.x, 0) / done.length : mid.x, cz = done.length ? done.reduce((n, w) => n + w.z, 0) / done.length : mid.z;
+      const far = Math.max(11, ...done.map((w) => Math.hypot(w.x - cx, w.z - cz) + 8));
+      titleCam.position.set(cx + Math.sin(a) * far, 2.5 + far * 0.33, cz + Math.cos(a) * far);
+      titleCam.lookAt(cx, 1, cz);
+      view([0, 0, 1, 1], titleCam);
+    } else if (G.players.length) {
       renderer.setViewport(0, 0, bufW, bufH); renderer.setScissor(0, 0, bufW, bufH);
       renderer.setClearColor(0x000000); renderer.clear();
       // A player whose worm the bird took watches the nest instead.

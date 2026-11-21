@@ -414,7 +414,7 @@ export class NestView {
       const balloon = add(new THREE.SphereGeometry(1.25, 8, 6), lam(colour), side * 3.5, 4.5, 0); balloon.scale.y = 1.2;
       add(new THREE.ConeGeometry(0.22, 0.3, 5), lam(colour), side * 3.5, 2.9, 0);                          // its knot
       const string = add(new THREE.CylinderGeometry(0.035, 0.035, 2.7, 4), lam(0xf4f0e0), side * 2.85, 1.8, 0); // down to the rim of the nest
-      string.rotation.z = side * 0.5;
+      string.rotation.z = -side * 0.5; // (leaning out, from the rim up to the balloon's knot)
     }
     this.sky = scene.background;
     add(new THREE.TorusGeometry(2.1, 0.6, 5, 9), lam(0x8a6a3a), 0, 0.5, 0).rotation.x = Math.PI / 2;
