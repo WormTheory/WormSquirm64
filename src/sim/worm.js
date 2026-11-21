@@ -36,7 +36,10 @@ export function makeWorm(idx, char, human, x, z) {
     hold: 0,                // seconds it's being kept still (while the hand does something to it)
     // Things that stay with a worm through a cup: cut in two (half; second marks the half that was made, twin the other one's number),
     // money it's been given, and whether it's been branded with a scarlet letter.
-    half: false, second: false, twin: -1, money: 0, scarlet: false,
+    // (cuts: how many times this piece has been cut, so 1 is half a worm and 3 an eighth. pid names a piece that
+    // was made by a cut, '' for the one that was there from the start; root is that first piece's number, and from
+    // the number of the piece this one was cut off.)
+    half: false, second: false, twin: -1, cuts: 0, pid: '', root: idx, from: -1, money: 0, scarlet: false,
     lift: 0, out: false };  // how high a bird is carrying it, and whether it's out of the race for good
 }
 

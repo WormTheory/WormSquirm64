@@ -7,6 +7,9 @@ import { uiPx } from './settings.js';
 import { ITEM_NAMES } from './sim/items.js';
 import { chosen } from './sim/events.js';
 
+// How much of a worm a piece is, by how many times it's been cut.
+export const FRACTION = ['', '\u00bd', '\u00bc', '\u215b', '1/16', '1/32', '1/64', '1/128'];
+
 const EVENT_WORDS = { rain: 'RAIN!', heat: 'HEATWAVE!', bird: 'BIRD!', stomp: 'LOOK OUT!', moon: 'BLOOD MOON!', twister: 'TORNADO!', quake: 'EARTHQUAKE!', frost: 'FROST!', hail: 'HAIL!', dizzy: 'MIX-UP! TURN ROUND!',
   split: 'SPLIT!', check: 'CHECK FOR $30.00!', brand: 'SCARLET LETTER!', monkey: 'MONKEY M-M-M-MADNESS!' };
 const EVENT_TINT = { rain: 'rgba(20,40,90,.16)', heat: 'rgba(255,110,0,.22)', moon: 'rgba(170,0,10,.3)', frost: 'rgba(190,225,255,.22)', twister: 'rgba(60,60,70,.14)', hail: 'rgba(70,90,120,.16)', dizzy: 'rgba(150,40,200,.2)' };
@@ -196,7 +199,7 @@ export class PlayerHud {
         c.fillStyle = o.out ? '#5a5e66' : hex(CHARS[o.char].color); c.fill(); c.lineWidth = 1; c.strokeStyle = '#000'; c.stroke();
         // (A branded worm has its scarlet A before its name; half a worm is marked as one.)
         const ax = o.scarlet ? text('A ', left + os * 1.4, oy, os, o.out ? '#8a5a5a' : '#f02020') : 0;
-        const nx = left + os * 1.4 + ax + text(CHARS[o.char].name + (o.half ? ' \u00bd' : ''), left + os * 1.4 + ax, oy, os, o.out ? '#8a8e96' : o.idx === me ? '#ffe24a' : '#fff');
+        const nx = left + os * 1.4 + ax + text(CHARS[o.char].name + (o.cuts ? ' ' + FRACTION[o.cuts] : ''), left + os * 1.4 + ax, oy, os, o.out ? '#8a8e96' : o.idx === me ? '#ffe24a' : '#fff');
         // The worm an event has picked out gets a flashing red triangle pointing at its name, for as long as the event lasts.
         if (o.idx === marked && flash) {
           const tx = Math.round(nx + os * 0.5), ty = oy + os * 0.55;

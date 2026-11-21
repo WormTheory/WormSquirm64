@@ -23,7 +23,7 @@ const r2 = (v) => Math.round(v * 100) / 100;
 export function snapshot(race) {
   const w = [];
   for (const o of race.worms) {
-    let flags = (o.out ? 32 : 0) | (o.dead ? 64 : 0) | (o.pit ? 128 : 0) | (o.wolf > 0 ? 256 : 0) | (o.howl > 0 ? 512 : 0) | (o.bit ? 1024 : 0) | (o.patch > 0 ? 2048 : 0) | (o.slow > 0 ? 4096 : 0) | (o.shield > 0 ? 8192 : 0) | (o.giant > 0 ? 16384 : 0) | (o.scarlet ? 32768 : 0) | (o.half ? 65536 : 0);
+    let flags = (o.out ? 32 : 0) | (o.dead ? 64 : 0) | (o.pit ? 128 : 0) | (o.wolf > 0 ? 256 : 0) | (o.howl > 0 ? 512 : 0) | (o.bit ? 1024 : 0) | (o.patch > 0 ? 2048 : 0) | (o.slow > 0 ? 4096 : 0) | (o.shield > 0 ? 8192 : 0) | (o.giant > 0 ? 16384 : 0) | (o.scarlet ? 32768 : 0) | ((o.cuts & 7) << 16);
     FLAGS.forEach((k, i) => { if (o[k] > 0) flags |= 1 << i; });
     w.push(r2(o.x), r2(o.z), o.count, Math.max(0, ACTIONS.indexOf(o.action)), o.taps, Math.round(o.prog * 10) / 10, o.lap, o.rank,
       o.finished ? r2(o.finishTime) : -1, flags, r2(o.fall), r2(o.lift), r2(o.heat), o.hurts, o.items, o.item, o.money);
@@ -37,7 +37,7 @@ export function snapshot(race) {
   else if (wx.stomp) for (const f of wx.stomp.steps) ev.push(r2(f.x), r2(f.z), r2(f.t));
   else if (wx.hail) for (const h of wx.hail) ev.push(r2(h.x), r2(h.z), r2(h.t));
   // x: worms made since the start (the back halves of worms cut in two): which worm each is, whether a player's, and its other half's number.
-  const x = race.worms.slice(race.base).map((o) => [o.char, o.human ? 1 : 0, o.twin]);
+  const x = race.worms.slice(race.base).map((o) => [o.char, o.human ? 1 : 0, o.from, o.pid, o.root]);
   return { t: 's', c: Math.round(race.clock * 1000) / 1000, st: STATES.indexOf(race.state), w, x, b: race.items.boxes.map((b) => (b.t > 0 ? 0 : 1)).join(''), e, ev };
 }
 
@@ -49,10 +49,10 @@ export class MirrorRace {
     this.worms = racers.map((r, i) => {
       const p = gridSlot(this.track, i), w = makeWorm(i, r.char, !!r.human, p.x, p.z);
       w.aim = w.look = Math.atan2(p.tx, p.tz);
-      w.out = !!r.out; w.half = !!r.half; w.second = !!r.second; w.money = r.money || 0; w.scarlet = !!r.scarlet;
+      w.out = !!r.out; w.cuts = r.cuts || (r.half ? 1 : 0); w.half = w.cuts > 0; w.pid = r.pid || ''; w.second = !!w.pid; w.money = r.money || 0; w.scarlet = !!r.scarlet;
       return w;
     });
-    for (const w of this.worms) if (w.half && w.second) { const o = this.worms.find((q) => q.char === w.char && !q.second); if (o) { w.twin = o.idx; o.twin = w.idx; } }
+    for (const w of this.worms) if (w.pid) { const o = this.worms.find((x) => x.char === w.char && !x.pid); if (o) { w.root = o.idx; w.twin = o.idx; if (o.twin < 0) o.twin = w.idx; } }
     this.order = [...this.worms];
     this.base = this.worms.length;
     this.items = makeItems(this.track);
@@ -67,7 +67,7 @@ export class MirrorRace {
   press(i, action) {
     if (this.state === 'countdown') return;
     this.worms[i].taps++;
-    if (this.worms[this.worms[i].twin]) this.worms[this.worms[i].twin].taps++;
+    for (const o of this.worms) if (o.root === this.worms[i].root && o.idx !== i) o.taps++;
     (this.pend[i] || (this.pend[i] = [])).push(ACTIONS.indexOf(action));
   }
   // The controls message for the given worms, or null if there's nothing new and one went lately (30 a second at most).
@@ -103,7 +103,7 @@ export class MirrorRace {
     // A worm the host has cut in two: its back half joins the race here too.
     for (let i = this.worms.length; i < a.w.length / PER; i++) {
       const x = (a.x || [])[i - this.base] || [0, 0, -1], k = i * PER, w = makeWorm(i, x[0], !!x[1], a.w[k], a.w[k + 1]);
-      w.second = true; w.half = true; w.twin = x[2]; w.count = a.w[k + 2]; w.taps = a.w[k + 4]; w.lap = a.w[k + 6]; w.hurts = a.w[k + 13]; w.items = a.w[k + 14]; w.money = a.w[k + 16];
+      w.second = true; w.half = true; w.twin = w.from = x[2]; w.pid = x[3] || '1'; w.root = x[4] === undefined ? x[2] : x[4]; w.count = a.w[k + 2]; w.taps = a.w[k + 4]; w.lap = a.w[k + 6]; w.hurts = a.w[k + 13]; w.items = a.w[k + 14]; w.money = a.w[k + 16];
       if (this.worms[x[2]]) { this.worms[x[2]].twin = i; if (this.mine.has(x[2])) this.mine.add(i); }
       this.worms.push(w);
       ev.push({ type: 'cut', idx: x[2], twin: i });
@@ -145,7 +145,7 @@ export class MirrorRace {
       if (A[k + 16] > w.money) ev.push({ type: 'paid', idx: i });
       w.money = A[k + 16];
       if ((fl & 32768) && !w.scarlet) ev.push({ type: 'branded', idx: i });
-      w.scarlet = !!(fl & 32768); w.half = !!(fl & 65536);
+      w.scarlet = !!(fl & 32768); w.cuts = (fl >> 16) & 7; w.half = w.cuts > 0;
     });
     if (zapped) ev.push({ type: 'zap' });
     this.order = [...this.worms].sort((x, y) => x.rank - y.rank);

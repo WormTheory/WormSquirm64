@@ -105,9 +105,12 @@ export function howl(back) {
   tone('sine', 300, 760, 0.7, 0.16); tone('sine', 760, 700, 0.9, 0.16, 0.7); tone('sine', 700, 380, 0.5, 0.12, 1.6);
 }
 export function bite(vol = 0.15) {
-  burst(700, 0.16, vol); tone('sawtooth', 160, 70, 0.22, vol * 0.8);
-  tone('square', 1100, 520, 0.2, vol * 0.6, 0.12);
-  for (const w of [1.1, 1.65, 2.2]) tone('sine', 190, 120, 0.09, vol * 0.7, w);
+  // A snarl, the snap of jaws, something wet, and a yelp; then, once the hand has come, its three pats.
+  tone('sawtooth', 240, 80, 0.34, vol); tone('sawtooth', 247, 86, 0.34, vol * 0.7);
+  burst(1800, 0.07, vol * 1.2, 'highpass'); burst(420, 0.32, vol * 1.1);
+  tone('sine', 140, 50, 0.3, vol * 0.9, 0.05);
+  tone('square', 1100, 480, 0.24, vol * 0.6, 0.14);
+  for (const w of [3.1, 3.65, 4.2]) tone('sine', 190, 120, 0.09, vol * 0.5, w);
 }
 // Stuck in glue; whirled up by the tornado; the ground shaking.
 export const glued = (vol = 0.12) => { burst(400, 0.25, vol); tone('sine', 180, 110, 0.25, vol * 0.7); };

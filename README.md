@@ -60,9 +60,10 @@ python3 -m http.server 8000   # then open http://localhost:8000
   makes every lunge slide on; hail comes down on them, with a shadow to warn of each stone; and in a mix-up every
   worm goes the opposite way to where it's looking.
   The hand also pays calls on single worms: it cuts one in two with a kitchen knife (from then on there are two
-  smaller worms, both worked by the same player, and the better-placed one scores), presents one with a check for
+  smaller worms, both worked by the same player, and the better-placed one scores; a half can be cut again into
+  quarters, and those into eighths), presents one with a check for
   $30.00 (shown on the score screen, and it adds up), or brands one with a scarlet letter A (shown by its name).
-  All three last through a cup. And a monkey in a ball gathers up every worm, leader first, then throws the lot in
+  All three last through a cup. And a monkey gathers up every worm, leader first, then throws the lot in
   the air to land where they may.
 - **The hand.** A worm that falls off is lowered back onto the road by a giant hand, and one that bakes to death
   has a jug of water poured over it. How often events come is a slider in the options.

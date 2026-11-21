@@ -42,8 +42,8 @@ export function makeEvents(race, on, freq = 5, kinds = null) {
   return { on, wait, may, twister: null, monkey: null, visit: -1, type: 'none', t: 0, next: on && may.length ? race.rng.range(8, 14) * wait : Infinity, bird: null, stomp: null, wolf: -1 };
 }
 
-// The worms the hand may call on for a visit (for the knife, ones still in one piece).
-const visitable = (race, kind, live) => live.filter((w) => !(w.fall > 0) && !(w.lift > 0) && (kind !== 'split' || (!w.half && race.worms.length < MAX_WORMS)) && !(kind === 'brand' && w.scarlet));
+// The worms the hand may call on for a visit (the knife will cut a piece of a worm again, into quarters and eighths, while there's room for more worms).
+const visitable = (race, kind, live) => live.filter((w) => !(w.fall > 0) && !(w.lift > 0) && (kind !== 'split' || (w.cuts < 7 && race.worms.length < MAX_WORMS)) && !(kind === 'brand' && w.scarlet));
 
 // An event is settled on a moment before it starts (OMEN seconds), along with the worm it's coming for, if it's
 // that sort. Nothing shows yet; it's so that anyone just watching can be looking at the right worm when it happens.
@@ -126,8 +126,9 @@ export const FALL_TIME = 1.6, DEAD_TIME = 2.6, DROP_PART = 0.6;
 // A worm that went over a wall hasn't fallen anywhere: it lies on its back on the far side (LIE_PART) until the hand
 // picks it up and carries it back.
 export const OUT_TIME = 2.4, LIE_PART = 0.9;
-// A worm the wolf has bitten lies where it fell while the hand sticks a plaster on it (which takes PLASTER_PART) and pats it better.
-export const BITE_TIME = 3, PLASTER_PART = 0.8, PAT_END = 2.4;
+// A worm the wolf has bitten lies where it fell, in its own blood, for BITE_LIE seconds; then the hand comes, sticks a
+// plaster on it (which takes PLASTER_PART) and pats it better. (The hand's times count from when it sets out.)
+export const BITE_LIE = 2, BITE_TIME = 5, PLASTER_PART = 0.8, PAT_END = 2.4;
 // Where a worm being carried back is, u of the way through the carry (0 to 1): from where it lay to the middle of the road,
 // lifted up and over. Returns [x, z, height of its head].
 export function carried(from, to, u) {
@@ -201,7 +202,9 @@ export function stepEvents(race, dt) {
         else if (ev.type === 'brand') { w.scarlet = true; w.hurts++; race.events.push({ type: 'branded', idx: w.idx }); }
         else {
           // Cut in two: the worm becomes the front half, and a new worm, a copy of it in every way that matters, the back.
-          const l = locate(race.track, w.x, w.z, w.hint), t = { ...w, idx: race.worms.length, tired: {}, spasm: null, queued: null, ai: w.ai ? makeAi(rng) : null, wash: null, spring: null, spin: null, slide: null, second: true };
+          // (Half a worm cut again makes two quarters, and so on down.)
+          w.cuts++;
+          const l = locate(race.track, w.x, w.z, w.hint), t = { ...w, idx: race.worms.length, tired: {}, spasm: null, queued: null, ai: w.ai ? makeAi(rng) : null, wash: null, spring: null, spin: null, slide: null, second: true, pid: w.pid + String(w.cuts), from: w.idx };
           w.half = t.half = true; w.twin = t.idx; t.twin = w.idx;
           w.x += l.tx * 0.9; w.z += l.tz * 0.9; t.x -= l.tx * 1.1; t.z -= l.tz * 1.1;
           w.stun = t.stun = 0.9; w.hurts++; t.hurts++;

@@ -34,11 +34,11 @@ export class Race {
       const loc = locate(this.track, w.x, w.z, -1);
       w.hint = loc.i; w.s = loc.s; w.prog = -3 - 2.2 * i;
       w.ai = r.human ? null : makeAi(this.rng);
-      w.out = !!r.out; w.half = !!r.half; w.second = !!r.second; w.money = r.money || 0; w.scarlet = !!r.scarlet;
+      w.out = !!r.out; w.cuts = r.cuts || (r.half ? 1 : 0); w.half = w.cuts > 0; w.pid = r.pid || ''; w.second = !!w.pid; w.money = r.money || 0; w.scarlet = !!r.scarlet;
       return w;
     });
-    // The two halves of a worm that's been cut in two know each other.
-    for (const w of this.worms) if (w.half && w.second) { const o = this.worms.find((x) => x.char === w.char && !x.second); if (o) { w.twin = o.idx; o.twin = w.idx; } }
+    // The pieces of a worm that's been cut up know which worm they came from.
+    for (const w of this.worms) if (w.pid) { const o = this.worms.find((x) => x.char === w.char && !x.pid); if (o) { w.root = o.idx; w.twin = o.idx; if (o.twin < 0) o.twin = w.idx; } }
     this.order = [...this.worms];
     this.base = this.worms.length; // (how many started: a worm cut in two mid-race adds one)
     this.items = makeItems(this.track);
@@ -49,8 +49,8 @@ export class Race {
 
   // Hands a worm to the computer (its player went away).
   toAi(i) { for (const w of this.both(i)) if (!w.ai) { w.human = false; w.ai = makeAi(this.rng); } }
-  // A worm and, if it's been cut in two, its other half: one player works both.
-  both(i) { const w = this.worms[i], t = this.worms[w.twin]; return t ? [w, t] : [w]; }
+  // A worm and, if it's been cut up, all its other pieces: one player works the lot.
+  both(i) { const root = this.worms[i].root; return this.worms.filter((w) => w.root === root); }
 
   press(i, action) { if (this.state !== 'countdown') for (const w of this.both(i)) pressAction(w, action); }
   // Where a player's camera is looking. The step turns this into where the worm aims.

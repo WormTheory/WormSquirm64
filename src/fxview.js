@@ -3,7 +3,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { canvasTex } from './view.js';
 import { centreNear } from './sim/track.js';
-import { FALL_TIME, DEAD_TIME, DROP_PART, OUT_TIME, LIE_PART, BITE_TIME, PLASTER_PART, PAT_END, HAIL, VISIT, carried } from './sim/events.js';
+import { FALL_TIME, DEAD_TIME, DROP_PART, OUT_TIME, LIE_PART, BITE_TIME, BITE_LIE, PLASTER_PART, PAT_END, HAIL, VISIT, carried } from './sim/events.js';
 
 const lam = (color, o) => new THREE.MeshLambertMaterial({ color, flatShading: true, ...o });
 const RAIN_BOX = 26;
@@ -95,10 +95,6 @@ function makeMonkey() {
   }
   g.userData.arms = [-1, 1].map((s) => part(brown, s * 0.65, 1.9, 0, 0.14, 0.5, 0.14));
   g.userData.legs = [-1, 1].map((s) => part(brown, s * 0.25, 0.5, 0, 0.16, 0.45, 0.16));
-  const shell = new THREE.Mesh(new THREE.SphereGeometry(1.75, 10, 8), new THREE.MeshLambertMaterial({ color: 0xc8ecff, transparent: true, opacity: 0.25, depthWrite: false }));
-  shell.position.y = 1.55;
-  g.add(shell);
-  g.userData.shell = shell;
   g.visible = false;
   return g;
 }
@@ -109,6 +105,11 @@ export class FxView {
     this.monkey = makeMonkey(); scene.add(this.monkey);
     this.monkeyAt = null;
     this.scene = scene;
+    // Blood, where the were-wolf-worm has been at somebody: drops that fly up for a moment, and a pool that stays
+    // for the rest of the race.
+    this.wasBit = []; this.drops = []; this.pools = [];
+    this.dropGeo = new THREE.BoxGeometry(0.22, 0.22, 0.22); this.poolGeo = new THREE.CircleGeometry(1, 11);
+    this.bloodMat = new THREE.MeshBasicMaterial({ color: 0xc01010 });
     this.hands = race.worms.map(() => null); // one hand per worm, made the first time it's needed
     // Item boxes: a spinning cube with a question mark on it.
     const tex = canvasTex(16, 16, (c) => {
@@ -187,7 +188,29 @@ export class FxView {
     scene.add(this.moon);
   }
 
+  // A bite at (x, z): a splash of blood, and a pool spreading where the worm lies.
+  bleed(x, z) {
+    for (let i = 0; i < 14; i++) {
+      const m = new THREE.Mesh(this.dropGeo, this.bloodMat), a = Math.random() * Math.PI * 2, v = 2 + Math.random() * 4;
+      m.position.set(x, 0.6, z); m.scale.setScalar(0.6 + Math.random() * 0.9);
+      this.scene.add(m);
+      this.drops.push({ m, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: 4 + Math.random() * 5 });
+    }
+    const pool = new THREE.Mesh(this.poolGeo, new THREE.MeshBasicMaterial({ color: 0x900808, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+    // (Each pool a hair higher than the last, so two that overlap don't flicker.)
+    pool.rotation.x = -Math.PI / 2; pool.position.set(x, 0.03 + this.pools.length * 0.002, z); pool.scale.setScalar(0.01);
+    pool.userData.r = 1.5 + Math.random() * 0.5;
+    this.scene.add(pool); this.pools.push(pool);
+  }
+
   update(race, time, dt) {
+    race.worms.forEach((w, i) => { const b = w.fall > 0 && !!w.bit; if (b && !this.wasBit[i]) this.bleed(w.x, w.z); this.wasBit[i] = b; });
+    this.drops = this.drops.filter((d) => {
+      d.vy -= 22 * dt; d.m.position.x += d.vx * dt; d.m.position.y += d.vy * dt; d.m.position.z += d.vz * dt;
+      if (d.m.position.y > 0.05) return true;
+      this.scene.remove(d.m); return false;
+    });
+    for (const p of this.pools) if (p.scale.x < p.userData.r) p.scale.setScalar(Math.min(p.userData.r, p.scale.x + dt * 1.3));
     this.boxes.forEach((m, i) => {
       m.visible = race.items.boxes[i].t <= 0;
       m.rotation.set(time * 1.3, time * 1.9 + i, 0); m.position.y = 1 + 0.15 * Math.sin(time * 3 + i);
@@ -215,11 +238,11 @@ export class FxView {
       // (The knife and the iron come down hard at the moment itself; the check is just held out.)
       V.position.set(visit.x, 5.2 + 30 * (1 - down) ** 2 - (race.weather.type === 'check' ? 1.2 * down : 1.7 * strike) + Math.max(0, t - VISIT.at - 0.7) ** 2 * 26, visit.z - 0.3);
     }
-    // The monkey, facing the way it's running, with its ball rolling round it.
+    // The monkey, facing the way it's running.
     const mk = race.weather.monkey, M = this.monkey;
     M.visible = !!mk;
     if (mk) {
-      if (this.monkeyAt) { const dx = mk.x - this.monkeyAt[0], dz = mk.z - this.monkeyAt[1]; if (dx * dx + dz * dz > 1e-4) { M.rotation.y = Math.atan2(dx, dz); M.userData.shell.rotation.x += Math.hypot(dx, dz) / 1.75; } }
+      if (this.monkeyAt) { const dx = mk.x - this.monkeyAt[0], dz = mk.z - this.monkeyAt[1]; if (dx * dx + dz * dz > 1e-4) M.rotation.y = Math.atan2(dx, dz); }
       this.monkeyAt = [mk.x, mk.z];
       M.position.set(mk.x, 0.2 + 0.12 * Math.abs(Math.sin(time * 14)), mk.z);
       M.userData.arms.forEach((a, k) => { a.rotation.z = (k ? -1 : 1) * (0.5 + 0.3 * Math.sin(time * 12)); a.position.y = 2.2; });
@@ -236,7 +259,9 @@ export class FxView {
       jug.visible = w.dead;
       if (w.bit) {
         // Down with a plaster, stick it on, three gentle pats, and away.
-        const e = BITE_TIME - w.fall, down = Math.min(1, e / PLASTER_PART), pat = e > PLASTER_PART && e < PAT_END ? Math.abs(Math.sin(((e - PLASTER_PART) / (PAT_END - PLASTER_PART)) * Math.PI * 3)) : 0;
+        const e = BITE_TIME - BITE_LIE - w.fall;
+        if (e < 0) { h.visible = false; return; } // (not yet: it lies in its blood a while first)
+        const down = Math.min(1, e / PLASTER_PART), pat = e > PLASTER_PART && e < PAT_END ? Math.abs(Math.sin(((e - PLASTER_PART) / (PAT_END - PLASTER_PART)) * Math.PI * 3)) : 0;
         h.visible = true; water.visible = false; plaster.visible = e < PLASTER_PART;
         h.position.set(w.x, 1.75 + 26 * (1 - down) ** 2 + pat * 0.9 + Math.max(0, e - PAT_END) * 6, w.z - 0.3);
       } else if (w.dead) {
