@@ -4,7 +4,7 @@ import * as THREE from '../vendor/three.module.min.js';
 import { Race, STEP } from './sim/race.js';
 import { TRACKS, CUPS, POINTS, pointAt, centreNear, locate } from './sim/track.js';
 import { ACTIONS } from './sim/worm.js';
-import { CHARS, PICKABLE, X_CHAR, hex } from './characters.js';
+import { CHARS, PICKABLE, X_CHAR, charOf, hex } from './characters.js';
 import { buildWorld, disposeWorld } from './view.js';
 import { WormView } from './wormview.js';
 import { FxView, NestView } from './fxview.js';
@@ -80,8 +80,8 @@ let nest = null;
 // been given, a scarlet letter. A worm is known by its number, with a 'b' and the piece's own name on the end for a
 // piece that a cut made. pieces: those names, for each worm that's been cut; cuts: how many times each piece has been.
 const keyOf = (w) => w.char + (w.pid ? 'b' + w.pid : '');
-let carry = { eaten: new Set(), pieces: {}, cuts: {}, scarlet: new Set(), plaster: {}, chains: [], wormx: false, money: {} };
-const resetCarry = () => { carry = { eaten: new Set(), pieces: {}, cuts: {}, scarlet: new Set(), plaster: {}, chains: [], wormx: false, money: {} }; nest = null; };
+let carry = { eaten: new Set(), pieces: {}, cuts: {}, scarlet: new Set(), plaster: {}, chains: [], wormx: false, long: {}, money: {} };
+const resetCarry = () => { carry = { eaten: new Set(), pieces: {}, cuts: {}, scarlet: new Set(), plaster: {}, chains: [], wormx: false, long: {}, money: {} }; nest = null; };
 const resetCarryKeepNest = () => { const n = nest; resetCarry(); nest = n; };
 // A plain list of racers [{char, human}], with all that put on: the pieces cut off worms are added on the end.
 const notePiece = (w) => { if (w.pid) { const l = carry.pieces[w.char] || (carry.pieces[w.char] = []); if (!l.includes(w.pid)) l.push(w.pid); } };
@@ -89,7 +89,8 @@ function dress(base) {
   const out = base.map((r) => ({ ...r, pid: '' }));
   if (carry.wormx) { out.push({ char: X_CHAR, human: false, pid: '' }); base = [...base, { char: X_CHAR, human: false }]; } // (the stranger stays on, at the back of the grid)
   for (const r of base) for (const pid of carry.pieces[r.char] || []) out.push({ char: r.char, human: r.human, pid });
-  for (const r of out) { const k = keyOf(r); r.cuts = carry.cuts[k] || 0; r.half = r.cuts > 0; r.second = !!r.pid; r.out = carry.eaten.has(k); r.money = carry.money[k] || 0; r.scarlet = carry.scarlet.has(k); r.plaster = carry.plaster[k] || 0; r.chain = -1; }
+  for (const r of out) { const k = keyOf(r); if (r.pid[0] === 'e') r.human = false; r.long = carry.long[k] || 0; r.cuts = carry.cuts[k] || 0; // (an evil clone is nobody's to drive)
+ r.half = r.cuts > 0; r.second = !!r.pid; r.out = carry.eaten.has(k); r.money = carry.money[k] || 0; r.scarlet = carry.scarlet.has(k); r.plaster = carry.plaster[k] || 0; r.chain = -1; }
   // (Chains: each end is told the other's place in the list.)
   for (const [ka, kb] of carry.chains) { const a = out.findIndex((r) => keyOf(r) === ka), b = out.findIndex((r) => keyOf(r) === kb); if (a >= 0 && b >= 0 && !out[a].out && !out[b].out) { out[a].chain = b; out[b].chain = a; } }
   return out;
@@ -99,7 +100,7 @@ function remember(race) {
   carry.chains = race.worms.filter((w) => w.chain > w.idx).map((w) => [keyOf(w), keyOf(race.worms[w.chain])]);
   for (const w of race.worms) {
     const k = keyOf(w);
-    carry.cuts[k] = w.cuts; notePiece(w);
+    carry.cuts[k] = w.cuts; notePiece(w); carry.long[k] = w.long || 0;
     if (w.scarlet) carry.scarlet.add(k);
     carry.plaster[k] = w.patch || 0;
     if (w.char === X_CHAR) carry.wormx = true;
@@ -116,7 +117,7 @@ function setupRace(trackIdx, racers, locals, mirror) {
   const race = mirror ? new MirrorRace({ trackDef: TRACKS[trackIdx], racers })
     : new Race({ trackDef: TRACKS[trackIdx], seed: (Date.now() ^ (Math.random() * 1e9)) >>> 0, racers, events: !!settings.events && locals.length > 0, eventFreq: settings.eventFreq || 5, eventKinds: allowedEvents() });
   const scene = buildWorld(race.track);
-  const views = race.worms.map((w) => { const v = new WormView(CHARS[w.char], scene); v.reset(w); return v; });
+  const views = race.worms.map((w) => { const v = new WormView(charOf(w), scene); v.reset(w); return v; });
   const fx = new FxView(scene, race);
   const rects = LAYOUTS[Math.max(1, locals.length) - 1];
   // Dragging on the picture turns the camera of whoever has the touch screen, or else the mouse.
@@ -194,7 +195,7 @@ const online = new Online(menus, inputs, TRACKS, {
     // (A guest learns what's stuck to whom from the host's list.)
     resetCarryKeepNest();
     msg.racers.forEach((r, i) => { if (r.chain > i && msg.racers[r.chain]) carry.chains.push([keyOf(r), keyOf(msg.racers[r.chain])]); });
-    for (const r of msg.racers) { const k = keyOf(r); if (r.out) carry.eaten.add(k); carry.cuts[k] = r.cuts || 0; notePiece(r); if (r.scarlet) carry.scarlet.add(k); carry.plaster[k] = +r.plaster || 0; if (r.char === X_CHAR) carry.wormx = true; carry.money[k] = r.money || 0; }
+    for (const r of msg.racers) { const k = keyOf(r); if (r.out) carry.eaten.add(k); carry.cuts[k] = r.cuts || 0; carry.long[k] = r.long || 0; notePiece(r); if (r.scarlet) carry.scarlet.add(k); carry.plaster[k] = +r.plaster || 0; if (r.char === X_CHAR) carry.wormx = true; carry.money[k] = r.money || 0; }
     const locals = [];
     msg.seats.forEach((s, k) => { if (s.peer === room.self && online.humans[s.local]) locals.push({ devs: online.humans[s.local].devs, me: msg.seatIdx[k] }); });
     setupRace(msg.track, msg.racers, locals, !room.isHost);
@@ -232,6 +233,8 @@ function pause(on) {
   menus.dialog('<div class="head">PAUSED</div>', [{ label: 'RESUME', fn: () => pause(false) }, { label: 'QUIT', fn: toTitle }], () => pause(false), true);
 }
 
+// Whose points a worm's are: its own kind's, or, for an evil clone and the pieces of one, the clone's.
+const pk = (w) => (w.evil ? 'e' : '') + w.char;
 function showResults() {
   const race = G.race, mine = new Set(G.players.filter((p) => !p.spectator).flatMap((p) => G.race.worms.filter((w) => w.root === G.race.worms[p.me].root).map((w) => w.idx))), gp = session && session.mode === 'gp';
   // If the bird ate everybody who was playing, it's a draw: no places and no points.
@@ -239,12 +242,12 @@ function showResults() {
   remember(race);
   const pts = (w, i) => (w.out || draw ? 0 : POINTS[i] || 0);
   // (A worm that's been cut in two scores what its better half earned, once.)
-  if (gp) { const got = {}; race.order.forEach((w, i) => { got[w.char] = Math.max(got[w.char] || 0, pts(w, i)); }); for (const c in got) session.points[c] = (session.points[c] || 0) + got[c]; }
+  if (gp) { const got = {}; race.order.forEach((w, i) => { got[pk(w)] = Math.max(got[pk(w)] || 0, pts(w, i)); }); for (const c in got) session.points[c] = (session.points[c] || 0) + got[c]; }
   // A worm's name on the score screen: its colour, a scarlet letter if it wears one, which half it is if it's been cut in two, and its money.
   const cash = (w) => (w.money ? ' <b class="money">&#36;' + w.money + '.00</b>' : '');
-  const dot = (w) => `<i class="dot" style="background:${hex(CHARS[w.char].color)}"></i> ${w.scarlet ? '<b class="scarlet">A</b> ' : ''}${w.cuts > 1 ? FRACTION[w.cuts] + ' of ' : w.half ? (w.second ? 'Back of ' : 'Front of ') : ''}${CHARS[w.char].name}${cash(w)}`;
+  const dot = (w) => `<i class="dot" style="background:${hex(charOf(w).color)}"></i> ${w.scarlet ? '<b class="scarlet">A</b> ' : ''}${w.cuts > 1 ? FRACTION[w.cuts] + ' of ' : w.half ? (w.second ? 'Back of ' : 'Front of ') : ''}${charOf(w).name}${cash(w)}`;
   const rows = race.order.map((w, i) => `<tr class="${mine.has(w.idx) ? 'me' : ''}"><td>${w.out || draw ? '' : i + 1 + ORD[i]}</td><td>${dot(w)}</td>
-    <td>${w.out ? 'eaten by a bird' : w.finished ? fmtTime(w.finishTime) : 'still squirming'}</td>${gp ? `<td>+${pts(w, i)}</td><td>${session.points[w.char]}</td>` : ''}</tr>`).join('');
+    <td>${w.out ? 'eaten by a bird' : w.finished ? fmtTime(w.finishTime) : 'still squirming'}</td>${gp ? `<td>+${pts(w, i)}</td><td>${session.points[pk(w)]}</td>` : ''}</tr>`).join('');
   const html = `<div class="head">${draw ? 'DRAW' : TRACKS[G.trackIdx].name.toUpperCase()}</div>${draw ? '<div class="help">Everybody playing was eaten.</div>' : ''}<table class="t">${rows}</table>`;
   playSong('results');
   if (net) {
@@ -259,10 +262,10 @@ function showResults() {
   } else {
     menus.dialog(html, [{ label: 'FINAL STANDINGS', fn: () => {
       // (One line for each worm, however many pieces it's in: a scarlet letter on either piece shows, and the money adds up.)
-      const whole = race.worms.filter((w) => !w.pid).map((w) => { const ps = race.worms.filter((o) => o.root === w.idx); return { ...w, half: false, cuts: 0, scarlet: ps.some((o) => o.scarlet), money: ps.reduce((n, o) => n + o.money, 0), gone: ps.every((o) => o.out) }; });
-      const final = whole.sort((a, b) => session.points[b.char] - session.points[a.char]);
+      const whole = race.worms.filter((w) => w.root === w.idx).map((w) => { const ps = race.worms.filter((o) => o.root === w.idx); return { ...w, half: false, cuts: 0, scarlet: ps.some((o) => o.scarlet), money: ps.reduce((n, o) => n + o.money, 0), gone: ps.every((o) => o.out) }; });
+      const final = whole.sort((a, b) => session.points[pk(b)] - session.points[pk(a)]);
       menus.dialog(`<div class="head">${session.cup.name.toUpperCase()}</div><table class="t">${final.map((w, i) =>
-        `<tr class="${mine.has(w.idx) ? 'me' : ''}"><td>${i + 1}${ORD[i]}</td><td>${dot(w)}</td><td>${session.points[w.char]} pts${w.gone ? ' (eaten)' : ''}</td></tr>`).join('')}</table>`,
+        `<tr class="${mine.has(w.idx) ? 'me' : ''}"><td>${i + 1}${ORD[i]}</td><td>${dot(w)}</td><td>${session.points[pk(w)]} pts${w.gone ? ' (eaten)' : ''}</td></tr>`).join('')}</table>`,
       [{ label: 'MAIN MENU', fn: toTitle }]);
     } }]);
   }
@@ -304,12 +307,14 @@ function react(e, mine) {
       const w = G.race.worms[e.idx];
       carry.eaten.add(keyOf(w));
       if (!nest) { nest = new NestView(); nest.onGulp = () => sfx.gulp(); }
-      nest.feed(CHARS[w.char].color);
+      nest.feed(charOf(w).color);
       break;
     }
     case 'cut': sfx.chop(); break;
     case 'paid': sfx.kaching(); break;
     case 'chained': sfx.clank(); break;
+    case 'jab': sfx.jab(); break;
+    case 'newcomer': if (G.race.worms[e.idx].evil) sfx.smash(); break;
     case 'branded': sfx.sizzle(0.2); break;
     case 'monkeygrab': sfx.ook(me ? 0.16 : 0.08); break;
     case 'monkeythrow': sfx.twirl(0.16); break;
@@ -525,7 +530,7 @@ function frame(now, hidden) {
       }
     }
     // (A worm cut in two mid-race needs a model for its new half.)
-    while (G.views.length < G.race.worms.length) { const w = G.race.worms[G.views.length], v = new WormView(CHARS[w.char], G.scene); v.reset(w); G.views.push(v); }
+    while (G.views.length < G.race.worms.length) { const w = G.race.worms[G.views.length], v = new WormView(charOf(w), G.scene); v.reset(w); G.views.push(v); }
     G.race.worms.forEach((w, i) => G.views[i].update(w, clockT, G.race.track));
     G.fx.update(G.race, clockT, dt);
     if (nest) { nest.update(clockT, dt); if (nest.watching) nest.watch(G.race, dt); }
@@ -589,9 +594,9 @@ window.__ws = {
     const r = G.race;
     if (!r.rng) return;
     r.weather.type = 'none';
-    beginEvent(r, r.weather, kind);
+    beginEvent(r, r.weather, kind, target);
     if (kind === 'bird' && target !== undefined) r.weather.bird.target = target;
-    if (['split', 'check', 'brand'].includes(kind) && target !== undefined) r.weather.visit = target;
+    if (['split', 'check', 'brand', 'clone', 'long'].includes(kind) && target !== undefined) r.weather.visit = target;
     return r.weather.type;
   },
   quick(n = 1, track = 0, cpu = true) {

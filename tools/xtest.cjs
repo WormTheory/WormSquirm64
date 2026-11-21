@@ -20,7 +20,7 @@ const { chromium } = require('playwright');
   await ws(() => { const r = window.__ws.race; while (r.clock < 6) r.step(1 / 60); });
   check('the event starts', await ws(() => window.__ws.event('wormx')) === 'wormx');
   await page.waitForTimeout(1300); await shot('entering');
-  await page.waitForTimeout(2600);
+  await page.waitForFunction(() => window.__ws.race.weather.t >= 2.6 || window.__ws.race.weather.type !== 'wormx', null, { timeout: 8000 });
   check('Worm X has joined and is in front', await ws(() => { const r = window.__ws.race, x = r.worms.find((w) => w.char === 8); return r.worms.length === 9 && x && x.rank === 0; }));
   await ws(() => { const r = window.__ws.race, x = r.worms.find((w) => w.char === 8); window.__ws.G.players[0].me = x.idx; window.__ws.G.players[0].cam.pitch = 0.35; });
   await page.waitForTimeout(700); await shot('wormx');

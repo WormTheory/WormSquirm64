@@ -14,4 +14,11 @@ export const CHARS = [
 export const X_CHAR = 8;
 // The worms a player can pick.
 export const PICKABLE = CHARS.filter((c) => !c.secret);
+// What a worm in a race looks like and is called. An evil clone is its original with the colour turned inside out,
+// no accessory, and 'Evil' before the name. (kind: whose victory dance it does.)
+const evils = {};
+export function charOf(w) {
+  if (!w.evil) return CHARS[w.char];
+  return evils[w.char] || (evils[w.char] = { name: 'Evil ' + CHARS[w.char].name, color: 0xffffff ^ CHARS[w.char].color, acc: 'none', kind: w.char });
+}
 export const hex = (c) => '#' + c.toString(16).padStart(6, '0');

@@ -34,11 +34,11 @@ export class Race {
       const loc = locate(this.track, w.x, w.z, -1);
       w.hint = loc.i; w.s = loc.s; w.prog = -3 - 2.2 * i;
       w.ai = r.human ? null : makeAi(this.rng);
-      w.out = !!r.out; w.cuts = r.cuts || (r.half ? 1 : 0); w.half = w.cuts > 0; w.pid = r.pid || ''; w.second = !!w.pid; w.money = r.money || 0; w.scarlet = !!r.scarlet; w.patch = +r.plaster || 0; w.chain = r.chain >= 0 ? r.chain : -1;
+      w.out = !!r.out; w.cuts = r.cuts || (r.half ? 1 : 0); w.half = w.cuts > 0; w.pid = r.pid || ''; w.second = !!w.pid; w.evil = w.pid[0] === 'e'; w.long = r.long || 0; w.money = r.money || 0; w.scarlet = !!r.scarlet; w.patch = +r.plaster || 0; w.chain = r.chain >= 0 ? r.chain : -1;
       return w;
     });
     // The pieces of a worm that's been cut up know which worm they came from.
-    for (const w of this.worms) if (w.pid) { const o = this.worms.find((x) => x.char === w.char && !x.pid); if (o) { w.root = o.idx; w.twin = o.idx; if (o.twin < 0) o.twin = w.idx; } }
+    for (const w of this.worms) if (w.pid && w.pid !== 'e') { const o = this.worms.find((x) => x.char === w.char && x.pid === (w.evil ? 'e' : '')); if (o) { w.root = o.idx; w.twin = o.idx; if (o.twin < 0) o.twin = w.idx; } } // (an evil clone, 'e', is a worm of its own)
     this.order = [...this.worms];
     this.base = this.worms.length; // (how many started: a worm cut in two mid-race adds one)
     this.items = makeItems(this.track);

@@ -65,7 +65,11 @@ python3 -m http.server 8000   # then open http://localhost:8000
   $30.00 (shown on the score screen, and it adds up), or brands one with a scarlet letter A (shown by its name).
   It can chain two worms together, carrying them
   to the same spot first if they're far apart: they can't get further apart than the chain allows, and must dance
-  side by side at the end. All of these last through a cup. And once in a cup a masked stranger, Worm X, joins the race from behind
+  side by side at the end. All of these last through a cup. A syringe can make a worm half as long again (the Long mutation,
+  which adds up), or take what's needed to grow an evil clone of it: a tank of green is lowered onto the road, drains,
+  and out breaks 'Evil' whoever, in the opposite colours, with the same mutations and none of the accessories, to race
+  for itself from then on. When a worm is cut in two, what it was wearing is shared between the pieces.
+  And once in a cup a masked stranger, Worm X, joins the race from behind
   the leader, goes straight past, and stays for the rest of it. (A bird that takes a chained worm takes its partner
   too, and every bite from the were-wolf-worm adds another plaster.) And a monkey gathers up every worm, leader first, then throws the lot in
   the air to land where they may.
@@ -115,6 +119,8 @@ letter carry over.
 
 `tools/chaintest.cjs` chains two worms in a cup and checks they stay chained into the next race;
 `node tools/chainstats.mjs` measures how well chains hold over a dozen races.
+
+`tools/mutanttest.cjs` checks the evil clone, the Long mutation and the sharing-out of accessories.
 
 `tools/xtest.cjs` checks Worm X, the monkey's entrance and a bird taking a chained pair.
 

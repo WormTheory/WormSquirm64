@@ -103,7 +103,8 @@ const VICTORY = [
 
 export class WormView {
   constructor(char, scene) {
-    this.kind = Math.max(0, CHARS.indexOf(char));
+    this.kind = char.kind !== undefined ? char.kind : Math.max(0, CHARS.indexOf(char));
+    this.n = SEGS;
     const lam = (color) => new THREE.MeshLambertMaterial({ color, flatShading: true });
     const base = new THREE.Color(char.color);
     const mats = [lam(base), lam(base.clone().multiplyScalar(0.82)), lam(base.clone().lerp(new THREE.Color(0xffffff), 0.35))];
@@ -132,6 +133,7 @@ export class WormView {
         accG.scale.setScalar(1 / r);
         accessory(char.acc, accG, lam);
         m.add(accG);
+        this.accG = accG;
         // What the blood moon gives it: ears, a snout with fangs, and a clawed paw each side. Hidden until then.
         const kit = this.wolfKit = new THREE.Group(), fur = lam(0x2e2420), bone = lam(0xf4f0e0);
         const put = (geo, mat, x, y, z, rx = 0, rz = 0) => { const p = new THREE.Mesh(geo, mat); p.position.set(x, y, z); p.rotation.set(rx, 0, rz); kit.add(p); };
@@ -146,6 +148,7 @@ export class WormView {
         m.add(kit);
       } else {
         m = new THREE.Mesh(BALL, mats[i === 3 ? 2 : i % 2]);
+        m.userData.body = true;
         // The plasters the hand sticks on a bitten worm: one more each time, each in a place of its own.
         PLASTER_AT.forEach(([seg, round], k) => {
           if (seg !== i) return;
@@ -190,24 +193,50 @@ export class WormView {
   }
 
   // Lays the body out in a straight line behind the head.
+  // Makes the model match the worm: as long as its mutations have made it (half as long again for each), and bare
+  // of its hat if it's a piece that was cut off, or a clone.
+  fit(w) {
+    this.accG.visible = !w.second;
+    const n = Math.min(64, Math.round(SEGS * 1.5 ** (w.long || 0)));
+    if (n <= this.n) return;
+    // New balls go in ahead of the two small ones at the tail, each starting where the tail is.
+    const px = new Float32Array(n), pz = new Float32Array(n), old = this.n, tx = this.px[old - 1], tz = this.pz[old - 1];
+    for (let i = 0; i < n; i++) { const from = i < old - 2 ? i : i >= n - 2 ? i - (n - old) : -1; px[i] = from < 0 ? tx : this.px[from]; pz[i] = from < 0 ? tz : this.pz[from]; }
+    for (let k = old; k < n; k++) {
+      const at = this.meshes.length - 2, m = new THREE.Mesh(BALL, this.mats[at % 2]), sh = new THREE.Mesh(DISC, SHADOW);
+      sh.rotation.x = -Math.PI / 2;
+      this.group.add(m, sh);
+      this.meshes.splice(at, 0, m); this.shadows.splice(at, 0, sh);
+    }
+    // (Laid out in a line on from where the old body stopped, so a worm lengthened while it's lying still isn't in a heap.)
+    { let dx = px[old - 3] - px[Math.max(0, old - 4)], dz = pz[old - 3] - pz[Math.max(0, old - 4)]; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l; if (l === 1 && !dx && !dz) dz = -1;
+      for (let i = old - 2; i < n; i++) { px[i] = px[i - 1] + dx * GAP; pz[i] = pz[i - 1] + dz * GAP; } }
+    this.px = px; this.pz = pz; this.n = n;
+    // Sizes: the body as before, tapering over the first few balls and then holding, with the same two small ones last.
+    this.rad = [];
+    for (let i = 0; i < n; i++) { const b = i < n - 2 ? Math.min(i, 7) : i - (n - SEGS); this.rad.push(0.46 * (b === 0 ? 1.08 : 1 - 0.03 * b) * (b >= SEGS - 2 ? 0.8 - 0.2 * (b - SEGS + 2) : 1)); }
+  }
+
   // Shows the first n plasters, each turned to lie across the body where its ball is (the balls themselves don't turn).
   showPlasters(n) {
     this.plasters.forEach((p, k) => {
       p.visible = k < n;
       if (!p.visible) return;
-      const seg = p.userData.seg, f = this.meshes[seg - 1].position, b = this.meshes[Math.min(SEGS - 1, seg + 1)].position;
+      const seg = p.userData.seg, f = this.meshes[seg - 1].position, b = this.meshes[Math.min(this.n - 1, seg + 1)].position;
       p.rotation.y = Math.atan2(f.x - b.x, f.z - b.z);
     });
   }
 
   reset(w) {
+    this.fit(w);
     this.at = ANIM; this.hopT = 0; this.seen = w.count; this.act = null; this.hopMul = 1; this.lastT = null;
     this.taps = w.taps; this.tw = 0; this.hurts = w.hurts || 0; this.flash = 0; this.winT = 0;
-    for (let i = 0; i < SEGS; i++) { this.px[i] = w.x - Math.sin(w.aim) * GAP * i; this.pz[i] = w.z - Math.cos(w.aim) * GAP * i; }
+    for (let i = 0; i < this.n; i++) { this.px[i] = w.x - Math.sin(w.aim) * GAP * i; this.pz[i] = w.z - Math.cos(w.aim) * GAP * i; }
   }
 
   // A worm that has finished stops where it is and does its own victory dance until the race ends.
   celebrate(w, time) {
+    this.fit(w);
     const dt = this.lastT === null ? 0 : Math.min(0.1, Math.max(0, time - this.lastT));
     this.lastT = time; this.winT += dt;
     for (const m of this.mats) m.emissive.setRGB(0, 0, 0);
@@ -219,7 +248,7 @@ export class WormView {
     this.wolfKit.visible = false; this.showPlasters(w.patch); this.meshes[0].rotation.x = 0; this.meshes[0].rotation.z = 0;
     const pose = VICTORY[this.kind] || VICTORY[2], small = Math.max(0.2, 0.62 ** (w.cuts || 0));
     let hx = 0, hz = 1;
-    for (let i = 0; i < SEGS; i++) {
+    for (let i = 0; i < this.n; i++) {
       // (A piece of a worm dances the same dance at its own size.)
       const [x0, y0, z0] = pose(i, this.winT, this.rad[i]), m = this.meshes[i], sh = this.shadows[i], x = x0 * small, y = y0 * small, z = z0 * small;
       m.position.set(w.x + x, y, w.z + z); m.scale.setScalar(this.rad[i] * small);
@@ -237,6 +266,7 @@ export class WormView {
     this.group.visible = !w.out;
     if (w.out) return;
     if (w.finished) return this.celebrate(w, time);
+    this.fit(w);
     // (A were-wolf-worm is bigger. While it's changing, to or from, it flickers between the two.)
     const wolf = w.wolf > 0 ? !(w.howl > 0) || Math.floor(time * 14) % 2 === 0 : w.howl > 0 && Math.floor(time * 14) % 2 === 0;
     const small = (w.shrunk > 0 ? 0.55 : 1) * (wolf ? 1.3 : 1) * (w.giant > 0 ? 1.9 : 1) * Math.max(0.2, 0.62 ** (w.cuts || 0)), flat = w.flat > 0 || (w.fall > 0 && w.dead), gap = GAP * small;
@@ -248,7 +278,7 @@ export class WormView {
     let held = false, onBack = false, rear = false, hx = back ? back.x : 0, hz = back ? back.z : 0;
     const px = this.px, pz = this.pz;
     px[0] = w.x; pz[0] = w.z;
-    for (let i = 1; i < SEGS; i++) {
+    for (let i = 1; i < this.n; i++) {
       let dx = px[i] - px[i - 1], dz = pz[i] - pz[i - 1], l = Math.hypot(dx, dz);
       if (l < 1e-5) { dx = 0; dz = -1; l = 1; }
       px[i] = px[i - 1] + (dx / l) * gap; pz[i] = pz[i - 1] + (dz / l) * gap;
@@ -287,7 +317,7 @@ export class WormView {
     }
     const on = this.at < ANIM && this.act, st = on ? STYLES[this.act] : null, u = on ? this.at / ANIM : 0;
     const env = on ? Math.sin(Math.PI * u) : 0, hopMul = this.hopMul;
-    for (let i = 0; i < SEGS; i++) {
+    for (let i = 0; i < this.n; i++) {
       const a = Math.max(i, 1);
       let dx = px[a - 1] - px[a], dz = pz[a - 1] - pz[a];
       const l = Math.hypot(dx, dz) || 1;
@@ -342,7 +372,7 @@ export class WormView {
     this.bubble.visible = w.shield > 0 && !(w.fall > 0);
     if (this.bubble.visible) { const c = this.meshes[2].position; this.bubble.position.set(c.x, c.y + 0.2, c.z); this.bubble.scale.setScalar(1.75 * small * (1 + 0.04 * Math.sin(time * 6))); }
     const mode = w.fall > 0 || w.lift > 0 ? null : w.stun > 0 ? 'stun' : w.star > 0 ? 'star' : w.boost > 0 ? 'boost' : null;
-    const head = this.meshes[0].position, mid = this.meshes[4].position, tail = this.meshes[SEGS - 1].position, prev = this.meshes[SEGS - 2].position;
+    const head = this.meshes[0].position, mid = this.meshes[4].position, tail = this.meshes[this.n - 1].position, prev = this.meshes[this.n - 2].position;
     this.aura.forEach((m, k) => {
       m.visible = !!mode;
       if (!mode) return;

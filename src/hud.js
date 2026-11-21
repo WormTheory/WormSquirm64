@@ -2,7 +2,7 @@
 // the minimap. It's all painted onto one small canvas (a half or a third the size of the screen)
 // and stretched without smoothing, so it comes out in chunky pixels like the picture beneath it.
 // The menus, which are ordinary page elements, are copied onto the same canvas (dompaint.js).
-import { CHARS, hex } from './characters.js';
+import { charOf, hex } from './characters.js';
 import { uiPx } from './settings.js';
 import { ITEM_NAMES } from './sim/items.js';
 import { chosen } from './sim/events.js';
@@ -11,7 +11,7 @@ import { chosen } from './sim/events.js';
 export const FRACTION = ['', '\u00bd', '\u00bc', '\u215b', '1/16', '1/32', '1/64', '1/128'];
 
 const EVENT_WORDS = { rain: 'RAIN!', heat: 'HEATWAVE!', bird: 'BIRD!', stomp: 'LOOK OUT!', moon: 'BLOOD MOON!', twister: 'TORNADO!', quake: 'EARTHQUAKE!', frost: 'FROST!', hail: 'HAIL!', dizzy: 'MIX-UP! TURN ROUND!',
-  split: 'SPLIT!', check: 'CHECK FOR $30.00!', brand: 'SCARLET LETTER!', monkey: 'MONKEY M-M-M-MADNESS!', chain: 'CHAIN!', wormx: 'WORM X!' };
+  split: 'SPLIT!', check: 'CHECK FOR $30.00!', brand: 'SCARLET LETTER!', monkey: 'MONKEY M-M-M-MADNESS!', chain: 'CHAIN!', wormx: 'WORM X!', clone: 'EVIL CLONE!', long: 'LONG!' };
 const EVENT_TINT = { rain: 'rgba(20,40,90,.16)', heat: 'rgba(255,110,0,.22)', moon: 'rgba(170,0,10,.3)', frost: 'rgba(190,225,255,.22)', twister: 'rgba(60,60,70,.14)', hail: 'rgba(70,90,120,.16)', dizzy: 'rgba(150,40,200,.2)' };
 
 export const CSS = `
@@ -143,7 +143,11 @@ export class PlayerHud {
 
     // A player whose worm the bird took has no race to follow: their part of the screen shows the nest.
     if (w.out) {
-      text('EATEN', X + W / 2, bottom - Math.max(12, m * 0.08), Math.max(12, m * 0.08), fade(bottom - m * 0.08, m * 0.08, '#fff36a', '#ff5a1c'), 'center');
+      // (For a spectator it says whose end this was: 'WATCHING' and the name, where it always is, with EATEN above it.)
+      const ws = this.watching ? Math.max(9, m * 0.04) : 0, es = Math.max(12, m * 0.08);
+      text('EATEN', X + W / 2, bottom - es - ws * 1.4, es, fade(bottom - es - ws * 1.4, es, '#fff36a', '#ff5a1c'), 'center');
+      if (this.watching) text('WATCHING ' + charOf(w).name.toUpperCase(), X + W / 2, bottom - ws, ws, '#fff', 'center');
+      this.rows = []; this.autoBox = null;
       border(); c.restore();
       return;
     }
@@ -173,7 +177,7 @@ export class PlayerHud {
     strokeTrack(c, race.track, f, ms, mx, my);
     for (const o of [...race.worms].sort((a, b) => (a.idx === me) - (b.idx === me))) {
       c.beginPath(); c.arc(mx + o.x * f.k + f.ox, my + o.z * f.k + f.oz, Math.max(1.5, ms * (o.idx === me ? 0.045 : 0.03)), 0, 7);
-      c.fillStyle = hex(CHARS[o.char].color); c.fill(); c.lineWidth = 1; c.strokeStyle = o.idx === me ? '#fff' : '#000'; c.stroke();
+      c.fillStyle = hex(charOf(o).color); c.fill(); c.lineWidth = 1; c.strokeStyle = o.idx === me ? '#fff' : '#000'; c.stroke();
     }
 
     // The running order, down the left.
@@ -196,10 +200,10 @@ export class PlayerHud {
         this.rows.push([o.idx, left, oy - os * 0.2, Math.max(60, W * 0.3), os * 1.4]);
         c.beginPath(); c.arc(left + os * 0.5, oy + os * 0.55, os * 0.5, 0, 7);
         // (A worm the bird has eaten stays in the list, greyed out.)
-        c.fillStyle = o.out ? '#5a5e66' : hex(CHARS[o.char].color); c.fill(); c.lineWidth = 1; c.strokeStyle = '#000'; c.stroke();
+        c.fillStyle = o.out ? '#5a5e66' : hex(charOf(o).color); c.fill(); c.lineWidth = 1; c.strokeStyle = '#000'; c.stroke();
         // (A branded worm has its scarlet A before its name; half a worm is marked as one.)
         const ax = o.scarlet ? text('A ', left + os * 1.4, oy, os, o.out ? '#8a5a5a' : '#f02020') : 0;
-        const nx = left + os * 1.4 + ax + text(CHARS[o.char].name + (o.cuts ? ' ' + FRACTION[o.cuts] : ''), left + os * 1.4 + ax, oy, os, o.out ? '#8a8e96' : o.idx === me ? '#ffe24a' : '#fff');
+        const nx = left + os * 1.4 + ax + text(charOf(o).name + (o.cuts ? ' ' + FRACTION[o.cuts] : ''), left + os * 1.4 + ax, oy, os, o.out ? '#8a8e96' : o.idx === me ? '#ffe24a' : '#fff');
         // The worm an event has picked out gets a flashing red triangle pointing at its name, for as long as the event lasts.
         if (marked.includes(o.idx) && flash) {
           const tx = Math.round(nx + os * 0.5), ty = oy + os * 0.55;
@@ -209,7 +213,7 @@ export class PlayerHud {
       });
     }
 
-    if (this.watching) text('WATCHING ' + CHARS[w.char].name.toUpperCase(), X + W / 2, bottom - Math.max(9, m * 0.04), Math.max(9, m * 0.04), '#fff', 'center');
+    if (this.watching) text('WATCHING ' + charOf(w).name.toUpperCase(), X + W / 2, bottom - Math.max(9, m * 0.04), Math.max(9, m * 0.04), '#fff', 'center');
 
     // Place, bottom left.
     const ps = Math.max(26, m * 0.17), py = bottom - ps;

@@ -3,7 +3,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { canvasTex } from './view.js';
 import { centreNear } from './sim/track.js';
-import { FALL_TIME, DEAD_TIME, DROP_PART, OUT_TIME, LIE_PART, BITE_TIME, BITE_LIE, PLASTER_PART, PAT_END, CHAIN, MONKEY, HAIL, VISIT, carried } from './sim/events.js';
+import { FALL_TIME, DEAD_TIME, DROP_PART, OUT_TIME, LIE_PART, BITE_TIME, BITE_LIE, PLASTER_PART, PAT_END, CHAIN, MONKEY, CLONE, HAIL, VISIT, carried } from './sim/events.js';
 
 const lam = (color, o) => new THREE.MeshLambertMaterial({ color, flatShading: true, ...o });
 const RAIN_BOX = 26;
@@ -78,8 +78,19 @@ function makeVisitor() {
   // (And a length of chain, dangling.)
   const chain = new THREE.Group();
   for (let i = 0; i < 6; i++) { const l = new THREE.Mesh(new THREE.BoxGeometry(i % 2 ? 0.12 : 0.34, 0.42, i % 2 ? 0.34 : 0.12), lam(0x8a8e98)); l.position.set(0, -0.9 - i * 0.36, 0.35); chain.add(l); }
-  g.add(knife, check, iron, chain);
-  g.userData.props = { split: knife, check, brand: iron, chain };
+  // (And a syringe, for taking a worm's makings or for putting something in: clear with green in it for one, purple for the other.)
+  const syringe = (juice) => {
+    const s = new THREE.Group();
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 1.7, 7), lam(0xe8f4f8, { transparent: true, opacity: 0.55 })); barrel.position.set(0, -1.6, 0.35);
+    const fill = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 1, 7), new THREE.MeshBasicMaterial({ color: juice })); fill.position.set(0, -1.9, 0.35);
+    const needle = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.02, 1.2, 4), lam(0xc8ccd4)); needle.position.set(0, -3.0, 0.35);
+    const plunger = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.12, 7), lam(0x30343c)); plunger.position.set(0, -0.7, 0.35);
+    s.add(barrel, fill, needle, plunger);
+    return s;
+  };
+  const dna = syringe(0x40ff60), growth = syringe(0xb050f0);
+  g.add(knife, check, iron, chain, dna, growth);
+  g.userData.props = { split: knife, check, brand: iron, chain, clone: dna, long: growth };
   g.visible = false;
   return g;
 }
@@ -114,6 +125,23 @@ export class FxView {
     this.dropGeo = new THREE.BoxGeometry(0.22, 0.22, 0.22); this.poolGeo = new THREE.CircleGeometry(1, 11);
     this.bloodMat = new THREE.MeshBasicMaterial({ color: 0xc01010 });
     this.hands = race.worms.map(() => null); // one hand per worm, made the first time it's needed
+    const ball = new THREE.IcosahedronGeometry(1, 0);
+    // The evil clone's tank: a glass tube of glowing green on a dark base, a shape of a worm inside, and a hand to
+    // lower it. Its glass flies when it breaks.
+    {
+      const t = this.tank = new THREE.Group(), dark = lam(0x2a2e38);
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.4, 0.5, 10), dark); base.position.y = 0.25;
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.1, 0.4, 10), dark); cap.position.y = 4.1;
+      const glass = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 3.4, 12, 1, true), new THREE.MeshLambertMaterial({ color: 0xc8ffd8, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false })); glass.position.y = 2.2;
+      const fluid = this.tankFluid = new THREE.Mesh(new THREE.CylinderGeometry(1.02, 1.02, 3.4, 12), new THREE.MeshBasicMaterial({ color: 0x38ff58, transparent: true, opacity: 0.6, depthWrite: false }));
+      const inside = new THREE.Group();
+      for (let i = 0; i < 6; i++) { const b = new THREE.Mesh(ball, new THREE.MeshBasicMaterial({ color: 0x0c3a18 })); b.scale.setScalar(0.34 - i * 0.025); b.position.set(0.18 * Math.sin(i * 1.3), 3.3 - i * 0.48, 0.12 * Math.cos(i * 1.7)); inside.add(b); }
+      const hand = this.tankHand = makeHand(); hand.userData.jug.visible = false; hand.userData.water.visible = false; hand.userData.plaster.visible = false; hand.position.set(0, 6.1, -0.3);
+      t.add(base, cap, inside, fluid, glass, hand);
+      t.visible = false; scene.add(t);
+      this.tankBroke = false;
+      this.glassMat = new THREE.MeshBasicMaterial({ color: 0xc8ffe0 });
+    }
     // Chains between worms: links are made as they're needed and shared out each frame.
     this.links = []; this.linkGeo = new THREE.BoxGeometry(0.16, 0.16, 0.42); this.linkMat = lam(0x8a8e98);
     // Item boxes: a spinning cube with a question mark on it.
@@ -126,7 +154,6 @@ export class FxView {
     const boxMat = new THREE.MeshLambertMaterial({ map: tex, transparent: true, opacity: 0.9 }), boxGeo = new THREE.BoxGeometry(1.2, 1.2, 1.2);
     this.boxes = race.items.boxes.map((b) => { const m = new THREE.Mesh(boxGeo, boxMat); m.position.set(b.x, 1, b.z); scene.add(m); return m; });
     // What items leave lying or flying about. Models are made as they're needed and kept for next time.
-    const ball = new THREE.IcosahedronGeometry(1, 0);
     this.make = {
       peel: () => { const m = new THREE.Mesh(new THREE.ConeGeometry(0.55, 0.3, 5), lam(0xf0d830)); m.position.y = 0.15; return m; },
       pebble: () => { const m = new THREE.Mesh(ball, lam(0x9a9aa4)); m.scale.setScalar(0.36); m.position.y = 0.4; return m; },
@@ -239,6 +266,29 @@ export class FxView {
     const ch = race.weather.type === 'chain' ? race.weather.chain : null, ca = ch && race.worms[ch.a], cb = ch && race.worms[ch.b];
     const visit = ca && cb ? (race.weather.t >= ch.t0 ? { x: (ca.x + cb.x) / 2, z: (ca.z + cb.z) / 2 } : null) : race.worms[race.weather.visit], V = this.visitor;
     V.visible = !!visit;
+    // The clone's tank: lowered, drained, broken.
+    const cl = race.weather.type === 'clone' ? race.weather.clone : null, T = this.tank;
+    if (cl && race.weather.t >= CLONE.down[0] && race.weather.t < CLONE.out) {
+      const t = race.weather.t, down = Math.min(1, (t - CLONE.down[0]) / (CLONE.down[1] - CLONE.down[0])), drained = Math.max(0, Math.min(1, (t - CLONE.drain[0]) / (CLONE.drain[1] - CLONE.drain[0])));
+      T.visible = true; this.tankBroke = false;
+      T.position.set(cl.x, 34 * (1 - down) ** 2, cl.z);
+      // (The hand lets go once it's down, and the fluid runs out of the bottom; near the end the tank shakes.)
+      this.tankHand.position.y = 6.1 + Math.max(0, t - CLONE.down[1]) * 26;
+      this.tankFluid.scale.y = Math.max(0.02, 1 - drained); this.tankFluid.position.y = 0.5 + 1.7 * this.tankFluid.scale.y;
+      if (t > CLONE.drain[1] - 0.5) T.position.x += 0.08 * Math.sin(time * 70);
+    } else {
+      if (T.visible && cl && !this.tankBroke) {
+        // Out it comes: glass everywhere.
+        this.tankBroke = true;
+        for (let i = 0; i < 22; i++) {
+          const m = new THREE.Mesh(this.dropGeo, this.glassMat), a = Math.random() * Math.PI * 2, v = 3 + Math.random() * 6;
+          m.position.set(cl.x + Math.cos(a) * 1.1, 0.8 + Math.random() * 3, cl.z + Math.sin(a) * 1.1); m.scale.set(1.6, 0.4, 2.2); m.rotation.set(Math.random() * 3, Math.random() * 3, 0);
+          this.scene.add(m);
+          this.drops.push({ m, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: 2 + Math.random() * 5 });
+        }
+      }
+      T.visible = false;
+    }
     // Every chain: a sagging row of links from one worm's neck to the other's.
     let nl = 0;
     for (const a of race.worms) {

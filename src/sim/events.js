@@ -21,7 +21,7 @@ import { stun, popped } from './items.js';
 import { makeAi } from './ai.js';
 import { makeWorm } from './worm.js';
 
-export const EVENT_KINDS = ['none', 'rain', 'heat', 'bird', 'stomp', 'moon', 'twister', 'quake', 'frost', 'hail', 'dizzy', 'split', 'check', 'brand', 'monkey', 'chain', 'wormx'];
+export const EVENT_KINDS = ['none', 'rain', 'heat', 'bird', 'stomp', 'moon', 'twister', 'quake', 'frost', 'hail', 'dizzy', 'split', 'check', 'brand', 'monkey', 'chain', 'wormx', 'clone', 'long'];
 // The three things the hand does to one worm: seconds for the whole visit, and when in it the deed is done.
 export const VISIT = { len: 4, at: 1.7 };
 export const MAX_WORMS = 16;
@@ -42,12 +42,20 @@ const STEP_EVERY = 0.75, FOOT_R = 5;
 // kinds: which events may happen (all of them if not given).
 export function makeEvents(race, on, freq = 5, kinds = null) {
   const wait = 5 / Math.max(1, Math.min(10, freq));
-  const may = ['rain', 'heat', 'stomp', 'moon', 'bird', 'twister', 'quake', 'frost', 'hail', 'dizzy', 'split', 'check', 'brand', 'monkey', 'chain', 'wormx'].filter((k) => !kinds || kinds.includes(k)); // (each as likely as the next)
-  return { on, wait, may, twister: null, monkey: null, chain: null, xin: null, visit: -1, type: 'none', t: 0, next: on && may.length ? race.rng.range(8, 14) * wait : Infinity, bird: null, stomp: null, wolf: -1 };
+  const may = ['rain', 'heat', 'stomp', 'moon', 'bird', 'twister', 'quake', 'frost', 'hail', 'dizzy', 'split', 'check', 'brand', 'monkey', 'chain', 'wormx', 'clone', 'long'].filter((k) => !kinds || kinds.includes(k)); // (each as likely as the next)
+  return { on, wait, may, twister: null, monkey: null, chain: null, xin: null, clone: null, visit: -1, type: 'none', t: 0, next: on && may.length ? race.rng.range(8, 14) * wait : Infinity, bird: null, stomp: null, wolf: -1 };
 }
 
 // The worms the hand may call on for a visit (the knife will cut a piece of a worm again, into quarters and eighths, while there's room for more worms).
-const visitable = (race, kind, live) => live.filter((w) => !(w.fall > 0) && !(w.lift > 0) && (kind !== 'split' || (w.cuts < 7 && race.worms.length < MAX_WORMS)) && !(kind === 'brand' && w.scarlet));
+const visitable = (race, kind, live) => live.filter((w) => !(w.fall > 0) && !(w.lift > 0) && (kind !== 'split' || (w.cuts < 7 && race.worms.length < MAX_WORMS)) && !(kind === 'brand' && w.scarlet)
+  && !(kind === 'long' && w.long >= LONG_MOST)
+  // (A worm is cloned once, and its clone never.)
+  && !(kind === 'clone' && (w.evil || race.worms.length >= MAX_WORMS || race.worms.some((o) => o.evil && o.char === w.char))));
+// The events that are a hand calling on one worm.
+export const VISITS = ['split', 'check', 'brand', 'clone', 'long'];
+// The most times a worm can be lengthened. And the evil clone's tank: when it's lowered, when its fluid drains, when
+// the clone breaks out, and when it's all over.
+export const LONG_MOST = 4, CLONE = { down: [2, 3.2], drain: [3.2, 4.5], out: 4.6, len: 5.6 };
 
 // An event is settled on a moment before it starts (OMEN seconds), along with the worm it's coming for, if it's
 // that sort. Nothing shows yet; it's so that anyone just watching can be looking at the right worm when it happens.
@@ -60,7 +68,7 @@ const chainable = (live) => live.filter((w) => !(w.fall > 0) && !(w.lift > 0) &&
 function foresee(race, ev) {
   const rng = race.rng, live = race.worms.filter((w) => !w.out && !w.finished), kind = rng.pick(ev.may);
   let idx = -1;
-  if (kind === 'split' || kind === 'check' || kind === 'brand') { const able = visitable(race, kind, live); if (able.length) idx = rng.pick(able).idx; }
+  if (VISITS.includes(kind)) { const able = visitable(race, kind, live); if (able.length) idx = rng.pick(able).idx; }
   else if ((kind === 'bird' || kind === 'moon') && live.length >= 2) idx = rng.pick(live).idx;
   else if (kind === 'chain') { const able = chainable(live); if (able.length >= 2) idx = rng.pick(able).idx; }
   ev.omen = { kind, idx };
@@ -80,7 +88,9 @@ export function chosen(race) {
 
 // Worm X's entrance: he's run up the road past the leader, from well behind to just ahead, whatever the leader does.
 function enterX(race, ev) {
-  const x = ev.xin, w = race.worms[x.idx], lead = race.worms[x.lead], tr = race.track, L = tr.length;
+  // (Whoever is leading at each moment, should the lead change hands while he's on his way.)
+  const x = ev.xin, w = race.worms[x.idx], tr = race.track, L = tr.length;
+  const lead = race.worms.filter((o) => o !== w && !o.out && !o.finished).reduce((a, b) => (!a || b.prog > a.prog ? b : a), null) || race.worms[x.lead];
   const u = Math.min(1, ev.t / XIN.run), e = u * u * (3 - 2 * u), off = -XIN.back + (XIN.back + XIN.ahead) * e;
   const p = pointAt(tr, lead.s + off, x.side * tr.hw * 0.5), l = locate(tr, p.x, p.z, -1);
   w.x = p.x; w.z = p.z; w.s = l.s; w.hint = l.i; w.prog = lead.prog + off;
@@ -88,11 +98,11 @@ function enterX(race, ev) {
   w.look = w.aim = Math.atan2(l.tx, l.tz); w.hold = 0.2; w.spasm = null; w.queued = null; w.boost = 0.3;
 }
 
-// (kind can be given, to start a particular event: the tests do.)
-export function begin(race, ev, force) {
+// (kind can be given, to start a particular event, and the worm it's to pick on: the tests do.)
+export function begin(race, ev, force, target) {
   const rng = race.rng, tr = race.track, live = race.worms.filter((w) => !w.out && !w.finished);
   // (What was foreseen happens, to the worm foreseen if it's still there to be had.)
-  const omen = !force && ev.omen ? ev.omen : null, pick = (able) => (omen && able.find((w) => w.idx === omen.idx)) || rng.pick(able);
+  const omen = !force && ev.omen ? ev.omen : force && target !== undefined ? { kind: force, idx: target } : null, pick = (able) => (omen && able.find((w) => w.idx === omen.idx)) || rng.pick(able);
   ev.omen = null;
   let kind = force || (omen ? omen.kind : rng.pick(ev.may));
   // (A wolf needs someone to hunt, and the bird always leaves someone to race: failing that, whatever else is allowed, or nothing.)
@@ -111,11 +121,16 @@ export function begin(race, ev, force) {
   } else if (kind === 'quake') { ev.len = rng.range(6, 8); ev.shake = 0.6; }
   else if (kind === 'frost') ev.len = rng.range(9, 12);
   else if (kind === 'hail') { ev.len = rng.range(8, 10); ev.hail = []; ev.nextStone = 0.4; }
-  else if (kind === 'split' || kind === 'check' || kind === 'brand') {
+  else if (VISITS.includes(kind)) {
     // The hand picks a worm that's free to be bothered.
     const able = visitable(race, kind, live);
     if (!able.length) { ev.type = 'none'; ev.next = rng.range(2, 5); return; } // (nobody suitable: try something else shortly)
     ev.visit = pick(able).idx; ev.done = false; ev.len = VISIT.len;
+    if (kind === 'clone') {
+      // The tank comes down on the road a little way ahead of the worm it's copying, nearer the middle.
+      const a = race.worms[ev.visit], l = locate(tr, a.x, a.z, a.hint), p = pointAt(tr, l.s + 3.5, l.lat > 0 ? l.lat - 2.6 : l.lat + 2.6);
+      ev.clone = { x: p.x, z: p.z, made: false }; ev.len = CLONE.len;
+    }
   } else if (kind === 'wormx') {
     // A stranger joins the race, once: he comes up from behind the leader and goes straight past.
     if (!live.length || race.worms.length >= MAX_WORMS || race.worms.some((w) => w.char === X_CHAR)) { ev.type = 'none'; ev.next = rng.range(2, 5); return; }
@@ -239,19 +254,46 @@ export function stepEvents(race, dt) {
       race.events.push({ type: 'tremor' });
       for (const w of live) if (!w.finished && !(w.star > 0) && rng() < 0.4) { w.stun = Math.max(w.stun, rng.range(0.8, 1.6)); w.spasm = null; race.events.push({ type: 'hit', idx: w.idx }); }
     }
-  } else if (ev.type === 'split' || ev.type === 'check' || ev.type === 'brand') {
+  } else if (VISITS.includes(ev.type)) {
     const w = race.worms[ev.visit];
+    if (ev.clone && !ev.clone.made && ev.t >= CLONE.out) {
+      // The glass breaks and the evil clone is loose: the same worm, mutations and all, without the trimmings.
+      ev.clone.made = true;
+      if (w && race.worms.length < MAX_WORMS) {
+        const tr = race.track, L = tr.length, e = makeWorm(race.worms.length, w.char, false, ev.clone.x, ev.clone.z), l = locate(tr, e.x, e.z, -1);
+        let ds = l.s - w.s;
+        if (ds > L / 2) ds -= L; else if (ds < -L / 2) ds += L;
+        e.ai = makeAi(rng); e.evil = true; e.pid = 'e'; e.second = true; e.long = w.long;
+        e.s = l.s; e.hint = l.i; e.prog = w.prog + ds; e.lap = Math.max(1, Math.min(race.laps, Math.floor(e.prog / L) + 1));
+        e.look = e.aim = Math.atan2(l.tx, l.tz); e.stun = 0.7; e.rank = race.worms.length;
+        race.worms.push(e);
+        race.events.push({ type: 'newcomer', idx: e.idx });
+      }
+    }
     if (w && !w.out && !ev.done) {
       if (ev.t < VISIT.at) { w.hold = 0.2; w.spasm = null; } // it's kept still until the deed is done
       else {
         ev.done = true;
         if (ev.type === 'check') { w.money += 30; race.events.push({ type: 'paid', idx: w.idx }); }
         else if (ev.type === 'brand') { w.scarlet = true; w.hurts++; race.events.push({ type: 'branded', idx: w.idx }); }
+        else if (ev.type === 'long') { w.long++; w.hurts++; race.events.push({ type: 'jab', idx: w.idx }); }
+        else if (ev.type === 'clone') { w.hurts++; race.events.push({ type: 'jab', idx: w.idx }); }
         else {
           // Cut in two: the worm becomes the front half, and a new worm, a copy of it in every way that matters, the back.
           // (Half a worm cut again makes two quarters, and so on down.)
           w.cuts++;
-          const l = locate(race.track, w.x, w.z, w.hint), t = { ...w, idx: race.worms.length, tired: {}, spasm: null, queued: null, ai: w.ai ? makeAi(rng) : null, wash: null, spring: null, spin: null, slide: null, second: true, pid: w.pid + String(w.cuts), from: w.idx, chain: -1 }; // (a chain stays on the front piece)
+          const l = locate(race.track, w.x, w.z, w.hint), t = { ...w, idx: race.worms.length, tired: {}, spasm: null, queued: null, ai: w.ai ? makeAi(rng) : null, wash: null, spring: null, spin: null, slide: null, second: true, pid: w.pid + String(w.cuts), from: w.idx, chain: -1 };
+          // What it was wearing is shared out: the chain, the letter and the plasters, in that order, the front
+          // piece taking the first half of them and the back piece the rest. Its money is split too.
+          {
+            const mate = race.worms[w.chain], things = [...(mate ? ['chain'] : []), ...(w.scarlet ? ['letter'] : []), ...Array(w.patch).fill('plaster')];
+            const back = things.slice(Math.ceil(things.length / 2));
+            t.scarlet = back.includes('letter'); t.patch = back.filter((k) => k === 'plaster').length;
+            if (t.scarlet) w.scarlet = false;
+            w.patch -= t.patch;
+            if (back.includes('chain')) { t.chain = mate.idx; mate.chain = t.idx; w.chain = -1; }
+            t.money = Math.floor(w.money / 2); w.money -= t.money;
+          }
           w.half = t.half = true; w.twin = t.idx; t.twin = w.idx;
           w.x += l.tx * 0.9; w.z += l.tz * 0.9; t.x -= l.tx * 1.1; t.z -= l.tz * 1.1;
           w.stun = t.stun = 0.9; w.hurts++; t.hurts++;
@@ -424,7 +466,7 @@ export function stepEvents(race, dt) {
   }
   if (ev.t >= ev.len) {
     if (race.worms[ev.wolf]) race.worms[ev.wolf].wolf = 0;
-    ev.type = 'none'; ev.bird = null; ev.stomp = null; ev.wolf = -1; ev.twister = null; ev.hail = null; ev.visit = -1; ev.chain = null; ev.xin = null;
+    ev.type = 'none'; ev.bird = null; ev.stomp = null; ev.wolf = -1; ev.twister = null; ev.hail = null; ev.visit = -1; ev.chain = null; ev.xin = null; ev.clone = null;
     if (ev.monkey) { for (const i of ev.monkey.held) { const w = race.worms[i]; if (w.lift > 0 || w.toss) { w.lift = 0; w.toss = null; } } ev.monkey = null; }
     for (const w of race.worms) { w.slide = null; w.wasSpasm = null; }
     ev.next = ev.on ? rng.range(GAP[0], GAP[1]) * ev.wait : Infinity; // (an event started by hand with events off isn't followed by more)
