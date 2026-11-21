@@ -19,7 +19,7 @@ import { Ceremony } from './ceremony.js';
 import { settings, allowedEvents, autoMode } from './settings.js';
 import { playSong, songSpeed, songShift, songLevel, raceSong } from './music.js';
 import { begin as beginEvent } from './sim/events.js';
-import { GENE } from './sim/genes.js';
+import { GENE, allGenes } from './sim/genes.js';
 import * as sfx from './audio.js';
 
 const root = document.getElementById('ws');
@@ -92,8 +92,19 @@ function dress(base) {
   const out = base.map((r) => ({ ...r, pid: '' }));
   if (carry.wormx) { out.push({ char: X_CHAR, human: false, pid: '' }); base = [...base, { char: X_CHAR, human: false }]; } // (the stranger stays on, at the back of the grid)
   for (const r of base) for (const pid of carry.pieces[r.char] || []) out.push({ char: r.char, human: r.human, pid });
-  for (const r of out) { const k = keyOf(r); if (r.pid) r.human = false; r.mut = (carry.mut[k] || []).slice(); if (!r.mut.length) delete r.mut; r.cuts = carry.cuts[k] || 0; // (a piece cut off a worm, or an evil clone, is nobody's to drive)
+  for (const r of out) { const k = keyOf(r); if (r.pid) r.human = false; r.mut = allGenes(carry.mut[k]); if (!r.mut.some((n) => n)) delete r.mut; r.cuts = carry.cuts[k] || 0; // (a piece cut off a worm, or an evil clone, is nobody's to drive)
  r.half = r.cuts > 0; r.second = !!r.pid; r.out = carry.eaten.has(k); r.money = carry.money[k] || 0; r.scarlet = carry.scarlet.has(k); r.plaster = carry.plaster[k] || 0; r.chains = []; }
+  // (An unstable worm: each race one of its other mutations turns into a different one.)
+  for (const r of out) {
+    if (!r.mut || !r.mut[GENE.unstable]) continue;
+    const has = r.mut.map((n, g) => (n && g !== GENE.unstable ? g : -1)).filter((g) => g >= 0);
+    if (!has.length) continue;
+    const from = has[Math.floor(Math.random() * has.length)];
+    let to = from;
+    while (to === from || to === GENE.unstable) to = Math.floor(Math.random() * r.mut.length);
+    r.mut[from]--; r.mut[to] = (r.mut[to] || 0) + 1;
+    carry.mut[keyOf(r)] = r.mut.slice();
+  }
   // (Chains: each end is told the other's place in the list.)
   for (const [ka, kb] of carry.chains) { const a = out.findIndex((r) => keyOf(r) === ka), b = out.findIndex((r) => keyOf(r) === kb); if (a >= 0 && b >= 0 && !out[a].out && !out[b].out) { out[a].chains.push(b); out[b].chains.push(a); } }
   return out;
@@ -285,7 +296,13 @@ function react(e, mine) {
   const me = e.idx !== undefined && mine(e.idx);
   direct(e);
   switch (e.type) {
-    case 'spasm': sfx.squelch(me ? 0.2 : 0.04); break;
+    case 'spasm': {
+      // (A loud worm is three times as loud; one with hooves clip-clops.)
+      const w = G.race.worms[e.idx], vol = (me ? 0.2 : 0.04) * (w.mut[GENE.loud] ? 3 : 1);
+      sfx.squelch(vol);
+      if (w.mut[GENE.hooves]) sfx.clop(vol);
+      break;
+    }
     case 'go': sfx.beep(true); break;
     case 'lap': if (me) { sfx.lapJingle(); if (e.lap === G.race.laps) { songSpeed(1.15); songShift(1); } } break; // the last lap goes faster, and a semitone up
     case 'finish': if (me) sfx.finishJingle(); break;

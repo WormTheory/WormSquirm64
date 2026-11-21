@@ -130,6 +130,8 @@ export function blip(v, code) {
   tone(v.wave, f, f * v.slide, len, 0.1);
   if (v.growl) tone('square', f * 0.5 * 1.03, f * 0.5 * v.slide, len, 0.07);
 }
+// Hooves on the road: two knocks, like coconut shells.
+export const clop = (vol = 0.1) => { tone('triangle', 900, 500, 0.05, vol * 1.5); tone('triangle', 700, 400, 0.05, vol * 1.5, 0.09); };
 // A mutation taking: a rising computer warble.
 export const mutate = () => { for (let i = 0; i < 6; i++) tone('square', 300 + i * 140, 360 + i * 140, 0.06, 0.07, i * 0.055); tone('sawtooth', 90, 180, 0.4, 0.08); };
 // A jab from a syringe; and a glass tank bursting.

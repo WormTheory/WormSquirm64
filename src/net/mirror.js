@@ -5,7 +5,7 @@ import { buildTrack } from '../sim/track.js';
 import { gridSlot } from '../sim/race.js';
 import { makeWorm, ACTIONS } from '../sim/worm.js';
 import { makeItems, ENT_TYPES } from '../sim/items.js';
-import { noGenes, GENES } from '../sim/genes.js';
+import { allGenes, GENES } from '../sim/genes.js';
 import { EVENT_KINDS, CHAIN, VISITS } from '../sim/events.js';
 
 const DELAY = 0.1, PER = 17; // seconds shown behind the host; numbers per worm in a snapshot
@@ -57,7 +57,7 @@ export class MirrorRace {
     this.worms = racers.map((r, i) => {
       const p = gridSlot(this.track, i), w = makeWorm(i, r.char, !!r.human, p.x, p.z);
       w.aim = w.look = Math.atan2(p.tx, p.tz);
-      w.out = !!r.out; w.cuts = r.cuts || (r.half ? 1 : 0); w.half = w.cuts > 0; w.pid = r.pid || ''; w.second = !!w.pid; w.evil = w.pid[0] === 'e'; w.mut = (r.mut || noGenes()).slice(); w.money = r.money || 0; w.scarlet = !!r.scarlet; w.patch = +r.plaster || 0; w.chains = (r.chains || []).slice();
+      w.out = !!r.out; w.cuts = r.cuts || (r.half ? 1 : 0); w.half = w.cuts > 0; w.pid = r.pid || ''; w.second = !!w.pid; w.evil = w.pid[0] === 'e'; w.mut = allGenes(r.mut); w.money = r.money || 0; w.scarlet = !!r.scarlet; w.patch = +r.plaster || 0; w.chains = (r.chains || []).slice();
       return w;
     });
     for (const w of this.worms) if (w.pid && w.pid !== 'e') { const o = this.worms.find((x) => x.char === w.char && x.pid === (w.evil ? 'e' : '')); if (o) { w.root = o.idx; w.twin = o.idx; if (o.twin < 0) o.twin = w.idx; } } // (an evil clone, 'e', is a worm of its own)

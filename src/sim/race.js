@@ -1,6 +1,6 @@
 // One race: the worms, the countdown, laps, places and when it's over.
 import { makeRng } from './rng.js';
-import { noGenes } from './genes.js';
+import { allGenes, GENE } from './genes.js';
 import { buildTrack, locate, pointAt } from './track.js';
 import { makeWorm, pressAction, stepWorm, assistedAim } from './worm.js';
 import { makeAi, stepAi } from './ai.js';
@@ -37,7 +37,7 @@ export class Race {
       const loc = locate(this.track, w.x, w.z, -1);
       w.hint = loc.i; w.s = loc.s; w.prog = -3 - 2.2 * i;
       w.ai = r.human ? null : makeAi(this.rng);
-      w.out = !!r.out; w.cuts = r.cuts || (r.half ? 1 : 0); w.half = w.cuts > 0; w.pid = r.pid || ''; w.second = !!w.pid; w.evil = w.pid[0] === 'e'; w.mut = (r.mut || noGenes()).slice(); w.money = r.money || 0; w.scarlet = !!r.scarlet; w.patch = +r.plaster || 0; w.chains = (r.chains || []).slice();
+      w.out = !!r.out; w.cuts = r.cuts || (r.half ? 1 : 0); w.half = w.cuts > 0; w.pid = r.pid || ''; w.second = !!w.pid; w.evil = w.pid[0] === 'e'; w.mut = allGenes(r.mut); w.money = r.money || 0; w.scarlet = !!r.scarlet; w.patch = +r.plaster || 0; w.chains = (r.chains || []).slice();
       return w;
     });
     // The pieces of a worm that's been cut up know which worm they came from.
@@ -69,9 +69,9 @@ export class Race {
     const tr = this.track, L = tr.length, open = !!tr.def.open;
     stepEvents(this, dt);
     const n = this.worms.length; // (counted after the events, one of which can add a worm)
-    const wet = this.weather.type === 'rain';
+    const wet = this.weather.type === 'rain', hot = this.weather.type === 'heat';
     for (const w of this.worms) {
-      w.wet = wet;
+      w.wet = wet; w.hot = hot;
       for (const k of TIMERS) if (w[k] > 0) w[k] = Math.max(0, w[k] - dt);
       if (w.out) continue;
       if (w.finished && w.spot) {
@@ -87,6 +87,8 @@ export class Race {
       const mixed = this.weather.type === 'dizzy' && !(w.ai && this.weather.t >= (w.wise || 0));
       w.aim = assistedAim(w.look + (mixed ? Math.PI : 0), Math.atan2(here.tx, here.tz));
       const a = stepWorm(w, dt, this.rng, n > 1 ? w.rank / (n - 1) : 0.5);
+      // (A sticky worm leaves a little glue where it's been, now and then.)
+      if (w.mut[GENE.sticky] && a && this.rng() < 0.3) this.items.ents.push({ type: 'glue', x: w.x, z: w.z, vx: 0, vz: 0, owner: w.idx, grace: 3, life: 3.5 });
       if (a) this.events.push({ type: 'spasm', idx: w.idx, action: a });
     }
     // Worms shove each other apart, and one with a star bowls the others over.
@@ -96,13 +98,16 @@ export class Race {
       if (!solid(a) || !solid(b)) continue;
       const dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz);
       if (d < 1.1 && d > 1e-4) {
-        const p = (1.1 - d) / 2 / d;
-        a.x -= dx * p; a.z -= dz * p; b.x += dx * p; b.z += dz * p;
+        // (A worm with antlers doesn't give way to one without.)
+        const p = (1.1 - d) / d, ka = a.mut[GENE.antlers] && !b.mut[GENE.antlers] ? 0 : b.mut[GENE.antlers] && !a.mut[GENE.antlers] ? 1 : 0.5;
+        a.x -= dx * p * ka; a.z -= dz * p * ka; b.x += dx * p * (1 - ka); b.z += dz * p * (1 - ka);
+        // (And one that runs into the back of a tail stinger is sorry.)
+        for (const [front, back] of [[a, b], [b, a]]) if (front.mut[GENE.stinger] && back.prog < front.prog && !(back.stun > 0)) stun(this, back, 1.1);
         if (a.star > 0 && !(b.stun > 0)) stun(this, b, STUN.star);
         if (b.star > 0 && !(a.stun > 0)) stun(this, a, STUN.star);
         // A giant flattens whatever it rolls into.
         for (const [big, small] of [[a, b], [b, a]]) {
-          if (!(big.giant > 0) || small.giant > 0 || small.star > 0 || small.flat > 0 || popped(this, small)) continue;
+          if (!(big.giant > 0) || small.giant > 0 || small.star > 0 || small.flat > 0 || small.mut[GENE.shell] || popped(this, small)) continue;
           small.flat = 3; small.spasm = null;
           this.events.push({ type: 'squash', idx: small.idx });
         }
@@ -116,7 +121,7 @@ export class Race {
       if (!b || b.idx < a.idx) continue;
       if (a.out || b.out) { a.chains = a.chains.filter((i) => i !== b.idx); b.chains = b.chains.filter((i) => i !== a.idx); continue; } // (one's gone: that chain's broken)
       if (a.finished || b.finished || a.lift > 0 || b.lift > 0 || (a.fall > 0 && b.fall > 0)) continue;
-      const dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz), over = d - CHAIN.len;
+      const dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz), over = d - CHAIN.len * (a.mut[GENE.rubber] || b.mut[GENE.rubber] ? 2 : 1);
       if (over <= 0) continue;
       const pull = (over > 2 ? Math.min(over, CHAIN.haul * dt) : over) / d, ka = a.fall > 0 ? 0 : b.fall > 0 ? 1 : 0.5;
       a.x += dx * pull * ka; a.z += dz * pull * ka; b.x -= dx * pull * (1 - ka); b.z -= dz * pull * (1 - ka);
@@ -157,7 +162,8 @@ export class Race {
               continue;
             }
           }
-          const over = loc.lat - Math.sign(loc.lat) * lim;
+          // (A springy worm comes back off the wall further than it went in.)
+          const over = loc.lat - Math.sign(loc.lat) * (lim - (w.mut[GENE.springy] ? 2.2 : 0));
           w.x -= loc.tz * over; w.z += loc.tx * over;
           loc = locate(tr, w.x, w.z, loc.i);
         }

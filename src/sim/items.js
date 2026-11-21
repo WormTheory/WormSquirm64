@@ -2,7 +2,7 @@
 // can't be trusted to aim anything, it's used that instant. What you get leans on your place:
 // the front of the pack gets things to leave behind, the back gets things that catch up.
 import { locate, pointAt } from './track.js';
-import { airOf } from './genes.js';
+import { airOf, GENE } from './genes.js';
 
 export const ITEMS = ['BOOST', 'PEEL', 'PEBBLE', 'HOMING', 'STAR', 'ZAP', 'MOLE', 'GLUE', 'SWAP', 'SPRING', 'BUBBLE', 'GIANT'];
 export const ITEM_NAMES = ['WORMSHROOM', 'SQUIRMANA PEEL', 'PEBBLE', 'HOMING PEBBLE', 'SQUIRM STAR', 'LIGHTNING', 'MOLE', 'GLUE POT', 'SWITCHEROO', 'SPRING', 'BUBBLE', 'GIANT GRUB'];
@@ -51,7 +51,7 @@ function give(race, w) {
   const n = race.worms.length, rng = race.rng, ents = race.items.ents;
   let item = roll(rng, n > 1 ? w.rank / (n - 1) : 0.5);
   const leader = race.order && race.order.find((o) => !o.out && !o.finished);
-  if (item === 6 && (!leader || leader === w)) item = 0; // nobody ahead to send a mole after
+  if (item === 6 && (!leader || leader === w || (leader.mut[GENE.camo] && rng() < 0.5))) item = 0; // nobody ahead to send a mole after (or nobody it can see)
   // (Nor to change places with, if the worm in front can't be swapped just now.)
   const front = race.order && race.order[w.rank - 1], canSwap = front && !front.out && !front.finished && !(front.fall > 0) && !(front.lift > 0) && !(front.wolf > 0);
   if (item === 8 && !canSwap) item = 0;
@@ -64,7 +64,7 @@ function give(race, w) {
   else if (item === 3) {
     const ahead = race.order && race.order[w.rank - 1];
     ents.push({ type: 'homing', x: w.x + here.tx, z: w.z + here.tz, vx: here.tx * 15, vz: here.tz * 15, owner: w.idx, grace: 0.6, life: 9, hint: w.hint,
-      target: ahead && !ahead.out && !ahead.finished ? ahead.idx : -1 });
+      target: ahead && !ahead.out && !ahead.finished && !(ahead.mut[GENE.camo] && rng() < 0.5) ? ahead.idx : -1 }); // (a camouflaged worm is lost sight of half the time)
   } else if (item === 4) w.star = 6;
   else if (item === 5) {
     for (const o of race.worms) if (o !== w && !(o.star > 0) && !(o.giant > 0) && !o.out && !o.finished && !popped(race, o)) o.shrunk = 5;
@@ -90,7 +90,7 @@ export function stepItems(race, dt) {
   const live = race.worms.filter((w) => !w.out && !w.finished && !(w.fall > 0) && !(w.lift > 0));
   for (const b of boxes) {
     if (b.t > 0) { b.t -= dt; continue; }
-    for (const w of live) if (!w.finished && (w.x - b.x) ** 2 + (w.z - b.z) ** 2 < 1.7) { b.t = BOX_BACK; give(race, w); break; }
+    for (const w of live) if (!w.finished && (w.x - b.x) ** 2 + (w.z - b.z) ** 2 < (w.mut[GENE.tentacles] ? 6.8 : 1.7)) { b.t = BOX_BACK; give(race, w); break; } // (tentacles reach twice as far)
   }
   for (const w of race.worms) {
     const sp = w.spring;
@@ -114,6 +114,8 @@ export function stepItems(race, dt) {
       continue;
     }
     if (e.type === 'pebble') {
+      // (A magnetic worm pulls pebbles round towards it.)
+      for (const w of live) if (w.mut[GENE.magnetic] && w.idx !== e.owner) { const dx = w.x - e.x, dz = w.z - e.z, d = Math.hypot(dx, dz); if (d < 9 && d > 0.3) { const sp = Math.hypot(e.vx, e.vz); e.vx += (dx / d) * 30 * dt; e.vz += (dz / d) * 30 * dt; const k = sp / (Math.hypot(e.vx, e.vz) || 1); e.vx *= k; e.vz *= k; } }
       e.x += e.vx * dt; e.z += e.vz * dt;
       const loc = locate(tr, e.x, e.z, e.hint);
       e.hint = loc.i;

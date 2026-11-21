@@ -45,7 +45,7 @@ export function makeWorm(idx, char, human, x, z) {
     chains: [], // the numbers of the worms this one is chained to (a worm can be on several chains)
     evil: false, // an evil clone (of the worm with the same char)
     mut: noGenes(), // its mutations: how many of each it has (genes.js)
-    wet: false, // it's raining on it
+    wet: false, hot: false, // it's raining on it; there's a heatwave
     nested: 0, // taken to the nest and coming back: 1 spat out by a chick, 2 dropped in with no chicks left to eat it
     lift: 0, out: false };  // how high a bird is carrying it, and whether it's out of the race for good
 }
@@ -90,7 +90,7 @@ function startSpasm(w, action, rng, rankFrac) {
 // How far a worm's lunges go just now, as a multiple of normal: items speed it up or shrink it,
 // baking slows it, and a flattened worm barely moves at all.
 export function speedOf(w) {
-  return geneSpeed(w.mut, w.wet) * (w.boost > 0 ? 1.8 : 1) * (w.star > 0 ? 1.5 : 1) * (w.shrunk > 0 ? 0.6 : 1) * (1 - 0.55 * Math.min(1, w.heat)) * (w.flat > 0 ? 0.12 : 1) * (w.slow > 0 ? 0.4 : 1) * (w.giant > 0 ? 1.3 : 1);
+  return geneSpeed(w.mut, w.wet, w.hot) * (w.boost > 0 ? 1.8 : 1) * (w.star > 0 ? 1.5 : 1) * (w.shrunk > 0 ? 0.6 : 1) * (1 - 0.55 * Math.min(1, w.heat)) * (w.flat > 0 ? 0.12 : 1) * (w.slow > 0 ? 0.4 : 1) * (w.giant > 0 ? 1.3 : 1);
 }
 
 // Moves a worm on by dt. Returns the action if a new spasm started this step (for sound and the HUD).

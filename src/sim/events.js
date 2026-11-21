@@ -178,7 +178,10 @@ export function begin(race, ev, force, target) {
     for (const w of race.worms) { w.wash = null; w.bake = rng.range(0.15, 1.1); } // (bake: hurts a second, on average)
   } else if (kind === 'bird') {
     // (It takes everyone chained to its prey too, so it leaves a chain gang alone if they're all there is.)
-    const fair = live.filter((w) => chainGang(race, w).length < live.length), prey = pick(fair.length ? fair : live), a = rng.range(0, Math.PI * 2);
+    // (And it won't touch anything with a beak: that's family.)
+    const birdless = live.filter((w) => !w.mut[GENE.beak]);
+    if (!birdless.length) { ev.type = 'none'; ev.next = rng.range(2, 5); return; }
+    const fair = birdless.filter((w) => chainGang(race, w).length < live.length), prey = pick(fair.length ? fair : birdless), a = rng.range(0, Math.PI * 2);
     ev.bird = { target: prey.idx, x: prey.x + Math.cos(a) * 40, z: prey.z + Math.sin(a) * 40, h: BIRD_HIGH, got: false, ax: Math.cos(a), az: Math.sin(a) };
     ev.len = BIRD_IN + BIRD_OUT;
   } else {
@@ -307,6 +310,8 @@ export function stepEvents(race, dt) {
             w.patch -= t.patch;
             for (const k of back) if (k.startsWith('chain')) { const mate = race.worms[+k.slice(5)]; t.chains.push(mate.idx); mate.chains = mate.chains.map((i) => (i === w.idx ? t.idx : i)); w.chains = w.chains.filter((i) => i !== mate.idx); }
             t.money = w.money / 2; w.money = t.money; // (down the middle, to the cent)
+            // (Regeneration: the piece cut off grows straight back to a whole worm.)
+            if (w.mut[GENE.regen]) { t.cuts = 0; t.half = false; }
           }
           w.half = t.half = true; w.twin = t.idx; t.twin = w.idx;
           w.x += l.tx * 0.9; w.z += l.tz * 0.9; t.x -= l.tx * 1.1; t.z -= l.tz * 1.1;
@@ -396,6 +401,7 @@ export function stepEvents(race, dt) {
   } else if (ev.type === 'frost') {
     // On ice, a lunge that has just ended carries on as a slide.
     for (const w of live) {
+      if (w.mut[GENE.sticky]) { w.slide = null; continue; } // (too sticky to slide)
       if (w.wasSpasm && !w.spasm && !(w.stun > 0)) { const v = (w.wasSpasm.dist / w.wasSpasm.dur) * 0.5; w.slide = { x: w.wasSpasm.dx * v, z: w.wasSpasm.dz * v }; }
       w.wasSpasm = w.spasm;
       if (w.slide) { w.x += w.slide.x * dt; w.z += w.slide.z * dt; const k = Math.exp(-1.7 * dt); w.slide.x *= k; w.slide.z *= k; }
@@ -407,7 +413,7 @@ export function stepEvents(race, dt) {
     }
   } else if (ev.type === 'heat') {
     for (const w of live) {
-      if (w.star > 0 || w.finished || rng() >= w.bake * dt) continue;
+      if (w.star > 0 || w.finished || w.mut[GENE.photo] || rng() >= w.bake * dt) continue; // (photosynthesis: it likes the sun)
       w.heat += rng.range(0.07, 0.2); w.hurts++;
       race.events.push({ type: 'hurt', idx: w.idx });
       if (w.heat >= 1) { w.heat = 0; drop(race, w, 'die'); }
@@ -472,6 +478,7 @@ export function stepEvents(race, dt) {
         if (d < 1.5) {
           prey.safe = 7;
           if (prey.star > 0 || prey.giant > 0) { wolf.stun = 1; race.events.push({ type: 'hit', idx: wolf.idx }); } // a starred worm is too much for it
+          else if (prey.mut[GENE.thick]) stun(race, prey, 1.5); // (thick skin: its teeth don't go in)
           else if (!popped(race, prey)) drop(race, prey, 'bitten');
         }
       }
@@ -483,6 +490,7 @@ export function stepEvents(race, dt) {
       race.events.push({ type: 'stomp', x: f.x, z: f.z });
       for (const w of live) {
         if ((w.x - f.x) ** 2 + (w.z - f.z) ** 2 > FOOT_R * FOOT_R) continue;
+        if (w.mut[GENE.shell]) continue; // (a shell takes the weight)
         w.flat = rng.range(5, 10); w.spasm = null; w.star = 0;
         race.events.push({ type: 'squash', idx: w.idx });
       }
@@ -502,7 +510,7 @@ export function stepEvents(race, dt) {
 // What rain does to a worm this step: carries it along, and a worm held against the wall by the water
 // is, every so often, washed clean over it. Returns whether that happened.
 export function wash(race, w, dt) {
-  if (race.weather.type !== 'rain' || !w.wash) return false;
+  if (race.weather.type !== 'rain' || !w.wash || w.mut[GENE.gills]) return false; // (gills: it's at home in the wet)
   w.x += w.wash.x * dt; w.z += w.wash.z * dt;
   const loc = locate(race.track, w.x, w.z, w.hint), out = (w.wash.x * loc.tz - w.wash.z * loc.tx) * Math.sign(loc.lat);
   return Math.abs(loc.lat) > race.track.hw + 0.3 && out > 1 && race.rng() < 0.9 * dt;

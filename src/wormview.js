@@ -27,7 +27,7 @@ const SEGS = 10, GAP = 0.5;
 const ANIM = 0.65; // seconds one press's wobble lasts, however short the lunge under it
 const BALL = new THREE.SphereGeometry(1, 7, 5);
 const DISC = new THREE.CircleGeometry(1, 8);
-const BOX = new THREE.BoxGeometry(1, 1, 1), CONE = new THREE.ConeGeometry(1, 1, 5);
+const BOX = new THREE.BoxGeometry(1, 1, 1), CONE = new THREE.ConeGeometry(1, 1, 5), RING = new THREE.TorusGeometry(1, 0.09, 4, 9);
 // A bat's wing: a ragged triangle, drawn flat and stood up by whoever uses it.
 const WING = (() => { const sh = new THREE.Shape(); sh.moveTo(-0.5, 0.3); sh.lineTo(0.5, 0.42); sh.lineTo(0.36, 0.05); sh.lineTo(0.22, 0.16); sh.lineTo(0.08, -0.18); sh.lineTo(-0.1, 0.06); sh.lineTo(-0.3, -0.25); sh.lineTo(-0.5, 0.3); return new THREE.ShapeGeometry(sh); })();
 const SPARK = new THREE.OctahedronGeometry(1, 0);
@@ -313,6 +313,47 @@ export class WormView {
       for (let j = 0; j < Math.min(14, 6 + mut[GENE.fur] * 2); j++) { const a = -1.9 + (3.8 * ((j * 7 + seg * 3) % 11)) / 10, f = ((j * 5 + seg) % 7) / 7 - 0.5; part(g, cone, hair, Math.sin(a) * 1.02, Math.cos(a) * 1.02, f * 0.9, f * 0.9, 0, -a, 0.11, 0.42, 0.11); }
       put(seg, g, { every: true });
     }
+    const every = (step, fn) => { for (let seg = 1; seg < 40; seg += step) { const g = new THREE.Group(); fn(g, seg); put(seg, g, { every: true }); } };
+    // Gills: dark slits behind the head.
+    if (mut[GENE.gills]) { const g = new THREE.Group(); for (const s of [-1, 1]) for (let j = 0; j < 3; j++) part(g, box, lam(0x501828), s * 0.93, 0.15, -0.3 + j * 0.3, 0, 0, s * 0.25, 0.1, 0.7, 0.08); put(1, g); }
+    // A snail's shell on its back.
+    for (let k = 0; k < many(mut[GENE.shell], 3); k++) { const g = new THREE.Group(); part(g, BALL, lam(0xa8743c), 0, 1.5, 0, 0, 0, 0, 0.9, 1.25, 1.35); part(g, BALL, lam(0x6a4420), 0.72, 1.5, 0, 0, 0, 0, 0.3, 0.75, 0.8); part(g, BALL, lam(0x6a4420), -0.72, 1.5, 0, 0, 0, 0, 0.3, 0.75, 0.8); put(4 + k * 2, g); }
+    // Tentacles: purple arms that wave.
+    for (let k = 0; k < many(mut[GENE.tentacles], 3); k++) {
+      const g = new THREE.Group(), flesh = lam(0x9a4ab0), arms = [];
+      for (const s of [-1, 1]) { const arm = new THREE.Group(); arm.position.set(s * 0.8, 0.1, 0); part(arm, box, flesh, s * 0.7, 0, 0, 0, 0, 0, 1.4, 0.26, 0.26); part(arm, box, flesh, s * 1.9, 0.2, 0, 0, 0, s * 0.5, 1.2, 0.2, 0.2); part(arm, BALL, flesh, s * 2.5, 0.5, 0, 0, 0, 0, 0.2, 0.2, 0.2); g.add(arm); arms.push(arm); }
+      put(3 + k * 2, g, { walk: 'flap', wings: arms, phase: k * 2 });
+    }
+    // A scorpion's sting, curled up over the tail.
+    if (mut[GENE.stinger]) { const g = new THREE.Group(), red = lam(0x7a1c14); part(g, box, red, 0, 0.9, -0.5, 0.5, 0, 0, 0.5, 1.6, 0.5); part(g, box, red, 0, 2.0, -0.3, -0.7, 0, 0, 0.42, 1.3, 0.42); part(g, cone, lam(0x201010), 0, 2.4, 0.5, 1.9, 0, 0, 0.3, 0.9, 0.3); put(-1, g, { tail: true }); }
+    // Springy: coils round it.
+    if (mut[GENE.springy]) every(1, (g) => { const ring = part(g, RING, lam(0xb8c0cc), 0, 0, 0, 0, 0, 0, 1.12, 1.12, 1.12); ring.rotation.y = 0.25; });
+    // Sticky: green slime dripping off it.
+    if (mut[GENE.sticky]) every(1, (g, seg) => { const goo = lam(0x7ad020); for (let j = 0; j < 3; j++) { const a = seg * 1.7 + j * 2.1; part(g, BALL, goo, Math.sin(a) * 0.8, -0.55 - 0.25 * (j % 2), Math.cos(a) * 0.5, 0, 0, 0, 0.22, 0.34, 0.22); } });
+    // Eyes, all the way down.
+    if (mut[GENE.eyes]) every(1, (g) => { for (const s of [-1, 1]) { part(g, BALL, new THREE.MeshLambertMaterial({ color: 0xffffff }), s * 0.62, 0.72, 0, 0, 0, 0, 0.3, 0.3, 0.3); part(g, BALL, new THREE.MeshBasicMaterial({ color: 0x101010 }), s * 0.72, 0.88, 0.08, 0, 0, 0, 0.14, 0.14, 0.14); } });
+    // Antlers.
+    if (mut[GENE.antlers]) { const g = new THREE.Group(), horn = lam(0xa8804a); for (const s of [-1, 1]) { part(g, box, horn, s * 0.6, 1.6, 0, 0, 0, s * -0.35, 0.2, 1.8, 0.2); part(g, box, horn, s * 1.15, 2.0, 0, 0, 0, s * -1.1, 0.16, 1, 0.16); part(g, box, horn, s * 0.55, 2.45, 0, 0, 0, s * 0.6, 0.16, 0.9, 0.16); } put(0, g); }
+    // Rubber: a shine on every ball.
+    if (mut[GENE.rubber]) every(1, (g) => { part(g, BALL, new THREE.MeshBasicMaterial({ color: 0xffffff }), 0.35, 0.82, 0.2, 0, 0, 0, 0.26, 0.12, 0.2); });
+    // Thick skin: grey plates.
+    if (mut[GENE.thick]) every(1, (g) => { part(g, BALL, lam(0x7a7a80), 0, 0.5, 0, 0, 0, 0, 1.0, 0.72, 0.8); });
+    // Magnetic: a horseshoe magnet on its head.
+    if (mut[GENE.magnetic]) { const g = new THREE.Group(), red = lam(0xd82020), steel = lam(0xc8ccd4); part(g, box, red, 0, 1.25, -0.2, 0, 0, 0, 1.4, 0.36, 0.36); for (const s of [-1, 1]) { part(g, box, red, s * 0.52, 1.75, -0.2, 0, 0, 0, 0.36, 0.7, 0.36); part(g, box, steel, s * 0.52, 2.25, -0.2, 0, 0, 0, 0.36, 0.34, 0.36); } put(0, g); }
+    // Loud: a megaphone for a mouth.
+    if (mut[GENE.loud]) { const g = new THREE.Group(); part(g, cone, lam(0xe8e8e8), 0, -0.05, 1.5, -Math.PI / 2, 0, 0, 0.75, 1.3, 0.75); part(g, cone, lam(0xd82020), 0, -0.05, 1.95, -Math.PI / 2, 0, 0, 0.9, 0.3, 0.9); put(0, g); }
+    // Tiny arms.
+    if (mut[GENE.arms]) { const g = new THREE.Group(), arms = []; for (const s of [-1, 1]) { const arm = new THREE.Group(); arm.position.set(s * 0.85, 0.1, 0.3); part(arm, box, this.mats[1], s * 0.25, 0, 0.2, 0, 0, 0, 0.5, 0.2, 0.2); part(arm, box, this.mats[1], s * 0.5, 0, 0.5, 0, 0, 0, 0.2, 0.2, 0.5); g.add(arm); arms.push(arm); } put(1, g, { walk: 'flap', wings: arms, phase: 0 }); }
+    // A beak.
+    if (mut[GENE.beak]) { const g = new THREE.Group(); part(g, cone, lam(0xf08020), 0, 0.05, 1.3, Math.PI / 2, 0, 0, 0.42, 1, 0.3); put(0, g); }
+    // Hooves, and no legs to go with them.
+    for (let k = 0; k < many(mut[GENE.hooves], 2) * 2; k++) { const g = new THREE.Group(); for (const s of [-1, 1]) part(g, box, lam(0x1c1410), s * 0.55, -0.85, 0, 0, 0, 0, 0.42, 0.34, 0.5); put(k % 2 ? -3 - (k >> 1) : 2 + (k >> 1), g); }
+    // Photosynthesis: leaves down its back.
+    if (mut[GENE.photo]) every(2, (g, seg) => { const leaf = lam(0x38b030); for (const s of [-1, 1]) part(g, BALL, leaf, s * 0.5, 1.15, 0, 0, 0.5 * s + seg, s * -0.6, 0.6, 0.08, 0.3); });
+    // Camouflage: it's the colour of the road. (The colours it's drawn from are changed, and the materials redone.)
+    if (mut[GENE.camo] && !this.camo) { this.camo = true; this.base.forEach((c, k) => c.lerp(new THREE.Color(k === 1 ? 0x56565c : 0x66666c), 0.85)); this.burnt = -1; }
+    // (What only changes its glow: see the colours in update.)
+    this.shine = mut[GENE.glow] ? 1 : mut[GENE.regen] ? 2 : 0; this.flicker = !!mut[GENE.unstable];
     // Another head: the first on the tail, looking back the way it came; any more sprout along its back.
     for (let k = 0; k < many(mut[GENE.head], 5); k++) {
       const g = new THREE.Group(), head = new THREE.Group();
@@ -428,7 +469,9 @@ export class WormView {
     else if (this.flash > 0 && Math.floor(this.flash * 20) % 2 === 0) glow.setRGB(1, 0, 0);
     else if (w.shrunk > 0) glow.setRGB(0.05, 0.12, 0.4); // (struck by lightning: small and a bit blue)
     else if (w.slow > 0) glow.setRGB(0.25, 0.3, 0.02);    // (stuck in glue: a sickly yellow-green)
-    else glow.setRGB(0.18 * Math.min(1, w.heat || 0), 0, 0);
+    // (An unstable worm's colours won't settle; one that glows, glows; one that regenerates shimmers.)
+    else if (this.flicker) glow.setHSL((time * 0.9 + w.idx * 0.13) % 1, 1, 0.22 + 0.1 * Math.sin(time * 23));
+    else glow.setRGB(0.18 * Math.min(1, w.heat || 0), this.shine === 1 ? 0.5 : this.shine === 2 ? 0.14 + 0.12 * Math.sin(time * 5) : 0, this.shine === 1 ? 0.22 : 0);
     // Sun-baked worms go browner the more baked they are, and browner still once it's killed them.
     // (And a wolf's coat is dark fur.)
     const burnt = wolf ? 2 : w.fall > 0 && w.dead ? 0.75 : Math.round(0.5 * Math.min(1, w.heat || 0) * 20) / 20;

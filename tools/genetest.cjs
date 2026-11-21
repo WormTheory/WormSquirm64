@@ -13,7 +13,7 @@ const { chromium } = require('playwright');
   const ws = (fn, arg) => page.evaluate(fn, arg);
   const check = (what, ok) => { console.log((ok ? 'ok    ' : 'FAIL  ') + what); if (!ok) fails.push(what); };
   const quiet = () => page.waitForFunction(() => window.__ws.race.weather.type === 'none', null, { timeout: 30000 });
-  const NAMES = ['long', 'short', 'fat', 'narrow', 'spider', 'human', 'horse', 'wings', 'fin', 'poison', 'spikes', 'fur', 'head'];
+  const NAMES = ['long', 'short', 'fat', 'narrow', 'spider', 'human', 'horse', 'wings', 'fin', 'poison', 'spikes', 'fur', 'head', 'gills', 'shell', 'glow', 'tentacles', 'stinger', 'springy', 'sticky', 'eyes', 'antlers', 'rubber', 'camo', 'thick', 'magnetic', 'loud', 'arms', 'beak', 'hooves', 'unstable', 'regen', 'photo'];
   await page.goto(url); await page.waitForTimeout(800);
   await ws(() => window.__ws.quick(1, 0)); await page.waitForTimeout(6000);
   const me = await ws(() => window.__ws.G.players[0].me);
@@ -24,13 +24,13 @@ const { chromium } = require('playwright');
   await quiet();
   check('the splice gave it an extra head', await ws((me) => window.__ws.race.worms[me].mut[12] === 1, me));
   // Each mutation by itself, for its picture.
-  for (let g = 0; g < 13; g++) {
+  for (let g = 0; g < NAMES.length; g++) {
     await ws(([me, g]) => { const w = window.__ws.race.worms[me]; w.mut = w.mut.map(() => 0); w.mut[g] = 1; }, [me, g]);
     await page.waitForTimeout(450);
     await page.screenshot({ path: `${out}/gene-${NAMES[g]}.png`, clip: { x: 200, y: 150, width: 560, height: 360 } });
   }
   // The lot at once, twice over.
-  await ws((me) => { const w = window.__ws.race.worms[me]; w.mut = w.mut.map(() => 2); w.mut[1] = 0; w.mut[3] = 0; }, me);
+  await ws((me) => { const w = window.__ws.race.worms[me]; w.mut = w.mut.map((_, g) => (g < 13 ? 2 : 0)); w.mut[1] = 0; w.mut[3] = 0; }, me);
   await page.waitForTimeout(500); await shot('everything');
   // Numbers.
   const n = await ws(() => { const { race } = window.__ws, w = race.worms[0]; const sp = (mut, wet) => { w.mut = mut; w.wet = wet; return window.__ws.speedOf(w); }; const z = () => w.mut.map(() => 0); const base = sp(z(), false);
