@@ -91,7 +91,7 @@ function dress(base) {
   const out = base.map((r) => ({ ...r, pid: '' }));
   if (carry.wormx) { out.push({ char: X_CHAR, human: false, pid: '' }); base = [...base, { char: X_CHAR, human: false }]; } // (the stranger stays on, at the back of the grid)
   for (const r of base) for (const pid of carry.pieces[r.char] || []) out.push({ char: r.char, human: r.human, pid });
-  for (const r of out) { const k = keyOf(r); if (r.pid[0] === 'e') r.human = false; r.long = carry.long[k] || 0; r.cuts = carry.cuts[k] || 0; // (an evil clone is nobody's to drive)
+  for (const r of out) { const k = keyOf(r); if (r.pid) r.human = false; r.long = carry.long[k] || 0; r.cuts = carry.cuts[k] || 0; // (a piece cut off a worm, or an evil clone, is nobody's to drive)
  r.half = r.cuts > 0; r.second = !!r.pid; r.out = carry.eaten.has(k); r.money = carry.money[k] || 0; r.scarlet = carry.scarlet.has(k); r.plaster = carry.plaster[k] || 0; r.chain = -1; }
   // (Chains: each end is told the other's place in the list.)
   for (const [ka, kb] of carry.chains) { const a = out.findIndex((r) => keyOf(r) === ka), b = out.findIndex((r) => keyOf(r) === kb); if (a >= 0 && b >= 0 && !out[a].out && !out[b].out) { out[a].chain = b; out[b].chain = a; } }
@@ -239,7 +239,7 @@ function pause(on) {
 // points so far are split down the middle, as the money is, and from then on each piece earns for itself.
 const pk = keyOf, score = (w) => +(session.points[pk(w)] || 0).toFixed(2);
 function showResults() {
-  const race = G.race, mine = new Set(G.players.filter((p) => !p.spectator).flatMap((p) => G.race.worms.filter((w) => w.root === G.race.worms[p.me].root).map((w) => w.idx))), gp = session && session.mode === 'gp';
+  const race = G.race, mine = new Set(G.players.filter((p) => !p.spectator).map((p) => p.me)), gp = session && session.mode === 'gp';
   // If the bird ate everybody who was playing, it's a draw: no places and no points.
   const humans = race.worms.filter((w) => w.human), draw = humans.length > 0 && humans.every((w) => w.out);
   remember(race);
@@ -524,8 +524,6 @@ function frame(now, hidden) {
     for (const p of phase === 'after' || medals ? [] : G.players) {
       p.hud.update(G.race, p.me, dt);
       // The camera follows a smoothed point, so a flop doesn't shake the whole picture.
-      // (If the bird has had this player's worm but another piece of it is still going, they follow that.)
-      if (!p.spectator) { const own = G.race.worms[p.me], t = own.out && G.race.worms.find((o) => o.root === own.root && !o.out); if (t) p.me = t.idx; }
       const me = G.race.worms[p.me], k = 1 - Math.exp(-dt * 6), c = p.cam, D = 10, cp = Math.cos(c.pitch);
       // (A worm that's fallen off is watched from where the hand will put it back.)
       const at = me.fall > 0 && me.pit ? centreNear(G.race.track, me.x, me.z) : me;

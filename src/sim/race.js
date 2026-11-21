@@ -49,8 +49,8 @@ export class Race {
 
   // Hands a worm to the computer (its player went away).
   toAi(i) { for (const w of this.both(i)) if (!w.ai) { w.human = false; w.ai = makeAi(this.rng); } }
-  // A worm and, if it's been cut up, all its other pieces: one player works the lot.
-  both(i) { const root = this.worms[i].root; return this.worms.filter((w) => w.root === root); }
+  // The worms one player works: just the one. (A piece cut off a worm goes its own way, driven by the computer.)
+  both(i) { return [this.worms[i]]; }
 
   press(i, action) { if (this.state !== 'countdown') for (const w of this.both(i)) pressAction(w, action); }
   // Where a player's camera is looking. The step turns this into where the worm aims.

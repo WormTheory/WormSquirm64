@@ -280,9 +280,10 @@ export function stepEvents(race, dt) {
         else if (ev.type === 'clone') { w.hurts++; race.events.push({ type: 'jab', idx: w.idx }); }
         else {
           // Cut in two: the worm becomes the front half, and a new worm, a copy of it in every way that matters, the back.
+          // (The back is nobody's to drive, whoever had the worm: the computer takes it, and it races for itself.)
           // (Half a worm cut again makes two quarters, and so on down.)
           w.cuts++;
-          const l = locate(race.track, w.x, w.z, w.hint), t = { ...w, idx: race.worms.length, tired: {}, spasm: null, queued: null, ai: w.ai ? makeAi(rng) : null, wash: null, spring: null, spin: null, slide: null, second: true, pid: w.pid + String(w.cuts), from: w.idx, chain: -1 };
+          const l = locate(race.track, w.x, w.z, w.hint), t = { ...w, idx: race.worms.length, tired: {}, spasm: null, queued: null, human: false, ai: makeAi(rng), wash: null, spring: null, spin: null, slide: null, second: true, pid: w.pid + String(w.cuts), from: w.idx, chain: -1 };
           // What it was wearing is shared out: the chain, the letter and the plasters, in that order, the front
           // piece taking the first half of them and the back piece the rest. The money it has at that moment is split evenly.
           {

@@ -72,7 +72,6 @@ export class MirrorRace {
   press(i, action) {
     if (this.state === 'countdown') return;
     this.worms[i].taps++;
-    for (const o of this.worms) if (o.root === this.worms[i].root && o.idx !== i) o.taps++;
     (this.pend[i] || (this.pend[i] = [])).push(ACTIONS.indexOf(action));
   }
   // The controls message for the given worms, or null if there's nothing new and one went lately (30 a second at most).
@@ -111,7 +110,7 @@ export class MirrorRace {
       // (Or a newcomer, cut off nobody: Worm X.)
       const cutOff = x[2] >= 0;
       w.second = cutOff; w.half = cutOff; w.twin = w.from = x[2]; w.pid = cutOff ? x[3] || '1' : x[3] || ''; w.evil = w.pid[0] === 'e'; if (!cutOff) w.second = !!w.pid; w.root = !cutOff ? i : x[4] === undefined ? x[2] : x[4]; w.count = a.w[k + 2]; w.taps = a.w[k + 4]; w.lap = a.w[k + 6]; w.hurts = a.w[k + 13]; w.items = a.w[k + 14]; w.money = a.w[k + 16];
-      if (this.worms[x[2]]) { this.worms[x[2]].twin = i; if (this.mine.has(x[2])) this.mine.add(i); }
+      if (this.worms[x[2]]) { this.worms[x[2]].twin = i; }
       this.worms.push(w);
       ev.push(cutOff ? { type: 'cut', idx: x[2], twin: i } : { type: 'newcomer', idx: i });
     }

@@ -60,8 +60,8 @@ python3 -m http.server 8000   # then open http://localhost:8000
   makes every lunge slide on; hail comes down on them, with a shadow to warn of each stone; and in a mix-up every
   worm goes the opposite way to where it's looking.
   The hand also pays calls on single worms: it cuts one in two with a kitchen knife (from then on there are two
-  smaller worms, both worked by the same player; the points and money it had are split between them, and from then on
-  each piece scores for itself; a half can be cut again into
+  smaller worms: the front is still its player's, the back is the computer's; the points and money it had are split
+  between them, and from then on each piece races and scores for itself; a half can be cut again into
   quarters, and those into eighths), presents one with a check for
   $30.00 (shown on the score screen, and it adds up), or brands one with a scarlet letter A (shown by its name).
   It can chain two worms together, carrying them
