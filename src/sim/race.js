@@ -122,6 +122,17 @@ export class Race {
       if (Math.abs(loc.lat) > lim) {
         // A road with no walls can be fallen off. Otherwise the walls hold.
         if (open) { if (Math.abs(loc.lat) > lim + 0.5) { drop(this, w, 'fall'); continue; } } else {
+          // On ice, a worm that slides into the wall at any speed either goes over it (about two times in five) or is stopped by it.
+          const out = w.slide && this.weather.type === 'frost' ? (w.slide.x * loc.tz - w.slide.z * loc.tx) * Math.sign(loc.lat) : 0;
+          if (out > 3) {
+            w.slide = null;
+            if (this.rng() < 0.4) {
+              const p = pointAt(tr, loc.s, Math.sign(loc.lat) * (tr.hw + 2.8));
+              w.x = p.x; w.z = p.z; w.s = loc.s;
+              drop(this, w, 'fall');
+              continue;
+            }
+          }
           const over = loc.lat - Math.sign(loc.lat) * lim;
           w.x -= loc.tz * over; w.z += loc.tx * over;
           loc = locate(tr, w.x, w.z, loc.i);
