@@ -533,6 +533,7 @@ export class WormView {
       // (On legs it stands clear of the ground; back from the nest it comes down out of the sky.)
       if (this.stand && !flat && !onBack && !held) y += this.stand * small;
       if (w.nested && w.fall > 0) y += 60 * (w.fall / 0.7) ** 2;
+      if (w.spring && w.spring.dig) y -= 1.1; // (digging: only a ridge of it shows)
       m.position.set(x, y, z);
       m.scale.set(big * (flat ? 1.5 : 1), big * (flat ? 0.2 : 1), big * (flat ? 1.5 : 1));
       if (i === 0) { m.rotation.y = Math.atan2(dx, dz) + (w.stun > 0 ? time * 18 : 0); m.rotation.z = onBack ? 2.5 : 0; m.rotation.x = rear ? -1.1 : 0; }

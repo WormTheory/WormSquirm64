@@ -20,6 +20,7 @@ import { settings, allowedEvents, autoMode } from './settings.js';
 import { playSong, songSpeed, songShift, songLevel, raceSong } from './music.js';
 import { begin as beginEvent } from './sim/events.js';
 import { GENE, allGenes } from './sim/genes.js';
+import { give as giveItem } from './sim/items.js';
 import * as sfx from './audio.js';
 
 const root = document.getElementById('ws');
@@ -309,6 +310,7 @@ function react(e, mine) {
     // Getting an item sounds its own way: a whoosh for a boost, a fanfare for a star, a toss for the things you throw or drop.
     case 'item': sfx.itemUse(e.item, me ? 1 : 0.3); if (me) sfx.itemJingle(); break;
     case 'hit': sfx.hit(me ? 0.2 : 0.05); break;
+    case 'hic': sfx.hic(me ? 0.14 : 0.04); break;
     case 'zap': sfx.zap(); G.players.forEach((p) => { p.hud.flash = 0.3; }); break; // (lightning lights up every screen)
     case 'fall': sfx.fallWhistle(me ? 0.12 : 0.03); break;
     case 'die': sfx.sizzle(me ? 0.16 : 0.05); break;
@@ -631,7 +633,7 @@ requestAnimationFrame(frame);
 // For the tests, and for poking at a race from the browser console.
 // quick(n, track) starts a VS race at once with n players on made-up devices.
 window.__ws = {
-  get race() { return G.race; }, get phase() { return phase; }, get G() { return G; }, get net() { return net; }, get nest() { return nest; }, get ceremony() { return ceremony; }, get session() { return session; }, speedOf, menus, inputs, online, settings,
+  get race() { return G.race; }, get phase() { return phase; }, get G() { return G; }, get net() { return net; }, get nest() { return nest; }, get ceremony() { return ceremony; }, get session() { return session; }, give: (i, item) => giveItem(G.race, G.race.worms[i], item), speedOf, menus, inputs, online, settings,
   // event(kind, worm) starts a random event now (and, for the bird, says which worm it's after).
   event(kind, target) {
     const r = G.race;

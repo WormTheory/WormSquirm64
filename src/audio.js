@@ -98,6 +98,21 @@ export function itemUse(item, k = 1) {
   else if (item === 9) { tone('sine', 200, 900, 0.18, 0.16 * k); tone('sine', 900, 500, 0.3, 0.1 * k, 0.18); }      // spring: boing
   else if (item === 10) tone('sine', 500, 1400, 0.35, 0.1 * k);                                                    // bubble: a rising blip
   else if (item === 11) { tone('sawtooth', 70, 160, 0.6, 0.16 * k); burst(200, 0.5, 0.12 * k); }                    // giant: a swelling growl
+  else if (item === 12) { burst(260, 0.4, 0.16 * k); tone('sine', 110, 60, 0.35, 0.12 * k); }                       // compost: a wet thud
+  else if (item === 13) for (let i = 0; i < 4; i++) burst(6000, 0.05, 0.1 * k, 'highpass');                         // salt: a shake
+  else if (item === 14) { tone('sine', 1400, 500, 0.2, 0.1 * k); for (let i = 0; i < 8; i++) tone('square', 900, 900, 0.02, 0.06 * k, 0.2 + i * 0.04); } // hook: a cast and a reel
+  else if (item === 15) tone('triangle', 300, 700, 0.25, 0.1 * k);                                                  // umbrella: opening
+  else if (item === 16) { tone('sine', 700, 500, 0.1, 0.1 * k); tone('sine', 500, 700, 0.1, 0.1 * k, 0.1); }        // decoy: a squeak
+  else if (item === 17) tone('sawtooth', 120, 480, 0.5, 0.09 * k);                                                  // magnet: a hum rising
+  else if (item === 18) burst(2400, 0.8, 0.16 * k, 'bandpass');                                                     // hose: a hiss
+  else if (item === 19) { tone('sine', 1800, 2400, 0.18, 0.12 * k); tone('sine', 2400, 1800, 0.25, 0.12 * k, 0.18); } // whistle
+  else if (item === 20) { burst(500, 0.12, 0.14 * k); burst(500, 0.12, 0.14 * k); tone('sine', 160, 90, 0.5, 0.1 * k); } // shovel: digging
+  else if (item === 21) [520, 440, 360].forEach((f, i) => tone('sine', f, f * 0.4, 0.18, 0.12 * k, i * 0.09));      // a bunch of peels
+  else if (item === 22) { tone('sawtooth', 300, 1500, 0.5, 0.12 * k); burst(3000, 0.5, 0.08 * k, 'highpass'); }     // hot sauce: a scream of steam
+  else if (item === 23) [1760, 2217, 2637].forEach((f, i) => tone('sine', f, f, 0.2, 0.07 * k, i * 0.05));          // mirror: a glint
+  else if (item === 24) tone('sine', 300, 900, 0.08, 0.14 * k);                                                     // hiccups
+  else if (item === 25) { tone('square', 1319, 1319, 0.05, 0.08 * k); tone('square', 1976, 1976, 0.2, 0.08 * k, 0.06); } // coupon: a small till
+  else if (item === 26) { tone('sine', 500, 520, 0.3, 0.08 * k); burst(3000, 0.06, 0.08 * k, 'highpass'); }         // egg: a crack to come
 }
 // The wolf's howl (or, back: true, a whimper as the curse lifts), its bite with the victim's yelp, and the hand's three pats after.
 export function howl(back) {
@@ -132,6 +147,8 @@ export function blip(v, code) {
 }
 // Hooves on the road: two knocks, like coconut shells.
 export const clop = (vol = 0.1) => { tone('triangle', 900, 500, 0.05, vol * 1.5); tone('triangle', 700, 400, 0.05, vol * 1.5, 0.09); };
+// A hiccup.
+export const hic = (vol = 0.1) => tone('sine', 380, 1100, 0.07, vol);
 // A mutation taking: a rising computer warble.
 export const mutate = () => { for (let i = 0; i < 6; i++) tone('square', 300 + i * 140, 360 + i * 140, 0.06, 0.07, i * 0.055); tone('sawtooth', 90, 180, 0.4, 0.08); };
 // A jab from a syringe; and a glass tank bursting.

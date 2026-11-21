@@ -181,6 +181,8 @@ export function begin(race, ev, force, target) {
     // (And it won't touch anything with a beak: that's family.)
     const birdless = live.filter((w) => !w.mut[GENE.beak]);
     if (!birdless.length) { ev.type = 'none'; ev.next = rng.range(2, 5); return; }
+    // (A worm that's left a decoy: the bird takes that, and goes home pleased with itself.)
+    { const lures = race.items.ents.filter((o) => o.type === 'decoy'); if (lures.length && !force) { race.items.ents.splice(race.items.ents.indexOf(lures[0]), 1); race.events.push({ type: 'pop', idx: lures[0].owner }); ev.type = 'none'; ev.next = rng.range(GAP[0], GAP[1]) * ev.wait; return; } }
     const fair = birdless.filter((w) => chainGang(race, w).length < live.length), prey = pick(fair.length ? fair : birdless), a = rng.range(0, Math.PI * 2);
     ev.bird = { target: prey.idx, x: prey.x + Math.cos(a) * 40, z: prey.z + Math.sin(a) * 40, h: BIRD_HIGH, got: false, ax: Math.cos(a), az: Math.sin(a) };
     ev.len = BIRD_IN + BIRD_OUT;
@@ -238,6 +240,8 @@ export function stepEvents(race, dt) {
   if (ev.type === 'none') {
     // (Once nobody's left racing, nothing more happens: the score screen is left in peace.)
     if (race.worms.every((w) => w.finished || w.out)) { ev.omen = null; return; }
+    // (Something whistled for: it comes now, whatever was due.)
+    if (race.summon) { const s = race.summon; race.summon = null; ev.omen = null; begin(race, ev, s.kind, s.target); if (ev.type !== 'none') return; }
     ev.next -= dt;
     if (ev.next <= OMEN && !ev.omen && ev.on && ev.may.length) foresee(race, ev);
     if (ev.next <= 0) begin(race, ev);
@@ -395,7 +399,7 @@ export function stepEvents(race, dt) {
       if (h.done || ev.t < h.t) continue;
       h.done = true;
       race.events.push({ type: 'hailhit', x: h.x, z: h.z });
-      for (const w of live) if (!w.finished && (w.x - h.x) ** 2 + (w.z - h.z) ** 2 < HAIL.reach * HAIL.reach) stun(race, w, 1.2);
+      for (const w of live) if (!w.finished && !(w.brolly > 0) && (w.x - h.x) ** 2 + (w.z - h.z) ** 2 < HAIL.reach * HAIL.reach) stun(race, w, 1.2);
     }
     ev.hail = ev.hail.filter((h) => ev.t < h.t + 0.25);
   } else if (ev.type === 'frost') {
@@ -413,7 +417,7 @@ export function stepEvents(race, dt) {
     }
   } else if (ev.type === 'heat') {
     for (const w of live) {
-      if (w.star > 0 || w.finished || w.mut[GENE.photo] || rng() >= w.bake * dt) continue; // (photosynthesis: it likes the sun)
+      if (w.star > 0 || w.finished || w.mut[GENE.photo] || w.brolly > 0 || rng() >= w.bake * dt) continue; // (photosynthesis: it likes the sun)
       w.heat += rng.range(0.07, 0.2); w.hurts++;
       race.events.push({ type: 'hurt', idx: w.idx });
       if (w.heat >= 1) { w.heat = 0; drop(race, w, 'die'); }
@@ -510,7 +514,7 @@ export function stepEvents(race, dt) {
 // What rain does to a worm this step: carries it along, and a worm held against the wall by the water
 // is, every so often, washed clean over it. Returns whether that happened.
 export function wash(race, w, dt) {
-  if (race.weather.type !== 'rain' || !w.wash || w.mut[GENE.gills]) return false; // (gills: it's at home in the wet)
+  if (race.weather.type !== 'rain' || !w.wash || w.mut[GENE.gills] || w.brolly > 0) return false; // (gills: it's at home in the wet)
   w.x += w.wash.x * dt; w.z += w.wash.z * dt;
   const loc = locate(race.track, w.x, w.z, w.hint), out = (w.wash.x * loc.tz - w.wash.z * loc.tx) * Math.sign(loc.lat);
   return Math.abs(loc.lat) > race.track.hw + 0.3 && out > 1 && race.rng() < 0.9 * dt;

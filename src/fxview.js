@@ -161,7 +161,12 @@ export class FxView {
       mole: () => { const m = new THREE.Mesh(new THREE.ConeGeometry(0.75, 0.6, 6), lam(0x6a4424)); m.position.y = 0.3; return m; },
       glue: () => { const m = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.75, 0.12, 9), lam(0xc8d030, { transparent: true, opacity: 0.85 })); m.position.y = 0.07; return m; },
     };
-    this.pool = { peel: [], pebble: [], homing: [], mole: [], glue: [] };
+    Object.assign(this.make, {
+      compost: () => { const g = new THREE.Group(); for (const [x, y, z, r] of [[0, 0.7, 0, 1.9], [1.1, 0.4, 0.5, 1.1], [-1, 0.45, -0.4, 1.2], [0.2, 1.5, 0.1, 0.9]]) { const m = new THREE.Mesh(ball, lam(0x5a3c1c)); m.position.set(x, y, z); m.scale.set(r, r * 0.75, r); g.add(m); } return g; },
+      salt: () => { const m = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.1, 0.06, 10), lam(0xf8f8f4, { transparent: true, opacity: 0.9 })); m.position.y = 0.06; return m; },
+      decoy: () => { const g = new THREE.Group(); for (let i = 0; i < 6; i++) { const m = new THREE.Mesh(ball, lam(i ? 0xe8a0b0 : 0xf0b0c0)); m.position.set(0, 0.42, -i * 0.5); m.scale.setScalar(0.42 - i * 0.03); g.add(m); } const eye = new THREE.Mesh(ball, new THREE.MeshBasicMaterial({ color: 0x101010 })); eye.position.set(0.2, 0.62, 0.34); eye.scale.setScalar(0.09); g.add(eye); return g; },
+    });
+    this.pool = { peel: [], pebble: [], homing: [], mole: [], glue: [], compost: [], salt: [], decoy: [] };
     // Rain: two stacked boxes of streaks that fall through each other, kept round whichever camera is drawing.
     const pts = [];
     for (let i = 0; i < 420; i++) { const x = (Math.random() - 0.5) * 44, y = Math.random() * RAIN_BOX, z = (Math.random() - 0.5) * 44; pts.push(x, y, z, x + 0.15, y - 1.3, z); }
@@ -247,14 +252,14 @@ export class FxView {
       m.visible = race.items.boxes[i].t <= 0;
       m.rotation.set(time * 1.3, time * 1.9 + i, 0); m.position.y = 1 + 0.15 * Math.sin(time * 3 + i);
     });
-    const used = { peel: 0, pebble: 0, homing: 0, mole: 0, glue: 0 };
+    const used = { peel: 0, pebble: 0, homing: 0, mole: 0, glue: 0, compost: 0, salt: 0, decoy: 0 };
     for (const e of race.items.ents) {
       const pool = this.pool[e.type];
       if (!pool) continue;
       let m = pool[used[e.type]++];
       if (!m) { m = this.make[e.type](); pool.push(m); this.scene.add(m); }
       m.visible = true; m.position.x = e.x; m.position.z = e.z;
-      if (e.type !== 'peel' && e.type !== 'glue') m.rotation.set(time * 9, time * 7, 0);
+      if (e.type === 'pebble' || e.type === 'homing' || e.type === 'mole') m.rotation.set(time * 9, time * 7, 0);
     }
     for (const k in this.pool) for (let i = used[k]; i < this.pool[k].length; i++) this.pool[k][i].visible = false;
 
