@@ -183,8 +183,20 @@ export class Ceremony {
       const bh = pad * 2 + size * 1.5 + lines.length * size * 1.25, by = H - bh - Math.max(4, m * 0.03) - L.inset.b;
       c.fillStyle = 'rgba(12,16,34,.82)'; c.fillRect(bx, by, bw, bh);
       c.lineWidth = 2; c.strokeStyle = s.medalColour; c.strokeRect(bx + 1, by + 1, bw - 2, bh - 2);
-      text(s.medal, bx + pad, by + pad * 0.7, size * 1.1, s.medalColour);
-      text(s.name.toUpperCase(), bx + bw - pad, by + pad * 0.7, size * 1.1, s.colour, 'right');
+      text(s.name.toUpperCase(), bx + pad, by + pad * 0.7, size * 1.1, s.colour);
+      // Which medal, across the top of the screen, beside a medal: a ribbon and a disc, drawn none too carefully.
+      const big = Math.max(14, m * 0.1), r = big * 0.52, label = s.medal, top = Math.max(4, m * 0.04) + L.inset.t;
+      font(big);
+      const tw = c.measureText(label).width, mx = Math.round((W - tw) / 2 - r * 1.5), my = Math.round(top + big * 0.72);
+      c.lineWidth = 2; c.strokeStyle = '#000'; c.lineJoin = 'miter';
+      for (const [side, colour] of [[-1, '#d82818'], [1, '#2860e8']]) {
+        c.beginPath(); c.moveTo(mx + side * r * 0.15, my - r * 0.5); c.lineTo(mx + side * r * 0.95, my - r * 2); c.lineTo(mx + side * r * 0.35, my - r * 2.05); c.lineTo(mx - side * r * 0.25, my - r * 0.7); c.closePath();
+        c.fillStyle = colour; c.fill(); c.stroke();
+      }
+      c.beginPath(); c.arc(mx + 1, my, r, 0, 7); c.fillStyle = s.medalColour; c.fill(); c.stroke();
+      c.beginPath(); c.arc(mx + 1, my, r * 0.62, 0.3, 5.9); c.lineWidth = 1; c.strokeStyle = 'rgba(0,0,0,.45)'; c.stroke();
+      text(String(3 - this.stage > 0 ? ['1', '2', '3'][this.order[this.stage]] : ''), mx + 1, my - r * 0.62, r * 1.15, '#fff', 'center');
+      text(label, mx + r * 1.5, top, big, s.medalColour);
       let left = Math.floor(this.shown);
       lines.forEach((l, i) => { const part = l.slice(0, Math.max(0, left)); left -= l.length + 1; if (part) text(part, bx + pad, by + pad + size * 1.5 + i * size * 1.25, size, '#fff'); });
     }
