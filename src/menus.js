@@ -185,7 +185,7 @@ export class Menus {
   put(screen, html, acts, focus = 0) {
     this.screen = screen; this.acts = acts; this.panel.hidden = false; this.tickFn = null; this.onFocus = null;
     this.panel.innerHTML = html;
-    this.btns = [...this.panel.querySelectorAll('.btn:not(:disabled),.card.pick,.rng')];
+    this.btns = [...this.panel.querySelectorAll('.btn:not(:disabled):not(.solo),.card.pick,.rng')];
     // Pointing at a button with the mouse picks it out, as steering to it does.
     this.btns.forEach((b, i) => b.addEventListener('pointerenter', () => { if (this.btns[i] === b && this.focus !== i) { this.setFocus(i); this.sound('move'); } }));
     this.setFocus(focus);
@@ -348,13 +348,15 @@ export class Menus {
           style="${at === k ? (sure ? 'background:' : 'border-color:') + PCOL[k] : ''}">${at === k ? 'P' + (k + 1) + (sure ? ' OK' : '?') : ''}</button>`).join('');
     }).join('');
     const off = this.conf.size ? '' : 'disabled';
-    if (this.screen !== 'players') this.pFocus = s.mode === 'online' ? 0 : 1; // START
+    if (this.screen !== 'players') { this.pFocus = s.mode === 'online' ? 0 : 1; this.spec = false; s.spectate = false; } // START
     this.put('players', `<div class="head">WHO'S PLAYING?</div>
       <div class="assign"><div class="hd">INPUT</div>${[1, 2, 3, 4].map((k) => `<div class="hd" style="color:${PCOL[k - 1]}">P${k}</div>`).join('')}${rows}</div>
       <div class="row">${s.mode === 'online' ? '' : `<button class="btn" type="button" data-a="cpu" ${off}>COMPUTER WORMS: ${s.cpu ? 'ON' : 'OFF'}</button>`}
       <button class="btn" type="button" data-a="go" ${off}>START</button>
-      <button class="btn" type="button" data-a="back" ${off}>BACK</button></div>`,
+      <button class="btn" type="button" data-a="back" ${off}>BACK</button></div>
+      ${s.mode === 'online' ? '' : `<div class="row"><button class="btn solo ${this.spec ? 'foc' : ''}" type="button" data-a="watch">SPECTATOR MODE</button></div>`}`,
     {
+      watch: () => this.spectate(),
       slot: (v) => {
         const [d, k] = v.split(':');
         if (this.assign[d] === +k && this.conf.has(d)) return this.setSlot(d, undefined);
@@ -379,6 +381,13 @@ export class Menus {
     for (let k = (this.assign[dev] === undefined ? -1 : this.assign[dev]) + dir; k >= 0 && k <= 3; k += dir) if (!used.has(k)) return k;
     return dir < 0 ? undefined : this.assign[dev];
   }
+  // Spectator mode: nobody plays. Eight computer worms race, and whoever's here just watches.
+  spectate() {
+    const s = this.session;
+    s.players = []; s.spectate = true; s.cpu = true;
+    if (s.mode === 'vs') this.trackSel(); else this.cupSel();
+  }
+
   // Only inputs that confirmed their number play.
   playersDone() {
     const s = this.session, sure = Object.entries(this.assign).filter(([d]) => this.conf.has(d));
@@ -415,7 +424,7 @@ export class Menus {
     this.put('cups', `<div class="head">SELECT CUP</div><div class="row">${CUPS.map((cup, i) =>
       `<button class="card pick cup" type="button" data-a="c" data-v="${i}"><b>${cup.name.toUpperCase()}</b>${cup.tracks.map((t) => `<span>${this.tracks[t].name}</span>`).join('')}</button>`).join('')}</div>`,
     { c: (v) => { s.cup = +v; this.onRace(s); } }, s.cup || 0);
-    this.tickFn = (nav) => { if (nav.back) { s.players.forEach((p) => { p.char = -1; }); this.worms(); } else this.steer(nav); };
+    this.tickFn = (nav) => { if (nav.back) { s.players.forEach((p) => { p.char = -1; }); if (s.spectate) this.players(); else this.worms(); } else this.steer(nav); };
   }
 
   trackSel() {
@@ -435,7 +444,7 @@ export class Menus {
     if (this.tickFn) return this.tickFn(all);
     if (this.screen === 'dialog') { if (all.back && this.onBack) this.onBack(); else this.steer(all); return; }
     if (this.screen === 'tracks') {
-      if (all.back) { s.players.forEach((p) => { p.char = -1; }); this.worms(); } else this.steer(all);
+      if (all.back) { s.players.forEach((p) => { p.char = -1; }); if (s.spectate) this.players(); else this.worms(); } else this.steer(all);
       return;
     }
     if (this.screen === 'players') {
@@ -444,6 +453,11 @@ export class Menus {
       for (const d of devs) {
         if (d === 'touch') continue; // (touch works the screen by tapping it)
         const n = inp.nav(devsOf(d)), at = this.assign[d];
+        // Down goes to SPECTATOR MODE, the one button that needs no player, and up comes back.
+        if (s.mode !== 'online') {
+          if (n.dy && !!this.spec !== n.dy > 0) { this.spec = n.dy > 0; this.sound('move'); return this.players(); }
+          if (this.spec) { if (n.ok || n.start) { this.sound('select'); return this.spectate(); } if (n.back) { this.spec = false; return this.players(); } continue; }
+        }
         if (this.conf.has(d)) {
           // Confirmed: this input now works the buttons. Back un-confirms.
           if (n.back) return this.setSlot(d, at);

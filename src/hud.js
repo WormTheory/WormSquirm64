@@ -107,6 +107,14 @@ export class PlayerHud {
 
   remove() { if (this.el) this.el.remove(); }
 
+  // What's under a click, for a spectator: the AUTO button, a worm in the list, or nothing. x and y in screen pixels.
+  hit(x, y) {
+    const n = this.layer.n, hx = x / n, hy = y / n, inside = (b) => b && hx >= b[0] && hx <= b[0] + b[2] && hy >= b[1] && hy <= b[1] + b[3];
+    if (inside(this.autoBox)) return { auto: true };
+    for (const [idx, ...box] of this.rows || []) if (inside(box)) return { idx };
+    return null;
+  }
+
   update(race, me, dt) {
     const L = this.layer, c = L.ctx, [rx, ry, rw, rh] = this.rect, w = race.worms[me];
     const X = Math.round(rx * L.W), Y = Math.round(ry * L.H), W = Math.round(rw * L.W), H = Math.round(rh * L.H), m = Math.min(W, H);
@@ -165,10 +173,22 @@ export class PlayerHud {
     }
 
     // The running order, down the left.
+    this.rows = []; this.autoBox = null;
     if (this.showOrder) {
       const os = Math.max(7, m * 0.03);
+      let listTop = top + s * 2.1;
+      if (this.watching) {
+        // The button that lets the game choose whom to watch.
+        const label = 'AUTO VIEW: ' + (this.watching.auto ? 'ON' : 'OFF'), bw = width(label, os) + os * 1.2, bh = os * 1.9;
+        c.fillStyle = this.watching.auto ? 'rgba(216,40,24,.9)' : 'rgba(42,54,88,.9)'; c.fillRect(left, listTop, bw, bh);
+        c.lineWidth = 1; c.strokeStyle = '#000'; c.strokeRect(left + 0.5, listTop + 0.5, bw - 1, bh - 1);
+        text(label, left + os * 0.6, listTop + os * 0.45, os, '#fff');
+        this.autoBox = [left, listTop, bw, bh];
+        listTop += bh + os * 0.6;
+      }
       (race.order || race.worms).forEach((o, i) => {
-        const oy = top + s * 2.1 + i * os * 1.4;
+        const oy = listTop + i * os * 1.4;
+        this.rows.push([o.idx, left, oy - os * 0.2, Math.max(60, W * 0.3), os * 1.4]);
         c.beginPath(); c.arc(left + os * 0.5, oy + os * 0.55, os * 0.5, 0, 7);
         // (A worm the bird has eaten stays in the list, greyed out.)
         c.fillStyle = o.out ? '#5a5e66' : hex(CHARS[o.char].color); c.fill(); c.lineWidth = 1; c.strokeStyle = '#000'; c.stroke();
@@ -177,6 +197,8 @@ export class PlayerHud {
         text(CHARS[o.char].name + (o.half ? ' \u00bd' : ''), left + os * 1.4 + ax, oy, os, o.out ? '#8a8e96' : o.idx === me ? '#ffe24a' : '#fff');
       });
     }
+
+    if (this.watching) text('WATCHING ' + CHARS[w.char].name.toUpperCase(), X + W / 2, bottom - Math.max(9, m * 0.04), Math.max(9, m * 0.04), '#fff', 'center');
 
     // Place, bottom left.
     const ps = Math.max(26, m * 0.17), py = bottom - ps;

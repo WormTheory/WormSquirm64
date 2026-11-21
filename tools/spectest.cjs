@@ -1,0 +1,35 @@
+const { chromium } = require('playwright');
+(async () => {
+  const [url, out] = process.argv.slice(2);
+  const browser = await chromium.launch(), errs = [], fails = [];
+  const page = await browser.newPage({ viewport: { width: 960, height: 600 } });
+  page.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });
+  page.on('pageerror', (e) => errs.push(e.message));
+  const key = async (k, wait = 200) => { await page.keyboard.press(k); await page.waitForTimeout(wait); };
+  const check = (what, ok) => { console.log((ok ? 'ok    ' : 'FAIL  ') + what); if (!ok) fails.push(what); };
+  const ws = (fn, arg) => page.evaluate(fn, arg);
+  await page.goto(url); await page.waitForTimeout(800);
+  await key('Enter'); await key('ArrowRight'); await key('Enter'); // START -> VS (second) -> players
+  await page.screenshot({ path: `${out}/spec-menu.png` });
+  await key('ArrowDown'); await page.screenshot({ path: `${out}/spec-menu-foc.png` });
+  await key('Enter'); await page.screenshot({ path: `${out}/spec-tracks.png` });
+  await key('Enter'); await page.waitForTimeout(6000);
+  check('a spectated race has eight computer worms', await ws(() => { const r = window.__ws.race; return r && r.worms.length === 8 && r.worms.every((w) => !w.human) && window.__ws.G.players.length === 1 && window.__ws.G.players[0].spectator; }));
+  await page.screenshot({ path: `${out}/spec-race.png` });
+  const row = await ws(() => { const h = window.__ws.G.players[0].hud, n = h.layer.n, r = h.rows[5]; return { idx: r[0], x: (r[1] + 10) * n, y: (r[2] + r[4] / 2) * n, ax: (h.autoBox[0] + 5) * n, ay: (h.autoBox[1] + 4) * n }; });
+  await page.mouse.click(row.x, row.y); await page.waitForTimeout(600);
+  check('clicking a name watches that worm and turns auto off', await ws((i) => { const p = window.__ws.G.players[0]; return p.me === i && !p.auto; }, row.idx));
+  await page.screenshot({ path: `${out}/spec-picked.png` });
+  await page.mouse.click(row.ax, row.ay); await page.waitForTimeout(300);
+  check('the button turns auto back on', await ws(() => window.__ws.G.players[0].auto));
+  await ws(() => window.__ws.event('brand', 3)); await page.waitForTimeout(1500);
+  check('auto view cuts to the worm the hand visits', await ws(() => window.__ws.G.players[0].me === 3));
+  await page.screenshot({ path: `${out}/spec-event.png` });
+  await key('ArrowRight');
+  check('left and right step through the worms', await ws(() => !window.__ws.G.players[0].auto));
+  await ws(() => { const r = window.__ws.race; for (let n = 0; r.state !== 'done' && n < 90000; n++) r.step(1 / 60); });
+  await page.waitForTimeout(2500); await page.screenshot({ path: `${out}/spec-results.png` });
+  check('the race ends by itself with a score screen', (await page.locator('.panel table').innerText()).length > 20);
+  console.log('errors:', errs.length ? errs : 'none');
+  await browser.close(); process.exit(fails.length || errs.length ? 1 : 0);
+})();

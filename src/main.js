@@ -117,7 +117,7 @@ function setupRace(trackIdx, racers, locals, mirror) {
   const players = locals.map((h, i) => {
     const w = race.worms[h.me];
     return {
-      devs: h.devs, me: h.me, rect: rects[i], drag: i === dragOwner,
+      devs: h.devs, me: h.me, rect: rects[i], drag: i === dragOwner, spectator: !!h.spectator, auto: true,
       cam: { yaw: w.aim, pitch: 0.4, fx: w.x, fz: w.z },
       camera: new THREE.PerspectiveCamera(62, 4 / 3, 0.5, 500),
       hud: new PlayerHud(hudLayer, huds, rects[i], { split: locals.length > 1, showOrder: locals.length <= 2, inputs: h.devs.includes('touch') ? inputs : null }),
@@ -136,6 +136,7 @@ function setupRace(trackIdx, racers, locals, mirror) {
   G = { race, scene, views, fx, players, overview, trackIdx };
   acc = 0; lastBeep = 9;
   songSpeed(1); songShift(0); songLevel(0);
+  Object.assign(DIRECTOR, { until: 0, prio: 0, lastLead: -1, history: [], tick: 0 });
 }
 
 // Nobody playing: eight worms sitting on the first track's grid, behind the menus.
@@ -151,7 +152,7 @@ function toTitle() { backdrop(); menus.title(); }
 // ---- offline: Grand Prix and VS ----
 function startSession(s) {
   sfx.unlock();
-  session = { mode: s.mode, cpu: s.cpu, humans: s.players.map((p) => ({ devs: [...p.devs], char: p.char })), track: s.track, cup: CUPS[s.cup || 0], round: 0, points: {} };
+  session = { mode: s.mode, cpu: s.cpu, spectate: !!s.spectate, humans: s.players.map((p) => ({ devs: [...p.devs], char: p.char })), track: s.track, cup: CUPS[s.cup || 0], round: 0, points: {} };
   resetCarry();
   startRace(s.mode === 'gp' ? session.cup.tracks[0] : s.track);
 }
@@ -166,7 +167,7 @@ function startRace(trackIdx) {
   if (session.mode !== 'gp') resetCarry(); // (what happens to a worm only sticks through a cup)
   const ai = session.cpu ? CHARS.map((_, i) => i).filter((i) => !used.has(i)) : [];
   const racer = (char, human) => ({ char, human });
-  setupRace(trackIdx, dress(ai.map((c) => racer(c, false)).concat(humans.map((h) => racer(h.char, true)))), humans.map((h, i) => ({ devs: h.devs, me: ai.length + i })), false);
+  setupRace(trackIdx, dress(ai.map((c) => racer(c, false)).concat(humans.map((h) => racer(h.char, true)))), session.spectate ? [{ devs: [], me: 0, spectator: true }] : humans.map((h, i) => ({ devs: h.devs, me: ai.length + i })), false);
   menus.hide();
   phase = 'race';
   playSong(raceSong(trackIdx), true);
@@ -221,7 +222,7 @@ function pause(on) {
 }
 
 function showResults() {
-  const race = G.race, mine = new Set(G.players.flatMap((p) => [p.me, G.race.worms[p.me].twin])), gp = session && session.mode === 'gp';
+  const race = G.race, mine = new Set(G.players.filter((p) => !p.spectator).flatMap((p) => [p.me, G.race.worms[p.me].twin])), gp = session && session.mode === 'gp';
   // If the bird ate everybody who was playing, it's a draw: no places and no points.
   const humans = race.worms.filter((w) => w.human), draw = humans.length > 0 && humans.every((w) => w.out);
   remember(race);
@@ -259,6 +260,7 @@ function showResults() {
 // What the race says happened, turned into noises (and, for a worm the bird got, a place at the nest).
 function react(e, mine) {
   const me = e.idx !== undefined && mine(e.idx);
+  direct(e);
   switch (e.type) {
     case 'spasm': sfx.squelch(me ? 0.2 : 0.04); break;
     case 'go': sfx.beep(true); break;
@@ -303,10 +305,78 @@ function react(e, mine) {
   }
 }
 
+// ---- spectator mode ----
+// Somebody watching has a camera but no worm. They can pick a worm from the list (or step through with left and
+// right), or leave AUTO VIEW on and have the game cut to whatever's worth seeing.
+const DIRECTOR = { until: 0, prio: 0, lastLead: -1, history: [], tick: 0 };
+// Cuts an auto-viewing spectator to a worm: prio says how much it matters, hold how many seconds before something lesser can cut away.
+function focus(idx, prio, hold) {
+  const p = G.players.find((q) => q.spectator && q.auto), w = G.race.worms[idx];
+  if (!p || !w || w.out || (clockT < DIRECTOR.until && prio < DIRECTOR.prio)) return;
+  p.me = idx; DIRECTOR.until = clockT + hold; DIRECTOR.prio = prio;
+}
+// What's worth cutting to, as the race reports it.
+function direct(e) {
+  if (!G.players.some((p) => p.spectator)) return;
+  const wx = G.race.weather;
+  switch (e.type) {
+    case 'event':
+      if (wx.visit >= 0) focus(wx.visit, 3, 5);                       // the hand has come for someone
+      else if (wx.bird && wx.bird.target !== undefined) focus(wx.bird.target, 3, 7);
+      else if (e.kind === 'monkey' || e.kind === 'twister') { const lead = (G.race.order || []).find((w) => !w.out && !w.finished); if (lead) focus(lead.idx, 2, 6); }
+      break;
+    case 'howl': focus(e.idx, 3, 9); break;                           // the blood moon's choice
+    case 'grab': case 'cut': case 'paid': case 'branded': focus(e.idx, 3, 5); break;
+    case 'finish': focus(e.idx, 2, 3.5); break;
+    case 'squash': case 'twirl': case 'hailhit': case 'monkeygrab': focus(e.idx, 1, 3); break;
+    default:
+  }
+}
+function spectate(p, dt, live) {
+  const race = G.race, order = (race.order || race.worms).filter((w) => !w.out);
+  if (live) {
+    const nav = inputs.nav();
+    if (nav.ok) { p.auto = !p.auto; sfx.ui('select'); }
+    if (nav.dx && order.length) { const at = order.findIndex((w) => w.idx === p.me); p.me = order[(at + Math.sign(nav.dx) + order.length) % order.length].idx; p.auto = false; sfx.ui('move'); }
+    if (nav.start && phase === 'race' && !menus.active) pause(true);
+  }
+  if (race.worms[p.me].out && order.length) p.me = order[0].idx;
+  if (p.auto && race.state === 'racing') {
+    // Once a second: a new leader is worth a look, and so is a worm that's made up three places in eight seconds.
+    DIRECTOR.tick -= dt;
+    if (DIRECTOR.tick <= 0) {
+      DIRECTOR.tick = 1;
+      const lead = order.find((w) => !w.finished);
+      if (lead && lead.idx !== DIRECTOR.lastLead) { if (DIRECTOR.lastLead >= 0) focus(lead.idx, 1, 4); DIRECTOR.lastLead = lead.idx; }
+      const then = DIRECTOR.history.length >= 8 ? DIRECTOR.history[0] : null;
+      if (then) for (const w of order) if (!w.finished && then[w.idx] !== undefined && then[w.idx] - w.rank >= 3) { focus(w.idx, 2, 5); break; }
+      DIRECTOR.history.push(Object.fromEntries(race.worms.map((w) => [w.idx, w.rank])));
+      if (DIRECTOR.history.length > 8) DIRECTOR.history.shift();
+      // With nothing going on, back to whoever's in front (and off anyone who's finished).
+      if (clockT > DIRECTOR.until && lead && (race.worms[p.me].finished || DIRECTOR.prio > 0)) { p.me = lead.idx; DIRECTOR.prio = 0; }
+    }
+  }
+  // The camera swings round behind whichever worm it's on, following the road.
+  const w = race.worms[p.me], l = locate(race.track, w.x, w.z, -1), fwd = Math.atan2(l.tx, l.tz), off = Math.atan2(Math.sin(fwd - p.cam.yaw), Math.cos(fwd - p.cam.yaw));
+  p.cam.yaw += off * Math.min(1, dt * 3);
+  p.hud.watching = { auto: p.auto };
+}
+canvas.addEventListener('click', (e) => {
+  const r = canvas.getBoundingClientRect();
+  for (const p of G ? G.players : []) {
+    if (!p.spectator || phase !== 'race') continue;
+    const hit = p.hud.hit(e.clientX - r.left, e.clientY - r.top);
+    if (!hit) continue;
+    if (hit.auto) p.auto = !p.auto; else { p.me = hit.idx; p.auto = false; }
+    sfx.ui('select');
+  }
+});
+
 // live: the players' controls count (false behind a results screen or an online pause).
 function stepRace(dt, live, now) {
   const race = G.race;
   for (const p of G.players) {
+    if (p.spectator) { spectate(p, dt, live); continue; }
     const inp = inputs.play(p.devs, dt, p.drag);
     if (!live) continue;
     p.cam.yaw += inp.yaw;
@@ -405,7 +475,7 @@ function frame(now, hidden) {
       renderer.setClearColor(0x000000); renderer.clear();
       // A player whose worm the bird took watches the nest instead.
       for (const p of G.players) {
-        if (!(G.race.worms[p.me].out && nest)) { view(p.rect, p.camera); continue; }
+        if (!(G.race.worms[p.me].out && nest) || p.spectator) { view(p.rect, p.camera); continue; }
         // After the feeding the nest looks down on the race: the race first, then the nest and chicks over it, in the way.
         if (nest.watching) {
           view(p.rect, nest.raceCam);

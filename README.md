@@ -29,6 +29,10 @@ python3 -m http.server 8000   # then open http://localhost:8000
 - On the "Who's playing?" screen every input (the keyboard and mouse, each controller, the touch screen) has a row
   and moves itself into a player slot. A controller appears once one of its buttons has been pressed.
 
+- **Spectator Mode** is a button on the same screen: eight computer worms race and you watch. Click a name in the
+  list to follow that worm (or step through them with left and right). With AUTO VIEW on, the button over the list,
+  the game cuts to whatever's worth seeing: a worm picked out by an event, a finish, a change of leader, a comeback.
+
 ## Layout
 
 - `src/sim/` is the race itself as plain maths, with no three.js: the track, how a worm moves, the computer
@@ -101,6 +105,8 @@ node tools/trackcheck.mjs      # each track's length and tightest bend; a bend t
 
 `tools/carrytest.cjs` runs the first two races of a cup and checks that a split worm, its money and its scarlet
 letter carry over.
+
+`tools/spectest.cjs` starts a race in Spectator Mode and checks the list, the AUTO VIEW button and the cuts.
 
 `tools/nettest.cjs` plays a whole online race between two tabs of a headless browser (host, join from the
 open games list, race, results, back to the lobby, host leaves) and says what passed.

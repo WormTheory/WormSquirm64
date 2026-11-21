@@ -37,7 +37,7 @@ const { chromium } = require('playwright');
   await page.waitForFunction(() => window.__ws.race.weather.monkey && window.__ws.race.weather.monkey.thrown >= 0, null, { timeout: 30000 }).catch(() => {});
   await page.waitForTimeout(500); await shot('monkey-throw');
   await page.waitForTimeout(4000);
-  check('after the monkey, nobody is left in the air', await ws(() => window.__ws.race.worms.every((w) => !(w.lift > 0))));
+  check('after the monkey, nobody is left in the air', await ws(() => window.__ws.race.worms.every((w) => !(w.lift > 0) || w.spring) /* (a worm on a spring is in the air honestly) */));
 
   await finish(); await page.waitForTimeout(2400); await shot('results');
   const table = await page.locator('.panel table').innerText();
