@@ -295,7 +295,7 @@ function showResults() {
       const table = () => menus.dialog(`<div class="head">${session.cup.name.toUpperCase()}</div><table class="t">${final.map((w, i) =>
         `<tr class="${mine.has(w.idx) ? 'me' : ''}"><td>${i + 1}${ORD[i]}</td><td>${dot(w)}</td><td>${score(w)} pts${w.gone ? ' (eaten)' : ''}</td></tr>`).join('')}</table>`,
       [{ label: 'MAIN MENU', fn: toTitle }]);
-      const top = final.slice(0, 3).map((f) => ({ w: race.worms[f.idx], gone: f.gone, chained: f.chains.length > 0, money: f.money, scarlet: f.scarlet }));
+      const top = final.slice(0, 3).map((f) => ({ w: race.worms[f.idx], gone: f.gone && !(f.fusedTo >= 0), chained: f.chains.length > 0, money: f.money, scarlet: f.scarlet }));
       menus.hide();
       phase = 'ceremony';
       ceremony = new Ceremony({ scene: G.scene, race, views: G.views, top, layer: hudLayer, cup: session.cup.name, done: () => { phase = 'after-ceremony'; table(); } });
@@ -592,7 +592,7 @@ function frame(now, hidden) {
     if (nest) { nest.update(clockT, dt); if (nest.watching) nest.watch(G.race, dt); nest.settle(G.race.chicks === undefined ? 3 : G.race.chicks); }
     if (medals) {
       // The medal ceremony runs itself: its own camera, and its words on the HUD. (It stays on behind the final table.)
-      if (phase === 'ceremony') { const nav = inputs.nav(); ceremony.step(dt, nav.ok || nav.start); } else ceremony.aim(dt);
+      if (phase === 'ceremony') { const nav = inputs.nav(); ceremony.step(dt, nav.ok || nav.start); } else { ceremony.aim(dt); ceremony.haunt(); }
       view([0, 0, 1, 1], ceremony.camera);
     } else if (phase === 'after') {
       // Behind the score screen: one picture, circling the worms dancing past the finish line (or, if nobody's

@@ -17,13 +17,16 @@ const { chromium } = require('playwright');
   for (const k of ['Enter', 'Enter', 'Enter', 'Enter', 'Enter', 'Enter', 'Enter']) await key(k); // a Grand Prix, first cup
   for (let race = 0; race < 4; race++) {
     await page.waitForFunction(() => window.__ws.phase === 'race', null, { timeout: 10000 });
+    if (race === 3) await ws(() => { const r = window.__ws.race, p = window.__ws.session.points; while (r.clock < 2) r.step(1 / 60); const best = r.worms.filter((w) => !w.human && !w.evil && !w.pid && w.char !== 8).sort((a, b) => (p[b.char] || 0) - (p[a.char] || 0))[0]; window.__ws.event('bird', best.idx); for (let n = 0; n < 600 && !best.out; n++) r.step(1 / 60); });
     if (race === 1) await ws(() => { const r = window.__ws.race; while (r.clock < 3) r.step(1 / 60); window.__ws.event('clone', 2); for (let n = 0; n < 400; n++) r.step(1 / 60); window.__ws.event('wormx'); });
     await ws(() => { const r = window.__ws.race, A = ['SQUIRM', 'WIGGLE', 'FLOP']; r.weather.on = false; for (let n = 0; r.state !== 'done' && n < 90000; n++) { if (n % 12 === 0) r.worms.forEach((w) => { if (w.human) r.press(w.idx, A[(n / 12) % 3]); }); r.step(1 / 60); } });
     await page.waitForSelector('.panel table', { timeout: 10000 }); await page.waitForTimeout(400);
+    // (Before the last score screen: whoever is leading the cup is taken by the bird, to be at the ceremony dead.)
     if (race === 3) check('the last race offers the ceremony', (await page.locator('.panel .btn').first().innerText()).includes('MEDAL CEREMONY'));
     await key('Enter', 600);
   }
   check('the ceremony is on', await ws(() => window.__ws.phase) === 'ceremony');
+  check('a medallist the bird ate is there as a ghost', await ws(() => window.__ws.ceremony.spots.some((s) => s.e.gone && s.name.startsWith('Ghost of '))));
   await page.waitForTimeout(1200); await shot('podium');
   const seen = [];
   for (let k = 0; k < 3; k++) {

@@ -73,7 +73,7 @@ export function personaOf(w) {
 
 // One more sentence, about the state the worm has ended the cup in. (The first that fits.)
 function aside(w) {
-  if (w.gone) return '(This is coming from inside a bird.)';
+  if (w.gone) return "I'm dead, by the way. A bird ate me. Boo.";
   if (w.cuts) return 'And I did it with ' + (w.cuts === 1 ? 'half' : 'a fraction of') + ' a body.';
   if (w.chained) return "And thank you to whoever's on the other end of this chain. I had no say in it.";
   if (w.money) return 'I also have $' + w.money + '.00, which is nice.';
@@ -117,7 +117,18 @@ export class Ceremony {
       Object.assign(w, { out: false, finished: true, x, z, lift: 0, fall: 0, flat: 0, wolf: 0, howl: 0, giant: 0, shrunk: 0, star: 0, stun: 0, spot: null });
       views[w.idx].group.position.y = h;
       views[w.idx].winT = 0; views[w.idx].tight = 0.5;
-      return { x, z, h, e, name: charOf(w).name + (w.cuts ? ' ' + FRACTION[w.cuts] : ''), colour: hex(charOf(w).color), voice: personaOf(w).voice, text: speechFor({ ...w, ...e }, k), medal: MEDALS[k][0], medalColour: hex(colour) };
+      // A worm that was eaten is there as a ghost: pale, see-through, and not quite touching the podium.
+      if (e.gone) {
+        const ghost = new THREE.MeshLambertMaterial({ color: 0xdcecff, emissive: 0x506078, transparent: true, opacity: 0.45, depthWrite: false });
+        const dark = new THREE.MeshBasicMaterial({ color: 0x182030, transparent: true, opacity: 0.6 });
+        views[w.idx].group.traverse((o) => {
+          if (!o.isMesh) return;
+          const m = o.material;
+          if (m.transparent && m.color.getHex() === 0) { o.visible = false; o.userData.gone = true; return; } // (and it casts no shadow)
+          o.material = m.isMeshBasicMaterial && m.color.getHex() === 0x101010 ? dark : ghost;
+        });
+      }
+      return { x, z, h, e, view: views[w.idx], name: (e.gone ? 'Ghost of ' : '') + charOf(w).name + (w.cuts ? ' ' + FRACTION[w.cuts] : ''), colour: hex(charOf(w).color), voice: personaOf(w).voice, text: speechFor({ ...w, ...e }, k), medal: MEDALS[k][0], medalColour: hex(colour) };
     });
     // Bronze speaks first, gold last.
     this.order = this.spots.map((_, k) => k).reverse();
@@ -142,11 +153,17 @@ export class Ceremony {
     }
     this.aim(dt);
     this.draw();
+    this.haunt();
   }
 
   next() {
     this.stage++; this.at = 0; this.shown = 0; this.hold = undefined;
     if (this.stage >= this.order.length) { this.over = true; this.done(); }
+  }
+
+  // Ghosts hover, and stay shadowless whatever the dance does.
+  haunt() {
+    for (const s of this.spots) if (s.e.gone) { s.view.group.position.y = s.h + 0.55 + 0.22 * Math.sin(this.t * 2.2); for (const sh of s.view.shadows) sh.visible = false; }
   }
 
   // The camera: back from the podium to take it all in, or up close in front of whoever's speaking.

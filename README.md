@@ -119,7 +119,7 @@ A Grand Prix ends on a podium past the finish line (`src/ceremony.js`). The top 
 few words, bronze first, typed out on screen to noises in that worm's own voice. Every worm has one loud personality
 (`PERSONAS`: humble, timid, pompous, bubbly, dim, brooding, cocky, bitter; Worm X is mysterious) and a voice to go
 with it, the same every time. An evil clone is a villain with its original's voice an octave down. A worm nobody has
-written for yet gets a plain voice and plain lines, so a new kind of worm needs only an entry in that list. A button
+written for yet gets a plain voice and plain lines, so a new kind of worm needs only an entry in that list. A medallist the bird ate attends as a ghost. A button
 hurries a speech along. `tools/ceremonytest.cjs` plays a cup through and watches it.
 
 ## Online play
