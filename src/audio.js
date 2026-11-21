@@ -2,7 +2,7 @@
 // a tap or key press, so nothing exists until unlock() is called from one.
 import { settings } from './settings.js';
 
-let ctx = null, noiseBuf = null, sfxGain = null, musicGain = null;
+let ctx = null, noiseBuf = null, sfxGain = null, musicGain = null, musicBus = null;
 
 export function unlock() {
   if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
@@ -12,7 +12,14 @@ export function unlock() {
     const d = noiseBuf.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     sfxGain = ctx.createGain(); sfxGain.connect(ctx.destination);
-    musicGain = ctx.createGain(); musicGain.connect(ctx.destination);
+    // The music goes through a compressor (so a busy bar can't get too loud) and picks up a faint echo for a bit of room.
+    const squash = ctx.createDynamicsCompressor();
+    squash.threshold.value = -18; squash.ratio.value = 4; squash.connect(ctx.destination);
+    musicGain = ctx.createGain(); musicGain.connect(squash);
+    musicBus = ctx.createGain(); musicBus.connect(musicGain);
+    const echo = ctx.createDelay(0.5), back = ctx.createGain(), wet = ctx.createGain();
+    echo.delayTime.value = 0.19; back.gain.value = 0.25; wet.gain.value = 0.2;
+    musicBus.connect(echo); echo.connect(back); back.connect(echo); echo.connect(wet); wet.connect(musicGain);
     applyVolume();
   } catch (e) { ctx = null; }
 }
@@ -23,7 +30,7 @@ export function applyVolume() {
   musicGain.gain.value = (settings.music ?? 6) / 6;
 }
 export const audioCtx = () => ctx;
-export const musicOut = () => musicGain;
+export const musicOut = () => musicBus;
 
 function tone(type, f0, f1, dur, vol, when = 0) {
   if (!ctx) return;

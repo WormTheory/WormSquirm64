@@ -58,8 +58,12 @@ python3 -m http.server 8000   # then open http://localhost:8000
 - **The hand.** A worm that falls off is lowered back onto the road by a giant hand, and one that bakes to death
   has a jug of water poured over it. How often events come is a slider in the options.
 - **Wormbow Road** has no walls: a worm that goes over the edge falls and comes back in the middle of the road.
-- **Music** (`src/music.js`) is made up by the game from a seed for each track, so there are no sound files.
-  The last lap plays faster. Music and sound each have a volume slider in the options.
+- **Music** (`src/music.js`) is made up by the game from a seed and a style for each track, so there are no sound files.
+  A song has an intro and then sections (A, A with more going on, B with new chords and a new tune, A again), played
+  by a lead, a second voice in harmony, a bass line, chord stabs, an arpeggio and a drum kit with fills. Each track has
+  its own band and feel. The last lap is faster and a semitone higher, and a player in the first three hears an extra
+  layer. Music and sound each have a volume slider in the options. `node tools/musiccheck.mjs` prints what each song
+  contains (`node tools/musiccheck.mjs race0` draws its tune too), since a test can't listen.
 
 ## Online play
 

@@ -16,7 +16,7 @@ import { MirrorRace, snapshot } from './net/mirror.js';
 import { makePortraits } from './portraits.js';
 import { DomPainter } from './dompaint.js';
 import { settings, allowedEvents, autoMode } from './settings.js';
-import { playSong, songSpeed, raceSong } from './music.js';
+import { playSong, songSpeed, songShift, songLevel, raceSong } from './music.js';
 import { begin as beginEvent } from './sim/events.js';
 import * as sfx from './audio.js';
 
@@ -112,7 +112,7 @@ function setupRace(trackIdx, racers, locals, mirror) {
   }
   G = { race, scene, views, fx, players, overview, trackIdx };
   acc = 0; lastBeep = 9;
-  songSpeed(1);
+  songSpeed(1); songShift(0); songLevel(0);
 }
 
 // Nobody playing: eight worms sitting on the first track's grid, behind the menus.
@@ -146,7 +146,7 @@ function startRace(trackIdx) {
   setupRace(trackIdx, ai.map((c) => racer(c, false)).concat(humans.map((h) => racer(h.char, true))), humans.map((h, i) => ({ devs: h.devs, me: ai.length + i })), false);
   menus.hide();
   phase = 'race';
-  playSong(raceSong(trackIdx));
+  playSong(raceSong(trackIdx), true);
 }
 
 // ---- online ----
@@ -163,7 +163,7 @@ const online = new Online(menus, inputs, TRACKS, {
     setupRace(msg.track, msg.racers, locals, !room.isHost);
     menus.hide();
     phase = 'race';
-    playSong(raceSong(msg.track));
+    playSong(raceSong(msg.track), true);
   },
   snap(msg) { if (net && G.race.onSnap) G.race.onSnap(msg); },
   // Host: a guest's controls, one entry per player they brought.
@@ -231,7 +231,7 @@ function react(e, mine) {
   switch (e.type) {
     case 'spasm': sfx.squelch(me ? 0.2 : 0.04); break;
     case 'go': sfx.beep(true); break;
-    case 'lap': if (me) { sfx.lapJingle(); if (e.lap === G.race.laps) songSpeed(1.18); } break; // the last lap goes faster
+    case 'lap': if (me) { sfx.lapJingle(); if (e.lap === G.race.laps) { songSpeed(1.15); songShift(1); } } break; // the last lap goes faster, and a semitone up
     case 'finish': if (me) sfx.finishJingle(); break;
     // Getting an item sounds its own way: a whoosh for a boost, a fanfare for a star, a toss for the things you throw or drop.
     case 'item': sfx.itemUse(e.item, me ? 1 : 0.3); if (me) sfx.itemJingle(); break;
@@ -311,6 +311,8 @@ function stepRace(dt, live, now) {
     const n = Math.ceil(-race.clock);
     if (n <= 3 && n < lastBeep) { lastBeep = n; sfx.beep(false); }
   }
+  // The music gains a layer while any of this screen's players is in the first three.
+  songLevel(G.players.some((p) => { const w = race.worms[p.me]; return !w.out && w.rank < 3; }) && race.state === 'racing' ? 1 : 0);
   trackName.hidden = !(race.state === 'countdown' && race.clock < -3.2);
   if (!trackName.hidden) trackName.textContent = TRACKS[G.trackIdx].name.toUpperCase();
 }
