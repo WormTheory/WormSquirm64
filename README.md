@@ -100,6 +100,19 @@ are copied to an evil clone and are kept by both pieces of a worm that's cut.
 
 `tools/genetest.cjs` checks the numbers and the nest, and takes a picture of every mutation.
 
+## The newer events, items and mutations
+
+- **Events** (`src/sim/events2.js`, drawn by `src/fxview2.js`): fog, wind, a flood, night, low gravity, a lawnmower that
+  splits what it runs over, a sprinkler, roadworks, a sinkhole that stays, and a spell of everyone going the other way
+  round; a mole uprising, a chicken, an ant parade for whoever's last, a snail trailing glue, a frog with a long
+  tongue, two birds one after the other, and a pace worm nobody may pass; and more calls from the hand: a fisherman's
+  cast, a swap meet, a makeover, a tax audit, a knot, an adoption (a baby that trips other worms), a marriage (a chain,
+  and points shared), and two worms fused into one. `tools/eventtest.cjs` runs each of them.
+- **Items** (`src/sim/items.js`): a compost heap, a salt shaker, a fishing hook, a leaf umbrella, a decoy worm, a magnet,
+  a garden hose, a worm whistle, a shovel, a banana bunch, hot sauce, a mirror, hiccups, a coupon and a mystery egg.
+  `tools/itemtest.cjs` uses every item.
+- **Mutations** (`src/sim/genes.js`): twenty more, from gills to photosynthesis; the list in that file says what each does.
+
 ## The medal ceremony
 
 A Grand Prix ends on a podium past the finish line (`src/ceremony.js`). The top three dance on it and each says a

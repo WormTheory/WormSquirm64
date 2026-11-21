@@ -28,8 +28,8 @@ export const CSS = `
 #ws tr.me td{color:#ffe24a}
 #ws .dot{display:inline-block;width:.8em;height:.8em;border-radius:50%;border:2px solid #000;vertical-align:-.05em}
 #ws .row{display:flex;flex-wrap:wrap;gap:1.6vmin;justify-content:center}
-#ws .evgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:.9vmin 1.1vmin;width:min(96%,170vmin)}
-#ws .evgrid .btn{font-size:clamp(9px,2.1vmin,17px);padding:.4em .3em;white-space:nowrap;border-width:2px;border-radius:7px}
+#ws .evgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:.5vmin .7vmin;width:min(98%,178vmin)}
+#ws .evgrid .btn{font-size:clamp(7px,1.45vmin,13px);padding:.3em .2em;white-space:nowrap;border-width:2px;border-radius:6px;overflow:hidden}
 @media (max-aspect-ratio:1/1){#ws .evgrid{grid-template-columns:repeat(3,1fr)}}
 #ws .btn{font:inherit;font-size:clamp(13px,3.2vmin,26px);padding:.4em 1.1em;border:3px solid #000;border-radius:10px;color:#fff;
   background:linear-gradient(#5a6a90,#2a3658);box-shadow:0 5px 0 #000;cursor:pointer}

@@ -84,8 +84,8 @@ let ceremony = null; // the medal ceremony at the end of a cup, while it's on
 // been given, a scarlet letter. A worm is known by its number, with a 'b' and the piece's own name on the end for a
 // piece that a cut made. pieces: those names, for each worm that's been cut; cuts: how many times each piece has been.
 const keyOf = (w) => w.char + (w.pid ? 'b' + w.pid : '');
-let carry = { eaten: new Set(), pieces: {}, cuts: {}, scarlet: new Set(), plaster: {}, chains: [], wormx: false, mut: {}, chicks: 3, money: {} };
-const resetCarry = () => { carry = { eaten: new Set(), pieces: {}, cuts: {}, scarlet: new Set(), plaster: {}, chains: [], wormx: false, mut: {}, chicks: 3, money: {} }; nest = null; };
+let carry = { eaten: new Set(), pieces: {}, cuts: {}, scarlet: new Set(), plaster: {}, chains: [], wormx: false, mut: {}, chicks: 3, glam: new Set(), fused: {}, weds: [], money: {} };
+const resetCarry = () => { carry = { eaten: new Set(), pieces: {}, cuts: {}, scarlet: new Set(), plaster: {}, chains: [], wormx: false, mut: {}, chicks: 3, glam: new Set(), fused: {}, weds: [], money: {} }; nest = null; };
 const resetCarryKeepNest = () => { const n = nest; resetCarry(); nest = n; };
 // A plain list of racers [{char, human}], with all that put on: the pieces cut off worms are added on the end.
 const notePiece = (w) => { if (w.pid) { const l = carry.pieces[w.char] || (carry.pieces[w.char] = []); if (!l.includes(w.pid)) l.push(w.pid); } };
@@ -94,7 +94,10 @@ function dress(base) {
   if (carry.wormx) { out.push({ char: X_CHAR, human: false, pid: '' }); base = [...base, { char: X_CHAR, human: false }]; } // (the stranger stays on, at the back of the grid)
   for (const r of base) for (const pid of carry.pieces[r.char] || []) out.push({ char: r.char, human: r.human, pid });
   for (const r of out) { const k = keyOf(r); if (r.pid) r.human = false; r.mut = allGenes(carry.mut[k]); if (!r.mut.some((n) => n)) delete r.mut; r.cuts = carry.cuts[k] || 0; // (a piece cut off a worm, or an evil clone, is nobody's to drive)
- r.half = r.cuts > 0; r.second = !!r.pid; r.out = carry.eaten.has(k); r.money = carry.money[k] || 0; r.scarlet = carry.scarlet.has(k); r.plaster = carry.plaster[k] || 0; r.chains = []; }
+ r.half = r.cuts > 0; r.second = !!r.pid; r.out = carry.eaten.has(k); r.money = carry.money[k] || 0; r.scarlet = carry.scarlet.has(k); r.plaster = carry.plaster[k] || 0; r.chains = []; r.glam = carry.glam.has(k); }
+  // (A worm that's been fused into another stays in it; and the married stay married.)
+  out.forEach((r) => { const into = carry.fused[keyOf(r)], at = into === undefined ? -1 : out.findIndex((q) => keyOf(q) === into); if (at >= 0) { r.fusedTo = at; r.out = true; r.human = false; } });
+  for (const [ka, kb] of carry.weds) { const a = out.findIndex((r) => keyOf(r) === ka), b = out.findIndex((r) => keyOf(r) === kb); if (a >= 0 && b >= 0) { out[a].wed = b; out[b].wed = a; } }
   // (An unstable worm: each race one of its other mutations turns into a different one.)
   for (const r of out) {
     if (!r.mut || !r.mut[GENE.unstable]) continue;
@@ -112,6 +115,7 @@ function dress(base) {
 }
 // Notes what the race just run has done to its worms.
 function remember(race) {
+  carry.weds = race.worms.filter((w) => w.wed > w.idx && race.worms[w.wed]).map((w) => [keyOf(w), keyOf(race.worms[w.wed])]);
   carry.chicks = race.chicks;
   carry.chains = race.worms.flatMap((w) => w.chains.filter((m) => m > w.idx && race.worms[m]).map((m) => [keyOf(w), keyOf(race.worms[m])]));
   for (const w of race.worms) {
@@ -120,7 +124,9 @@ function remember(race) {
     if (w.scarlet) carry.scarlet.add(k);
     carry.plaster[k] = w.patch || 0;
     if (w.char === X_CHAR) carry.wormx = true;
-    if (w.out) carry.eaten.add(k);
+    if (w.out && !(w.fusedTo >= 0)) carry.eaten.add(k);
+    if (w.fusedTo >= 0 && race.worms[w.fusedTo]) carry.fused[k] = keyOf(race.worms[w.fusedTo]);
+    if (w.glam) carry.glam.add(k);
     carry.money[k] = w.money;
   }
 }
@@ -211,7 +217,7 @@ const online = new Online(menus, inputs, TRACKS, {
     // (A guest learns what's stuck to whom from the host's list.)
     resetCarryKeepNest();
     msg.racers.forEach((r, i) => { for (const m of r.chains || []) if (m > i && msg.racers[m]) carry.chains.push([keyOf(r), keyOf(msg.racers[m])]); });
-    for (const r of msg.racers) { const k = keyOf(r); if (r.out) carry.eaten.add(k); carry.cuts[k] = r.cuts || 0; if (r.mut) carry.mut[k] = r.mut.slice(); notePiece(r); if (r.scarlet) carry.scarlet.add(k); carry.plaster[k] = +r.plaster || 0; if (r.char === X_CHAR) carry.wormx = true; carry.money[k] = r.money || 0; }
+    for (const r of msg.racers) { const k = keyOf(r); if (r.out && !(r.fusedTo >= 0)) carry.eaten.add(k); if (r.fusedTo >= 0 && msg.racers[r.fusedTo]) carry.fused[k] = keyOf(msg.racers[r.fusedTo]); if (r.glam) carry.glam.add(k); carry.cuts[k] = r.cuts || 0; if (r.mut) carry.mut[k] = r.mut.slice(); notePiece(r); if (r.scarlet) carry.scarlet.add(k); carry.plaster[k] = +r.plaster || 0; if (r.char === X_CHAR) carry.wormx = true; carry.money[k] = r.money || 0; }
     const locals = [];
     msg.seats.forEach((s, k) => { if (s.peer === room.self && online.humans[s.local]) locals.push({ devs: online.humans[s.local].devs, me: msg.seatIdx[k] }); });
     setupRace(msg.track, msg.racers, locals, !room.isHost);
@@ -257,13 +263,18 @@ function showResults() {
   // If the bird ate everybody who was playing, it's a draw: no places and no points.
   const humans = race.worms.filter((w) => w.human), draw = humans.length > 0 && humans.every((w) => w.out);
   remember(race);
-  const pts = (w, i) => (w.out || draw ? 0 : POINTS[i] || 0);
-  if (gp) race.order.forEach((w, i) => { session.points[pk(w)] = (session.points[pk(w)] || 0) + pts(w, i); });
+  const place = (w, i) => (w.out || draw ? 0 : POINTS[i] || 0), earned = {};
+  race.order.forEach((w, i) => { earned[w.idx] = place(w, i); });
+  // (A worm that's part of another gets what that one gets; a married couple put theirs together and halve it.)
+  for (const w of race.worms) if (w.fusedTo >= 0) earned[w.idx] = earned[w.fusedTo] || 0;
+  for (const w of race.worms) if (w.wed > w.idx && race.worms[w.wed]) { const half = (earned[w.idx] + earned[w.wed]) / 2; earned[w.idx] = half; earned[w.wed] = half; }
+  const pts = (w) => earned[w.idx];
+  if (gp) race.order.forEach((w) => { session.points[pk(w)] = (session.points[pk(w)] || 0) + pts(w); });
   // A worm's name on the score screen: its colour, a scarlet letter if it wears one, which half it is if it's been cut in two, and its money.
   const cash = (w) => (w.money ? ' <b class="money">&#36;' + w.money.toFixed(2) + '</b>' : '');
   const dot = (w) => `<i class="dot" style="background:${hex(charOf(w).color)}"></i> ${w.scarlet ? '<b class="scarlet">A</b> ' : ''}${w.cuts > 1 ? FRACTION[w.cuts] + ' of ' : w.half ? (w.second ? 'Back of ' : 'Front of ') : ''}${charOf(w).name}${cash(w)}`;
   const rows = race.order.map((w, i) => `<tr class="${mine.has(w.idx) ? 'me' : ''}"><td>${w.out || draw ? '' : i + 1 + ORD[i]}</td><td>${dot(w)}</td>
-    <td>${w.out ? 'eaten by a bird' : w.finished ? fmtTime(w.finishTime) : 'still squirming'}</td>${gp ? `<td>+${pts(w, i)}</td><td>${score(w)}</td>` : ''}</tr>`).join('');
+    <td>${w.fusedTo >= 0 ? 'part of ' + charOf(race.worms[w.fusedTo]).name : w.out ? 'eaten by a bird' : w.finished ? fmtTime(w.finishTime) : 'still squirming'}</td>${gp ? `<td>+${+pts(w).toFixed(2)}</td><td>${score(w)}</td>` : ''}</tr>`).join('');
   const html = `<div class="head">${draw ? 'DRAW' : TRACKS[G.trackIdx].name.toUpperCase()}</div>${draw ? '<div class="help">Everybody playing was eaten.</div>' : ''}<table class="t">${rows}</table>`;
   playSong('results');
   if (net) {
@@ -346,6 +357,7 @@ function react(e, mine) {
       break;
     }
     case 'mutation': sfx.mutate(); break;
+    case 'fusion': sfx.squash(); sfx.mutate(); break;
     case 'cut': {
       sfx.chop();
       // (In a cup, the points the worm had are shared between the two pieces.)
@@ -481,6 +493,8 @@ function stepRace(dt, live, now) {
   const race = G.race;
   for (const p of G.players) {
     if (p.spectator) { spectate(p, dt, live); continue; }
+    // (A player whose worm has been fused into another drives that one now, with whoever else does.)
+    if (race.worms[p.me].fusedTo >= 0 && race.worms[race.worms[p.me].fusedTo]) p.me = race.worms[p.me].fusedTo;
     const inp = inputs.play(p.devs, dt, p.drag);
     if (!live) continue;
     p.cam.yaw += inp.yaw;
@@ -572,6 +586,7 @@ function frame(now, hidden) {
     }
     // (A worm cut in two mid-race needs a model for its new half.)
     while (G.views.length < G.race.worms.length) { const w = G.race.worms[G.views.length], v = new WormView(charOf(w), G.scene); v.reset(w); G.views.push(v); }
+    { const low = G.race.weather.type === 'lowgrav'; for (const w of G.race.worms) w.floaty = low; }
     G.race.worms.forEach((w, i) => G.views[i].update(w, clockT, G.race.track));
     G.fx.update(G.race, clockT, dt);
     if (nest) { nest.update(clockT, dt); if (nest.watching) nest.watch(G.race, dt); nest.settle(G.race.chicks === undefined ? 3 : G.race.chicks); }

@@ -3,12 +3,14 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { canvasTex } from './view.js';
 import { centreNear } from './sim/track.js';
+import { Fx2 } from './fxview2.js';
 import { FALL_TIME, DEAD_TIME, DROP_PART, OUT_TIME, LIE_PART, BITE_TIME, BITE_LIE, PLASTER_PART, PAT_END, CHAIN, MONKEY, CLONE, HAIL, VISIT, carried } from './sim/events.js';
 
 const lam = (color, o) => new THREE.MeshLambertMaterial({ color, flatShading: true, ...o });
 const RAIN_BOX = 26;
 // The colour each event turns the sky.
-const TINTS = { rain: 0x4a5868, heat: 0xf8a040, moon: 0x6a0810, frost: 0xd8ecff, twister: 0x70747c, hail: 0x5a6878, dizzy: 0x9040c0 };
+const TINTS = { rain: 0x4a5868, heat: 0xf8a040, moon: 0x6a0810, frost: 0xd8ecff, twister: 0x70747c, hail: 0x5a6878, dizzy: 0x9040c0,
+  fog: 0xc4c8cc, night: 0x04040c, flood: 0x5a7890, wind: 0x8a9098, sprinkler: 0x7a8894 };
 
 // A bird, built facing +z, with wings that can be flapped. size: about its length.
 export function makeBird(size, body = 0x283a70, belly = 0xd8dce8) {
@@ -90,7 +92,10 @@ function makeVisitor() {
   };
   const dna = syringe(0x40ff60), growth = syringe(0xb050f0);
   g.add(knife, check, iron, chain, dna, growth);
-  g.userData.props = { split: knife, check, brand: iron, chain, clone: dna, gene: growth };
+  const thing = (colour, w, h, d, y = -1.6) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), lam(colour)); m.position.set(0, y, 0.35); g.add(m); return m; };
+  g.userData.props = { split: knife, check, brand: iron, chain, clone: dna, gene: growth,
+    fisher: thing(0x8a6a3a, 0.1, 3.4, 0.1, -2.4), swapmeet: thing(0xf8d020, 0.9, 0.9, 0.2), makeover: thing(0xe01848, 0.24, 1.2, 0.24), tax: thing(0xf4f0e0, 1.4, 1.9, 0.06),
+    knot: thing(0xc8a060, 0.16, 2.6, 0.16, -2), adoption: thing(0x90d0ff, 0.7, 0.7, 0.7), fused: thing(0xf0f0f0, 0.5, 1.3, 0.5) };
   g.visible = false;
   return g;
 }
@@ -119,6 +124,7 @@ export class FxView {
     this.monkey = makeMonkey(); scene.add(this.monkey);
     this.monkeyAt = null;
     this.scene = scene;
+    this.fx2 = new Fx2(scene);
     // Blood, where the were-wolf-worm has been at somebody: drops that fly up for a moment, and a pool that stays
     // for the rest of the race.
     this.wasBit = []; this.drops = []; this.pools = [];
@@ -241,6 +247,7 @@ export class FxView {
   }
 
   update(race, time, dt) {
+    this.fx2.update(race, time, dt);
     race.worms.forEach((w, i) => { const b = w.fall > 0 && !!w.bit; if (b && !this.wasBit[i]) this.bleed(w.x, w.z); this.wasBit[i] = b; });
     this.drops = this.drops.filter((d) => {
       d.vy -= 22 * dt; d.m.position.x += d.vx * dt; d.m.position.y += d.vy * dt; d.m.position.z += d.vz * dt;
@@ -268,7 +275,7 @@ export class FxView {
     while (this.hands.length < race.worms.length) this.hands.push(null); // (a worm cut in two adds one)
     // The hand's visit to one worm: down with what it's brought, the deed, and away again.
     // (For a chain, it comes down between the two worms once they're side by side.)
-    const ch = race.weather.type === 'chain' ? race.weather.chain : null, ca = ch && race.worms[ch.a], cb = ch && race.worms[ch.b];
+    const ch = race.weather.type === 'chain' || race.weather.type === 'marry' ? race.weather.chain : null, ca = ch && race.worms[ch.a], cb = ch && race.worms[ch.b];
     const visit = ca && cb ? (race.weather.t >= ch.t0 ? { x: (ca.x + cb.x) / 2, z: (ca.z + cb.z) / 2 } : null) : race.worms[race.weather.visit], V = this.visitor;
     V.visible = !!visit;
     // The clone's tank: lowered, drained, broken.
@@ -312,7 +319,7 @@ export class FxView {
     for (; nl < this.links.length; nl++) this.links[nl].visible = false;
     if (visit) {
       const t = race.weather.t - (ch ? ch.t0 : 0), down = Math.min(1, t / (VISIT.at - 0.35)), strike = Math.max(0, 1 - Math.abs(t - VISIT.at) / 0.18);
-      for (const k in V.userData.props) V.userData.props[k].visible = k === race.weather.type && !(k === 'check' && t > VISIT.at + 0.3) && !(k === 'chain' && t > CHAIN.at);
+      for (const k in V.userData.props) V.userData.props[k].visible = (k === race.weather.type || (k === 'chain' && race.weather.type === 'marry')) && !(k === 'check' && t > VISIT.at + 0.3) && !(k === 'chain' && t > CHAIN.at);
       // (The knife and the iron come down hard at the moment itself; the check is just held out.)
       V.position.set(visit.x, 5.2 + 30 * (1 - down) ** 2 - (race.weather.type === 'check' ? 1.2 * down : 1.7 * strike) + Math.max(0, t - VISIT.at - 0.7) ** 2 * 26, visit.z - 0.3);
     }
@@ -406,7 +413,7 @@ export class FxView {
     const want = TINTS[kind] ? 1 : 0;
     this.tint += Math.sign(want - this.tint) * Math.min(Math.abs(want - this.tint), dt * 0.8);
     if (TINTS[kind]) this.tintTo.set(TINTS[kind]);
-    if (kind !== 'none') this.deep = kind === 'moon' ? 0.9 : 0.6; // (the blood moon turns the sky nearly all the way red)
+    if (kind !== 'none') this.deep = kind === 'moon' || kind === 'night' || kind === 'fog' ? 0.9 : 0.6; // (the blood moon turns the sky nearly all the way red)
     const u = this.scene.userData;
     if (u.sky) { this.scene.background.copy(u.sky).lerp(this.tintTo, this.tint * this.deep); this.scene.fog.color.copy(u.fog).lerp(this.tintTo, this.tint * this.deep); }
 

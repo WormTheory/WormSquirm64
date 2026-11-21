@@ -6,6 +6,7 @@ import { gridSlot } from '../sim/race.js';
 import { makeWorm, ACTIONS } from '../sim/worm.js';
 import { makeItems, ENT_TYPES } from '../sim/items.js';
 import { allGenes, GENES } from '../sim/genes.js';
+import { KINDS2 } from '../sim/events2.js';
 import { EVENT_KINDS, CHAIN, VISITS } from '../sim/events.js';
 
 const DELAY = 0.1, PER = 17; // seconds shown behind the host; numbers per worm in a snapshot
@@ -24,7 +25,7 @@ const r2 = (v) => Math.round(v * 100) / 100;
 export function snapshot(race) {
   const w = [];
   for (const o of race.worms) {
-    let flags = (o.out ? 32 : 0) | (o.dead ? 64 : 0) | (o.pit ? 128 : 0) | (o.wolf > 0 ? 256 : 0) | (o.howl > 0 ? 512 : 0) | (o.bit ? 1024 : 0) | (o.patch > 0 ? 2048 : 0) | (o.slow > 0 ? 4096 : 0) | (o.shield > 0 ? 8192 : 0) | (o.giant > 0 ? 16384 : 0) | (o.scarlet ? 32768 : 0) | ((o.cuts & 7) << 16) | (Math.min(7, o.patch) << 19) | ((o.nested & 3) << 22);
+    let flags = (o.out ? 32 : 0) | (o.dead ? 64 : 0) | (o.pit ? 128 : 0) | (o.wolf > 0 ? 256 : 0) | (o.howl > 0 ? 512 : 0) | (o.bit ? 1024 : 0) | (o.patch > 0 ? 2048 : 0) | (o.slow > 0 ? 4096 : 0) | (o.shield > 0 ? 8192 : 0) | (o.giant > 0 ? 16384 : 0) | (o.scarlet ? 32768 : 0) | ((o.cuts & 7) << 16) | (Math.min(7, o.patch) << 19) | ((o.nested & 3) << 22) | (o.glam ? 1 << 24 : 0) | (o.knot > 0 ? 1 << 25 : 0) | (o.fusedTo >= 0 ? 1 << 26 : 0);
     FLAGS.forEach((k, i) => { if (o[k] > 0) flags |= 1 << i; });
     w.push(r2(o.x), r2(o.z), o.count, Math.max(0, ACTIONS.indexOf(o.action)), o.taps, Math.round(o.prog * 10) / 10, o.lap, o.rank,
       o.finished ? r2(o.finishTime) : -1, flags, r2(o.fall), r2(o.lift), r2(o.heat), o.hurts, o.items, o.item, o.money);
@@ -37,6 +38,7 @@ export function snapshot(race) {
   else if (wx.visit >= 0) { ev.push(wx.visit); if (wx.clone) ev.push(r2(wx.clone.x), r2(wx.clone.z)); else if (wx.gene >= 0) ev.push(wx.gene); }
   else if (wx.xin) ev.push(wx.xin.idx);
   else if (wx.chain) ev.push(wx.chain.a, wx.chain.b, wx.chain.far ? 1 : 0);
+  else if (wx.data) ev.push(...wx.data.map((n) => Math.round(n * 100) / 100));
   else if (wx.stomp) for (const f of wx.stomp.steps) ev.push(r2(f.x), r2(f.z), r2(f.t));
   else if (wx.hail) for (const h of wx.hail) ev.push(r2(h.x), r2(h.z), r2(h.t));
   // x: worms made since the start (the back halves of worms cut in two): which worm each is, whether a player's, and its other half's number.
@@ -46,7 +48,9 @@ export function snapshot(race) {
   for (const o of race.worms) for (const m of o.chains) if (m > o.idx) ch.push(o.idx, m);
   // m: each worm's mutations, a digit for each kind (left out while nobody has any). ck: chicks still alive.
   const m = race.worms.some((o) => o.mut.some((n) => n)) ? race.worms.map((o) => o.mut.join('')) : undefined;
-  return { t: 's', c: Math.round(race.clock * 1000) / 1000, st: STATES.indexOf(race.state), w, x, ch, m, ck: race.chicks, b: race.items.boxes.map((b) => (b.t > 0 ? 0 : 1)).join(''), e, ev };
+  // ho: holes in the road (x, z, radius each). bb: babies (x, z, whose).
+  const ho = (race.holes || []).flatMap((h) => [r2(h.x), r2(h.z), r2(h.r)]), bb = (race.babies || []).flatMap((b) => [r2(b.x), r2(b.z), b.owner]);
+  return { t: 's', c: Math.round(race.clock * 1000) / 1000, st: STATES.indexOf(race.state), w, x, ch, m, ck: race.chicks, ho: ho.length ? ho : undefined, bb: bb.length ? bb : undefined, b: race.items.boxes.map((b) => (b.t > 0 ? 0 : 1)).join(''), e, ev };
 }
 
 export class MirrorRace {
@@ -57,7 +61,7 @@ export class MirrorRace {
     this.worms = racers.map((r, i) => {
       const p = gridSlot(this.track, i), w = makeWorm(i, r.char, !!r.human, p.x, p.z);
       w.aim = w.look = Math.atan2(p.tx, p.tz);
-      w.out = !!r.out; w.cuts = r.cuts || (r.half ? 1 : 0); w.half = w.cuts > 0; w.pid = r.pid || ''; w.second = !!w.pid; w.evil = w.pid[0] === 'e'; w.mut = allGenes(r.mut); w.money = r.money || 0; w.scarlet = !!r.scarlet; w.patch = +r.plaster || 0; w.chains = (r.chains || []).slice();
+      w.out = !!r.out; w.cuts = r.cuts || (r.half ? 1 : 0); w.half = w.cuts > 0; w.pid = r.pid || ''; w.second = !!w.pid; w.evil = w.pid[0] === 'e'; w.mut = allGenes(r.mut); w.glam = !!r.glam; w.fusedTo = r.fusedTo >= 0 ? r.fusedTo : -1; w.money = r.money || 0; w.scarlet = !!r.scarlet; w.patch = +r.plaster || 0; w.chains = (r.chains || []).slice();
       return w;
     });
     for (const w of this.worms) if (w.pid && w.pid !== 'e') { const o = this.worms.find((x) => x.char === w.char && x.pid === (w.evil ? 'e' : '')); if (o) { w.root = o.idx; w.twin = o.idx; if (o.twin < 0) o.twin = w.idx; } } // (an evil clone, 'e', is a worm of its own)
@@ -132,7 +136,8 @@ export class MirrorRace {
       if ((fl & 8) && !(w.shrunk > 0)) zapped = true;
       if ((fl & 16) && !(w.flat > 0)) ev.push({ type: 'squash', idx: i });
       FLAGS.forEach((name, bit) => { w[name] = fl & (1 << bit) ? 1 : 0; });
-      if ((fl & 32) && !w.out) ev.push({ type: 'eaten', idx: i });
+      w.glam = !!(fl & (1 << 24)); w.knot = fl & (1 << 25) ? 1 : 0; w.fusedTo = fl & (1 << 26) ? 0 : -1;
+      if ((fl & 32) && !w.out && !(fl & (1 << 26))) ev.push({ type: 'eaten', idx: i }); // (a worm that's been fused into another is gone, but not eaten)
       w.out = !!(fl & 32);
       if (A[k + 10] > 0 && !(w.fall > 0) && !((fl >> 22) & 3)) ev.push({ type: fl & 64 ? 'die' : fl & 1024 ? 'bitten' : 'fall', idx: i });
       if ((fl & 512) && !(w.howl > 0)) ev.push({ type: fl & 256 ? 'unwolf' : 'howl', idx: i });
@@ -171,7 +176,10 @@ export class MirrorRace {
     wx.bird = kind === 'bird' && E.length >= 5 ? { x: E[2], z: E[3], h: E[4], target: E.length >= 6 ? E[5] : -1 } : null;
     wx.monkey = kind === 'monkey' && E.length >= 4 ? { x: E[2] + (b.ev[0] === E[0] && b.ev.length >= 4 ? (b.ev[2] - E[2]) * f : 0), z: E[3] + (b.ev[0] === E[0] && b.ev.length >= 4 ? (b.ev[3] - E[3]) * f : 0) } : null;
     wx.xin = kind === 'wormx' && E.length >= 3 ? { idx: E[2] } : null;
-    wx.chain = kind === 'chain' && E.length >= 5 ? { a: E[2], b: E[3], far: !!E[4], t0: E[4] ? CHAIN.carry : 0 } : null;
+    wx.data = KINDS2.includes(kind) ? E.slice(2) : null;
+    this.holes = []; for (let i = 0; a.ho && i + 2 < a.ho.length; i += 3) this.holes.push({ x: a.ho[i], z: a.ho[i + 1], r: a.ho[i + 2] });
+    this.babies = []; for (let i = 0; a.bb && i + 2 < a.bb.length; i += 3) this.babies.push({ x: a.bb[i], z: a.bb[i + 1], owner: a.bb[i + 2] });
+    wx.chain = (kind === 'chain' || kind === 'marry') && E.length >= 5 ? { a: E[2], b: E[3], far: !!E[4], t0: E[4] ? CHAIN.carry : 0 } : null;
     if (a.ch) {
       const was = this.worms.map((w) => w.chains);
       for (const w of this.worms) w.chains = [];

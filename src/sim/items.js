@@ -124,8 +124,9 @@ export function stepItems(race, dt) {
     if (!sp) continue;
     sp.t += dt * airOf(w.mut); // (wings make short work of being in the air)
     // (With a shovel it's the same journey, shorter, and underground.)
-    const u = Math.min(1, sp.t / SPRING.secs), p = pointAt(tr, sp.s0 + (sp.dig ? 8 : SPRING.dist) * u, sp.lat * (1 - 0.6 * u));
-    w.x = p.x; w.z = p.z; w.lift = u < 1 ? 0.01 + (sp.dig ? 0 : SPRING.high * Math.sin(Math.PI * u)) : 0;
+    // (In low gravity a spring goes twice as far and three times as high.)
+    const low = race.weather.type === 'lowgrav' && !sp.dig, u = Math.min(1, sp.t / (SPRING.secs * (low ? 1.8 : 1))), p = pointAt(tr, sp.s0 + (sp.dig ? 8 : SPRING.dist * (low ? 2 : 1)) * u, sp.lat * (1 - 0.6 * u));
+    w.x = p.x; w.z = p.z; w.lift = u < 1 ? 0.01 + (sp.dig ? 0 : SPRING.high * (low ? 3 : 1) * Math.sin(Math.PI * u)) : 0;
     if (u >= 1) w.spring = null;
   }
   // What some items leave a worm doing.

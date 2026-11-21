@@ -45,6 +45,7 @@ export function makeWorm(idx, char, human, x, z) {
     chains: [], // the numbers of the worms this one is chained to (a worm can be on several chains)
     evil: false, // an evil clone (of the worm with the same char)
     mut: noGenes(), // its mutations: how many of each it has (genes.js)
+    glam: false, knot: 0, fusedTo: -1, wed: -1, // made over; tied in a knot (seconds left); the worm it's been stuck onto; the worm it's married to
     brolly: 0, sauce: 0, mirror: 0, hic: 0, egg: 0, tow: null, hosed: null, magnet: null, // what items have done to it (items.js)
     wet: false, hot: false, // it's raining on it; there's a heatwave
     nested: 0, // taken to the nest and coming back: 1 spat out by a chick, 2 dropped in with no chicks left to eat it
@@ -93,7 +94,7 @@ function startSpasm(w, action, rng, rankFrac) {
 // How far a worm's lunges go just now, as a multiple of normal: items speed it up or shrink it,
 // baking slows it, and a flattened worm barely moves at all.
 export function speedOf(w) {
-  return geneSpeed(w.mut, w.wet, w.hot) * (w.sauce > 0 ? 1.6 : 1) * (w.boost > 0 ? 1.8 : 1) * (w.star > 0 ? 1.5 : 1) * (w.shrunk > 0 ? 0.6 : 1) * (1 - 0.55 * Math.min(1, w.heat)) * (w.flat > 0 ? 0.12 : 1) * (w.slow > 0 ? 0.4 : 1) * (w.giant > 0 ? 1.3 : 1);
+  return geneSpeed(w.mut, w.wet, w.hot) * (w.knot > 0 ? 0.35 : 1) * (w.sauce > 0 ? 1.6 : 1) * (w.boost > 0 ? 1.8 : 1) * (w.star > 0 ? 1.5 : 1) * (w.shrunk > 0 ? 0.6 : 1) * (1 - 0.55 * Math.min(1, w.heat)) * (w.flat > 0 ? 0.12 : 1) * (w.slow > 0 ? 0.4 : 1) * (w.giant > 0 ? 1.3 : 1);
 }
 
 // Moves a worm on by dt. Returns the action if a new spasm started this step (for sound and the HUD).

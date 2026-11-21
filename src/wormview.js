@@ -219,8 +219,8 @@ export class WormView {
     this.girth = girthOf(mut);
     // (On legs like a person's or a horse's it stands up off the ground.)
     this.stand = mut[GENE.human] || mut[GENE.horse] ? 0.7 * this.girth : 0;
-    const sig = mut.join('');
-    if (sig !== this.sig) { this.sig = sig; this.grow(mut); }
+    const sig = mut.join('') + (w.glam ? 'g' : '');
+    if (sig !== this.sig) { this.sig = sig; this.grow(mut, w.glam); }
     const n = segsOf(mut);
     if (n < this.n) {
       // Shorter: balls come out from ahead of the two small ones at the tail, and are kept in case it grows again.
@@ -260,7 +260,7 @@ export class WormView {
   // What mutations add to the body: legs, wings, a fin, warts, spikes, fur, more heads. Each piece hangs off one ball
   // of the body (by its number, or counted from the tail if negative) and is put there, turned to face along the
   // body, every frame; the balls themselves don't turn. Rebuilt whenever the worm's mutations change.
-  grow(mut) {
+  grow(mut, glam) {
     for (const a of this.extras) this.group.remove(a.obj);
     this.extras = [];
     const lam = (color) => new THREE.MeshLambertMaterial({ color, flatShading: true });
@@ -314,6 +314,8 @@ export class WormView {
       put(seg, g, { every: true });
     }
     const every = (step, fn) => { for (let seg = 1; seg < 40; seg += step) { const g = new THREE.Group(); fn(g, seg); put(seg, g, { every: true }); } };
+    // A makeover: a wig, and lipstick.
+    if (glam) { const g = new THREE.Group(), hair = lam(0xf8d040); part(g, BALL, hair, 0, 0.75, -0.25, 0, 0, 0, 1.1, 0.7, 1.05); for (const s of [-1, 1]) part(g, BALL, hair, s * 0.85, 0.05, -0.3, 0, 0, 0, 0.42, 0.9, 0.5); part(g, BALL, lam(0xe01848), 0, -0.3, 0.95, 0, 0, 0, 0.42, 0.16, 0.2); put(0, g); }
     // Gills: dark slits behind the head.
     if (mut[GENE.gills]) { const g = new THREE.Group(); for (const s of [-1, 1]) for (let j = 0; j < 3; j++) part(g, box, lam(0x501828), s * 0.93, 0.15, -0.3 + j * 0.3, 0, 0, s * 0.25, 0.1, 0.7, 0.08); put(1, g); }
     // A snail's shell on its back.
@@ -438,7 +440,7 @@ export class WormView {
     this.fit(w);
     // (A were-wolf-worm is bigger. While it's changing, to or from, it flickers between the two.)
     const wolf = w.wolf > 0 ? !(w.howl > 0) || Math.floor(time * 14) % 2 === 0 : w.howl > 0 && Math.floor(time * 14) % 2 === 0;
-    const small = (w.shrunk > 0 ? 0.55 : 1) * (wolf ? 1.3 : 1) * (w.giant > 0 ? 1.9 : 1) * Math.max(0.2, 0.62 ** (w.cuts || 0)), flat = w.flat > 0 || (w.fall > 0 && w.dead), gap = GAP * small;
+    const small = (w.shrunk > 0 ? 0.55 : 1) * (wolf ? 1.3 : 1) * (w.giant > 0 ? 1.9 : 1) * Math.max(0.2, 0.62 ** (w.cuts || 0)), flat = w.flat > 0 || (w.fall > 0 && w.dead), gap = GAP * small * (w.knot > 0 ? 0.28 : 1); // (tied in a knot, it's all in a bunch)
     const bitten = w.fall > 0 && w.bit;
     this.wolfKit.visible = wolf;
     this.showPlasters((w.patch || 0) + (bitten && BITE_TIME - w.fall >= BITE_LIE + PLASTER_PART ? 1 : 0));
@@ -499,7 +501,7 @@ export class WormView {
       if (st) {
         lat += env * st.lat * Math.sin(time * st.latF - i * 0.9);
         const ph = this.hopT - i * st.lag;
-        if (ph > 0) y += st.hop * hopMul * Math.abs(Math.sin(Math.PI * ph)) * Math.min(1, env * 3);
+        if (ph > 0) y += st.hop * hopMul * (w.floaty ? 5 : 1) * Math.abs(Math.sin(Math.PI * ph)) * Math.min(1, env * 3); // (low gravity: five times as high)
         y += env * st.vert * (0.5 + 0.5 * Math.sin(time * st.vertF - i * 1.1));
         if (st.jit) { lat += env * st.jit * Math.sin(time * 91 + i * 7.3); y += env * st.jit * (0.5 + 0.5 * Math.sin(time * 77 + i * 5.1)); }
       }
@@ -525,6 +527,7 @@ export class WormView {
       }
       if (w.lift > 0) y = Math.max(y, w.lift - i * 0.45 * small * Math.min(1, w.lift / 3));
       // (Wobbles are as big as the worm is: a small piece of one shakes a small way.)
+      if (w.knot > 0) lat += 0.4 * Math.sin(i * 2.4);
       lat *= small;
       let x = px[i] + dz * lat, z = pz[i] - dx * lat;
       const m = this.meshes[i];
@@ -533,6 +536,7 @@ export class WormView {
       // (On legs it stands clear of the ground; back from the nest it comes down out of the sky.)
       if (this.stand && !flat && !onBack && !held) y += this.stand * small;
       if (w.nested && w.fall > 0) y += 60 * (w.fall / 0.7) ** 2;
+      if (w.knot > 0) y += big * 1.2 * (i % 3);
       if (w.spring && w.spring.dig) y -= 1.1; // (digging: only a ridge of it shows)
       m.position.set(x, y, z);
       m.scale.set(big * (flat ? 1.5 : 1), big * (flat ? 0.2 : 1), big * (flat ? 1.5 : 1));

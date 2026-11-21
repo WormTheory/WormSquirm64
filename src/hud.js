@@ -12,8 +12,12 @@ import { GENE_NAMES } from './sim/genes.js';
 export const FRACTION = ['', '\u00bd', '\u00bc', '\u215b', '1/16', '1/32', '1/64', '1/128'];
 
 const EVENT_WORDS = { rain: 'RAIN!', heat: 'HEATWAVE!', bird: 'BIRD!', stomp: 'LOOK OUT!', moon: 'BLOOD MOON!', twister: 'TORNADO!', quake: 'EARTHQUAKE!', frost: 'FROST!', hail: 'HAIL!', dizzy: 'MIX-UP! TURN ROUND!',
-  split: 'SPLIT!', check: 'CHECK FOR $30.00!', brand: 'SCARLET LETTER!', monkey: 'MONKEY M-M-M-MADNESS!', chain: 'CHAIN!', wormx: 'WORM X!', clone: 'EVIL CLONE!', gene: 'GENE SPLICE!' };
-const EVENT_TINT = { rain: 'rgba(20,40,90,.16)', heat: 'rgba(255,110,0,.22)', moon: 'rgba(170,0,10,.3)', frost: 'rgba(190,225,255,.22)', twister: 'rgba(60,60,70,.14)', hail: 'rgba(70,90,120,.16)', dizzy: 'rgba(150,40,200,.2)' };
+  split: 'SPLIT!', check: 'CHECK FOR $30.00!', brand: 'SCARLET LETTER!', monkey: 'MONKEY M-M-M-MADNESS!', chain: 'CHAIN!', wormx: 'WORM X!', clone: 'EVIL CLONE!', gene: 'GENE SPLICE!',
+  fog: 'FOG!', wind: 'WIND!', flood: 'FLOOD!', night: 'NIGHT!', lowgrav: 'LOW GRAVITY!', mower: 'LAWNMOWER!', sprinkler: 'SPRINKLER!', roadworks: 'ROADWORKS!', sinkhole: 'SINKHOLE!', reverse: 'REVERSE!',
+  moles: 'MOLE UPRISING!', chicken: 'CHICKEN!', ants: 'ANT PARADE!', snail: 'SNAIL!', frog: 'FROG!', birds2: 'EARLY BIRD SPECIAL!', pace: 'PACE WORM!', fisher: 'FISHERMAN!', swapmeet: 'SWAP MEET!', makeover: 'MAKEOVER!',
+  tax: 'TAX AUDIT!', knot: 'KNOT!', adoption: 'ADOPTION!', fused: 'FUSED!', marry: 'MARRIAGE!' };
+const EVENT_TINT = { rain: 'rgba(20,40,90,.16)', heat: 'rgba(255,110,0,.22)', moon: 'rgba(170,0,10,.3)', frost: 'rgba(190,225,255,.22)', twister: 'rgba(60,60,70,.14)', hail: 'rgba(70,90,120,.16)', dizzy: 'rgba(150,40,200,.2)',
+  fog: 'rgba(200,205,210,.3)', night: 'rgba(0,0,20,.45)', flood: 'rgba(30,90,200,.18)', lowgrav: 'rgba(120,60,200,.12)', reverse: 'rgba(220,40,40,.14)' };
 
 export const CSS = `
 html,body{height:100%;margin:0;background:#101820;overflow:hidden;overscroll-behavior:none}
@@ -155,7 +159,7 @@ export class PlayerHud {
     // Lightning: the whole picture flashes white for a moment.
     if (this.flash > 0) { c.fillStyle = `rgba(255,255,255,${Math.min(0.8, this.flash * 3)})`; c.fillRect(X, Y, W, H); this.flash -= dt; }
     // Weather colours the whole picture: grey-blue in rain, hot orange in a heatwave, red under a blood moon.
-    const kind = race.weather.type;
+    const kind = race.weather.title || race.weather.type;
     if (EVENT_TINT[kind]) { c.fillStyle = EVENT_TINT[kind]; c.fillRect(X, Y, W, H); }
     if (kind !== this.kind) { this.kind = kind; this.bannerT = kind === 'none' ? 0 : 2.6; }
     if (w.items !== this.items) { this.items = w.items; this.itemT = w.items ? 2 : 0; }
@@ -175,15 +179,16 @@ export class PlayerHud {
 
     // Minimap under the time: the track's centre line and a dot per worm, this player's on top.
     const ms = Math.max(44, Math.round(m * 0.22)), mx = Math.round(right - ms), my = Math.round(top + ts * 1.5), f = fitTrack(race.track, ms);
-    strokeTrack(c, race.track, f, ms, mx, my);
-    for (const o of [...race.worms].sort((a, b) => (a.idx === me) - (b.idx === me))) {
+    const murk = race.weather.type === 'fog';
+    if (!murk) strokeTrack(c, race.track, f, ms, mx, my);
+    for (const o of murk ? [] : [...race.worms].sort((a, b) => (a.idx === me) - (b.idx === me))) {
       c.beginPath(); c.arc(mx + o.x * f.k + f.ox, my + o.z * f.k + f.oz, Math.max(1.5, ms * (o.idx === me ? 0.045 : 0.03)), 0, 7);
       c.fillStyle = hex(charOf(o).color); c.fill(); c.lineWidth = 1; c.strokeStyle = o.idx === me ? '#fff' : '#000'; c.stroke();
     }
 
     // The running order, down the left.
     this.rows = []; this.autoBox = null;
-    if (this.showOrder) {
+    if (this.showOrder && !(murk && !this.watching)) {
       const os = Math.max(7, m * 0.03);
       let listTop = top + s * 2.1;
       if (this.watching) {

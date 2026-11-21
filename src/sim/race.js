@@ -7,7 +7,7 @@ import { makeAi, stepAi } from './ai.js';
 import { makeItems, stepItems, stun, popped, STUN } from './items.js';
 import { makeEvents, stepEvents, wash, drop, CHAIN } from './events.js';
 
-const TIMERS = ['stun', 'boost', 'star', 'shrunk', 'flat', 'howl', 'safe', 'slow', 'brolly', 'sauce', 'mirror', 'shield', 'giant', 'hold'];
+const TIMERS = ['stun', 'boost', 'star', 'shrunk', 'flat', 'howl', 'safe', 'slow', 'brolly', 'sauce', 'mirror', 'knot', 'shield', 'giant', 'hold'];
 
 export const STEP = 1 / 60;
 const COUNTDOWN = 5;       // seconds before GO (the track's name shows for the first of them)
@@ -37,7 +37,7 @@ export class Race {
       const loc = locate(this.track, w.x, w.z, -1);
       w.hint = loc.i; w.s = loc.s; w.prog = -3 - 2.2 * i;
       w.ai = r.human ? null : makeAi(this.rng);
-      w.out = !!r.out; w.cuts = r.cuts || (r.half ? 1 : 0); w.half = w.cuts > 0; w.pid = r.pid || ''; w.second = !!w.pid; w.evil = w.pid[0] === 'e'; w.mut = allGenes(r.mut); w.money = r.money || 0; w.scarlet = !!r.scarlet; w.patch = +r.plaster || 0; w.chains = (r.chains || []).slice();
+      w.out = !!r.out; w.cuts = r.cuts || (r.half ? 1 : 0); w.half = w.cuts > 0; w.pid = r.pid || ''; w.second = !!w.pid; w.evil = w.pid[0] === 'e'; w.mut = allGenes(r.mut); w.glam = !!r.glam; w.wed = r.wed >= 0 ? r.wed : -1; w.fusedTo = r.fusedTo >= 0 ? r.fusedTo : -1; w.money = r.money || 0; w.scarlet = !!r.scarlet; w.patch = +r.plaster || 0; w.chains = (r.chains || []).slice();
       return w;
     });
     // The pieces of a worm that's been cut up know which worm they came from.
@@ -69,7 +69,7 @@ export class Race {
     const tr = this.track, L = tr.length, open = !!tr.def.open;
     stepEvents(this, dt);
     const n = this.worms.length; // (counted after the events, one of which can add a worm)
-    const wet = this.weather.type === 'rain', hot = this.weather.type === 'heat';
+    const wet = this.weather.type === 'rain', hot = this.weather.type === 'heat', back = this.weather.type === 'reverse';
     for (const w of this.worms) {
       w.wet = wet; w.hot = hot;
       for (const k of TIMERS) if (w[k] > 0) w[k] = Math.max(0, w[k] - dt);
@@ -79,7 +79,9 @@ export class Race {
         const dx = w.spot.x - w.x, dz = w.spot.z - w.z, d = Math.hypot(dx, dz), go = Math.min(d, 7 * dt);
         if (d > 1e-3) { w.x += (dx / d) * go; w.z += (dz / d) * go; }
       }
-      const here = locate(tr, w.x, w.z, w.hint);
+      let here = locate(tr, w.x, w.z, w.hint);
+      if (back) here = { ...here, tx: -here.tx, tz: -here.tz }; // (reverse: forwards is the other way)
+      w.wet = wet || this.weather.type === 'flood' || this.weather.type === 'sprinkler';
       if (w.ai) stepAi(w.ai, w, here, dt, this.rng);
       // Looking generally the right way is as good as looking exactly the right way.
       // (In a mix-up everything's back to front: a worm goes the opposite way to where it looks. A computer worm
@@ -172,7 +174,7 @@ export class Race {
       if (ds > L / 2) ds -= L; else if (ds < -L / 2) ds += L;
       w.s = loc.s; w.hint = loc.i;
       if (w.finished) continue;
-      w.prog += ds;
+      w.prog += back ? -ds : ds; // (and in reverse it's going the other way that counts)
       const lap = Math.max(1, Math.min(this.laps, Math.floor(w.prog / L) + 1));
       if (lap > w.lap) { w.lap = lap; this.events.push({ type: 'lap', idx: w.idx, lap }); }
       if (w.prog >= this.laps * L) {
