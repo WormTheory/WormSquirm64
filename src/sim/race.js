@@ -34,7 +34,7 @@ export class Race {
       const loc = locate(this.track, w.x, w.z, -1);
       w.hint = loc.i; w.s = loc.s; w.prog = -3 - 2.2 * i;
       w.ai = r.human ? null : makeAi(this.rng);
-      w.out = !!r.out; w.cuts = r.cuts || (r.half ? 1 : 0); w.half = w.cuts > 0; w.pid = r.pid || ''; w.second = !!w.pid; w.evil = w.pid[0] === 'e'; w.long = r.long || 0; w.money = r.money || 0; w.scarlet = !!r.scarlet; w.patch = +r.plaster || 0; w.chain = r.chain >= 0 ? r.chain : -1;
+      w.out = !!r.out; w.cuts = r.cuts || (r.half ? 1 : 0); w.half = w.cuts > 0; w.pid = r.pid || ''; w.second = !!w.pid; w.evil = w.pid[0] === 'e'; w.long = r.long || 0; w.money = r.money || 0; w.scarlet = !!r.scarlet; w.patch = +r.plaster || 0; w.chains = (r.chains || []).slice();
       return w;
     });
     // The pieces of a worm that's been cut up know which worm they came from.
@@ -106,10 +106,10 @@ export class Race {
     // Chained worms can't get further apart than the chain is long: whichever pulls drags the other after it, half
     // and half. (One that's lying hurt, or fallen, is dead weight: the other can't shift it. And while either is in
     // the air there's no holding them; when it comes down the chain hauls them together again.)
-    for (const a of this.worms) {
-      const b = this.worms[a.chain];
+    for (const a of this.worms) for (const bi of [...a.chains]) {
+      const b = this.worms[bi];
       if (!b || b.idx < a.idx) continue;
-      if (a.out || b.out) { a.chain = b.chain = -1; continue; } // (the bird took one: the chain's broken)
+      if (a.out || b.out) { a.chains = a.chains.filter((i) => i !== b.idx); b.chains = b.chains.filter((i) => i !== a.idx); continue; } // (one's gone: that chain's broken)
       if (a.finished || b.finished || a.lift > 0 || b.lift > 0 || (a.fall > 0 && b.fall > 0)) continue;
       const dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz), over = d - CHAIN.len;
       if (over <= 0) continue;
@@ -170,8 +170,13 @@ export class Race {
         const k = this.worms.filter((o) => o.finished).length - 1, row = Math.floor(k / 3), col = k % 3;
         w.spotAt = [4.5 + row * 5.2, [0, -1, 1][col] * 4.7 * (tr.hw / 7)]; // (three across, the winner in the middle at the front)
         // (A worm chained to one that's already dancing has to dance right beside it.)
-        const mate = this.worms[w.chain];
-        if (mate && mate.finished && mate.spotAt) w.spotAt = [mate.spotAt[0], mate.spotAt[1] + (mate.spotAt[1] > 0 ? -1.9 : 1.9)];
+        const mate = w.chains.map((i) => this.worms[i]).find((o) => o && o.finished && o.spotAt);
+        if (mate) {
+          // (The nearest place beside it that nobody else has.)
+          const toward = mate.spotAt[1] > 0 ? -1 : 1, taken = (lat) => this.worms.some((o) => o !== w && o.spotAt && o.spotAt[0] === mate.spotAt[0] && Math.abs(o.spotAt[1] - lat) < 1);
+          const off = [1, -1, 2, -2, 3, -3, 4, -4].map((k) => k * 1.9 * toward).find((d) => !taken(mate.spotAt[1] + d)) || 1.9 * toward;
+          w.spotAt = [mate.spotAt[0], mate.spotAt[1] + off];
+        }
         w.spot = pointAt(tr, w.spotAt[0], w.spotAt[1]);
         if (this.firstFinish < 0) this.firstFinish = this.clock;
         this.events.push({ type: 'finish', idx: w.idx });

@@ -63,8 +63,15 @@ export const OMEN = 1.4;
 // The chain: how far apart it lets two worms get; how near they must be for the hand to chain them where they are
 // (otherwise a hand each carries them to a spot between: grab for the hands to come down, carry for the whole trip);
 // seconds from then until the chain goes on; and how fast a chain hauls in two worms that something has flung apart.
-export const CHAIN = { len: 3.2, near: 4.5, grab: 0.45, carry: 2, at: 1.5, haul: 20 };
-const chainable = (live) => live.filter((w) => !(w.fall > 0) && !(w.lift > 0) && w.chain < 0);
+// (most: how many chains one worm can be on.)
+export const CHAIN = { len: 3.2, near: 4.5, grab: 0.45, carry: 2, at: 1.5, haul: 20, most: 3 };
+const chainable = (live) => live.filter((w) => !(w.fall > 0) && !(w.lift > 0) && w.chains.length < CHAIN.most);
+// Every worm joined to this one by chains, however many links away, itself included (and still in the race).
+export function chainGang(race, w) {
+  const seen = [w];
+  for (let k = 0; k < seen.length; k++) for (const i of seen[k].chains) { const o = race.worms[i]; if (o && !o.out && !seen.includes(o)) seen.push(o); }
+  return seen;
+}
 function foresee(race, ev) {
   const rng = race.rng, live = race.worms.filter((w) => !w.out && !w.finished), kind = rng.pick(ev.may);
   let idx = -1;
@@ -141,10 +148,11 @@ export function begin(race, ev, force, target) {
     enterX(race, ev);
     race.events.push({ type: 'newcomer', idx: w.idx });
   } else if (kind === 'chain') {
-    // Two worms that aren't chained to anyone yet: one picked, and whoever's nearest it.
-    const able = chainable(live);
-    if (able.length < 2) { ev.type = 'none'; ev.next = rng.range(2, 5); return; }
-    const a = pick(able), gap = (o) => (o.x - a.x) ** 2 + (o.z - a.z) ** 2, b = able.filter((o) => o !== a).reduce((m, o) => (gap(o) < gap(m) ? o : m));
+    // Two worms: one picked, and whoever's nearest it that it isn't chained to already. (Either may be on other
+    // chains: that's how a chain gang grows.)
+    const able = chainable(live), a = able.length ? pick(able) : null, others = a ? able.filter((o) => o !== a && !a.chains.includes(o.idx)) : [];
+    if (!others.length) { ev.type = 'none'; ev.next = rng.range(2, 5); return; }
+    const gap = (o) => (o.x - a.x) ** 2 + (o.z - a.z) ** 2, b = others.reduce((m, o) => (gap(o) < gap(m) ? o : m));
     const far = Math.sqrt(gap(b)) > CHAIN.near, L = tr.length;
     ev.chain = { a: a.idx, b: b.idx, far, t0: far ? CHAIN.carry : 0, from: [[a.x, a.z], [b.x, b.z]], to: null };
     if (far) {
@@ -164,8 +172,8 @@ export function begin(race, ev, force, target) {
     ev.len = rng.range(WEATHER_FOR[0], WEATHER_FOR[1]);
     for (const w of race.worms) { w.wash = null; w.bake = rng.range(0.15, 1.1); } // (bake: hurts a second, on average)
   } else if (kind === 'bird') {
-    // (It takes a chained worm's partner too, so it leaves a chained pair alone if they're all but the last.)
-    const fair = live.filter((w) => w.chain < 0 || live.length > 2), prey = pick(fair.length ? fair : live), a = rng.range(0, Math.PI * 2);
+    // (It takes everyone chained to its prey too, so it leaves a chain gang alone if they're all there is.)
+    const fair = live.filter((w) => chainGang(race, w).length < live.length), prey = pick(fair.length ? fair : live), a = rng.range(0, Math.PI * 2);
     ev.bird = { target: prey.idx, x: prey.x + Math.cos(a) * 40, z: prey.z + Math.sin(a) * 40, h: BIRD_HIGH, got: false, ax: Math.cos(a), az: Math.sin(a) };
     ev.len = BIRD_IN + BIRD_OUT;
   } else {
@@ -283,16 +291,16 @@ export function stepEvents(race, dt) {
           // (The back is nobody's to drive, whoever had the worm: the computer takes it, and it races for itself.)
           // (Half a worm cut again makes two quarters, and so on down.)
           w.cuts++;
-          const l = locate(race.track, w.x, w.z, w.hint), t = { ...w, idx: race.worms.length, tired: {}, spasm: null, queued: null, human: false, ai: makeAi(rng), wash: null, spring: null, spin: null, slide: null, second: true, pid: w.pid + String(w.cuts), from: w.idx, chain: -1 };
+          const l = locate(race.track, w.x, w.z, w.hint), t = { ...w, idx: race.worms.length, tired: {}, spasm: null, queued: null, human: false, ai: makeAi(rng), wash: null, spring: null, spin: null, slide: null, second: true, pid: w.pid + String(w.cuts), from: w.idx, chains: [] };
           // What it was wearing is shared out: the chain, the letter and the plasters, in that order, the front
           // piece taking the first half of them and the back piece the rest. The money it has at that moment is split evenly.
           {
-            const mate = race.worms[w.chain], things = [...(mate ? ['chain'] : []), ...(w.scarlet ? ['letter'] : []), ...Array(w.patch).fill('plaster')];
+            const things = [...w.chains.map((i) => 'chain' + i), ...(w.scarlet ? ['letter'] : []), ...Array(w.patch).fill('plaster')];
             const back = things.slice(Math.ceil(things.length / 2));
             t.scarlet = back.includes('letter'); t.patch = back.filter((k) => k === 'plaster').length;
             if (t.scarlet) w.scarlet = false;
             w.patch -= t.patch;
-            if (back.includes('chain')) { t.chain = mate.idx; mate.chain = t.idx; w.chain = -1; }
+            for (const k of back) if (k.startsWith('chain')) { const mate = race.worms[+k.slice(5)]; t.chains.push(mate.idx); mate.chains = mate.chains.map((i) => (i === w.idx ? t.idx : i)); w.chains = w.chains.filter((i) => i !== mate.idx); }
             t.money = w.money / 2; w.money = t.money; // (down the middle, to the cent)
           }
           w.half = t.half = true; w.twin = t.idx; t.twin = w.idx;
@@ -319,7 +327,7 @@ export function stepEvents(race, dt) {
       });
       if (ev.t >= c.t0 + CHAIN.at) {
         ev.done = true;
-        pair[0].chain = c.b; pair[1].chain = c.a;
+        pair[0].chains.push(c.b); pair[1].chains.push(c.a);
         race.events.push({ type: 'chained', idx: c.a, other: c.b });
       }
     }
@@ -412,13 +420,11 @@ export function stepEvents(race, dt) {
       b.x += b.ax * 16 * dt * (0.3 + u); b.z += b.az * 16 * dt * (0.3 + u);
       b.h = 1.2 + BIRD_HIGH * u * u;
       prey.x = b.x; prey.z = b.z; prey.lift = Math.max(0.01, b.h - 1);
-      // A worm chained to its prey goes too, dangling underneath, and is fed to the chicks as well.
-      const mate = race.worms[prey.chain] && !race.worms[prey.chain].out ? race.worms[prey.chain] : null;
-      if (mate) { mate.x = b.x; mate.z = b.z; mate.lift = Math.max(0.01, b.h - 3.4); mate.spasm = null; mate.queued = null; mate.fall = 0; }
-      if (u >= 1) {
-        prey.out = true; prey.lift = 0; race.events.push({ type: 'eaten', idx: prey.idx });
-        if (mate) { mate.out = true; mate.lift = 0; race.events.push({ type: 'eaten', idx: mate.idx }); }
-      }
+      // Every worm chained to its prey goes too, the whole gang dangling one under another, and they're all fed to
+      // the chicks together.
+      const gang = chainGang(race, prey);
+      gang.forEach((m, k) => { if (k) { m.x = b.x; m.z = b.z; m.lift = Math.max(0.01, b.h - 1 - 2.4 * k); m.spasm = null; m.queued = null; m.fall = 0; } });
+      if (u >= 1) for (const m of gang) { m.out = true; m.lift = 0; race.events.push({ type: 'eaten', idx: m.idx }); }
     }
   } else if (ev.type === 'moon') {
     const wolf = race.worms[ev.wolf];

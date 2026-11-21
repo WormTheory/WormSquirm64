@@ -40,7 +40,7 @@ export function makeWorm(idx, char, human, x, z) {
     // was made by a cut, '' for the one that was there from the start; root is that first piece's number, and from
     // the number of the piece this one was cut off.)
     half: false, second: false, twin: -1, cuts: 0, pid: '', root: idx, from: -1, money: 0, scarlet: false,
-    chain: -1, // the number of the worm this one is chained to
+    chains: [], // the numbers of the worms this one is chained to (a worm can be on several chains)
     evil: false, // an evil clone (of the worm with the same char)
     long: 0, // a mutation: how many times it's been made half as long again
     lift: 0, out: false };  // how high a bird is carrying it, and whether it's out of the race for good

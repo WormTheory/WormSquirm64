@@ -26,12 +26,20 @@ const { chromium } = require('playwright');
   const far = await ws(() => window.__ws.race.weather.chain.far);
   console.log('carried:', far);
   await page.waitForTimeout(1100); await shot('carry');
-  await page.waitForFunction(() => window.__ws.race.worms.some((w) => w.chain >= 0), null, { timeout: 8000 });
+  await page.waitForFunction(() => window.__ws.race.worms.some((w) => w.chains.length), null, { timeout: 8000 });
   await ws(() => { const x = window.__ws.race.weather; x.on = false; });
   await page.waitForTimeout(300); await shot('on');
-  const pair = await ws((me) => { const r = window.__ws.race, w = r.worms[me]; return { a: me, b: w.chain, back: r.worms[w.chain] && r.worms[w.chain].chain }; }, me);
+  const pair = await ws((me) => { const r = window.__ws.race, w = r.worms[me]; return { a: me, b: w.chains.length ? w.chains[0] : -1, back: w.chains.length ? r.worms[w.chains[0]].chains[0] : -2 }; }, me);
   check('the player\'s worm is chained to another, and that one to it', pair.b >= 0 && pair.back === me);
-  const was = await ws(() => { const r = window.__ws.race; return r.worms.filter((w) => w.chain >= 0).map((w) => w.char + '-' + r.worms[w.chain].char).sort().join(' '); });
+  const was = await ws(() => { const r = window.__ws.race; return r.worms.filter((w) => w.chains.length).map((w) => w.char + '-' + r.worms[w.chains[0]].char).sort().join(' '); });
+  // A second chain on the same worm: now it's a gang of three.
+  await page.waitForFunction(() => window.__ws.race.weather.type === 'none', null, { timeout: 15000 });
+  await ws((me) => window.__ws.event('chain', me), me);
+  await page.waitForFunction((me) => window.__ws.race.worms[me].chains.length === 2 || window.__ws.race.weather.type === 'none', me, { timeout: 15000 });
+  check('a chained worm can be chained to another as well', await ws((me) => { const r = window.__ws.race, w = r.worms[me]; return w.chains.length === 2 && w.chains[0] !== w.chains[1] && w.chains.every((i) => r.worms[i].chains.includes(me)); }, me));
+  await page.waitForTimeout(600); await shot('gang');
+  // (Back to one chain for the rest of the test.)
+  await ws((me) => { const r = window.__ws.race, w = r.worms[me], o = r.worms[w.chains.pop()]; o.chains = o.chains.filter((i) => i !== me); r.weather.type = 'none'; r.weather.chain = null; }, me);
   await page.waitForTimeout(2500); await shot('racing');
   // Race on for a while: they're never further apart than the chain (with a little slack for the step in between).
   const worst = await ws((p) => { const r = window.__ws.race, a = r.worms[p.a], b = r.worms[p.b], A = ['SQUIRM', 'WIGGLE', 'FLOP']; let over = 0; for (let n = 0; n < 1800; n++) { if (n % 12 === 0) r.press(p.a, A[(n / 12) % 3]); r.step(1 / 60); if (!(a.lift > 0) && !(b.lift > 0) && !a.finished && !b.finished && Math.hypot(a.x - b.x, a.z - b.z) > 3.7) over++; } return over / 1800; }, pair);
@@ -44,7 +52,7 @@ const { chromium } = require('playwright');
   if (dance >= 0) check('they dance side by side', dance < 2.5);
   await page.waitForTimeout(2400); await shot('dance');
   await key('Enter'); await page.waitForTimeout(900);
-  const again = await ws(() => { const r = window.__ws.race; return r.worms.filter((w) => w.chain >= 0).map((w) => w.char + '-' + r.worms[w.chain].char).sort().join(' '); });
+  const again = await ws(() => { const r = window.__ws.race; return r.worms.filter((w) => w.chains.length).map((w) => w.char + '-' + r.worms[w.chains[0]].char).sort().join(' '); });
   console.log('chained:', was, '| next race:', again);
   check('the same two are still chained in the next race', again === was && was.length > 0);
   await ws(() => { const r = window.__ws.race; while (r.clock < 3) r.step(1 / 60); }); await page.waitForTimeout(600); await shot('race2');

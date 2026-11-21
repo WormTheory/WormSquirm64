@@ -35,10 +35,16 @@ const { chromium } = require('playwright');
   await page.waitForTimeout(2300); await shot('monkey-flee');
   await page.waitForFunction(() => window.__ws.race.weather.type === 'none', null, { timeout: 20000 });
   // Two chained worms and a bird.
-  const pair = await ws((me) => { const r = window.__ws.race, o = r.worms.find((w) => w.idx !== me && !w.out && !w.finished && w.char !== 8); r.worms[me].chain = o.idx; o.chain = me; o.x = r.worms[me].x + 1; o.z = r.worms[me].z + 1; window.__ws.event('bird', me); return [me, o.idx]; }, me);
-  await page.waitForFunction((p) => window.__ws.race.worms[p[0]].out, pair, { timeout: 20000 });
-  check('the bird takes the worm chained to its prey as well', await ws((p) => window.__ws.race.worms[p[1]].out, pair));
-  await page.waitForTimeout(2500); await shot('nest-two');
+  // A chain gang of three and a bird: the bird takes the lot, and the chicks get them in one feeding.
+  const gang = await ws((me) => { const r = window.__ws.race, o = r.worms.filter((w) => w.idx !== me && !w.out && !w.finished && w.char !== 8).slice(0, 2), m = r.worms[me];
+    m.chains.push(o[0].idx); o[0].chains.push(me); o[0].chains.push(o[1].idx); o[1].chains.push(o[0].idx);
+    o.forEach((w, k) => { w.x = m.x + 1 + k; w.z = m.z + 1; });
+    window.__ws.event('bird', o[1].idx); return [me, o[0].idx, o[1].idx]; }, me);
+  await page.waitForFunction((p) => window.__ws.race.worms[p[2]].out, gang, { timeout: 20000 });
+  check('the bird takes every worm on the chain', await ws((p) => p.every((i) => window.__ws.race.worms[i].out), gang));
+  await page.waitForTimeout(400);
+  check('and they are one feeding, not three', await ws(() => { const n = window.__ws.nest; return (n.now ? 1 : 0) + n.queue.length === 1 && n.now && n.now.n === 3; }));
+  await page.waitForTimeout(2300); await shot('nest-three');
   await ws(() => { const r = window.__ws.race; for (let n = 0; r.state !== 'done' && n < 90000; n++) r.step(1 / 60); });
   await page.waitForTimeout(2400); await shot('results');
   check('Worm X is on the score screen', (await page.locator('.panel table').innerText()).includes('Worm X'));

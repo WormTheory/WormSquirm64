@@ -71,8 +71,8 @@ python3 -m http.server 8000   # then open http://localhost:8000
   and out breaks 'Evil' whoever, in the opposite colours, with the same mutations and none of the accessories, to race
   for itself from then on. When a worm is cut in two, what it was wearing is shared between the pieces.
   And once in a cup a masked stranger, Worm X, joins the race from behind
-  the leader, goes straight past, and stays for the rest of it. (A bird that takes a chained worm takes its partner
-  too, and every bite from the were-wolf-worm adds another plaster.) And a monkey gathers up every worm, leader first, then throws the lot in
+  the leader, goes straight past, and stays for the rest of it. (A worm can be on several chains, so chain gangs form. A bird that takes a
+  chained worm takes everyone chained to it, and they're fed to the chicks in one go, and every bite from the were-wolf-worm adds another plaster.) And a monkey gathers up every worm, leader first, then throws the lot in
   the air to land where they may.
 - **The hand.** A worm that falls off is lowered back onto the road by a giant hand, and one that bakes to death
   has a jug of water poured over it. How often events come is a slider in the options.

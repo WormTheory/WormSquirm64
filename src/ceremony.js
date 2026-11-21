@@ -104,7 +104,7 @@ export class Ceremony {
     for (const k of ['bird', 'stomp', 'twister', 'monkey', 'chain', 'xin', 'clone']) race.weather[k] = null;
     race.weather.visit = -1;
     race.items.ents = [];
-    for (const w of race.worms) { w.out = true; w.chain = -1; }
+    for (const w of race.worms) { w.out = true; w.chains = []; }
     // The podium: gold in the middle, silver to one side, bronze to the other, each its own height.
     this.spots = top.map((e, k) => {
       const [, colour, h] = MEDALS[k], side = [0, -1, 1][k] * 3.7, x = c.x + this.nx * side, z = c.z + this.nz * side;

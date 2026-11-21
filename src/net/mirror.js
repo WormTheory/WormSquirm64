@@ -42,7 +42,7 @@ export function snapshot(race) {
   const x = race.worms.slice(race.base).map((o) => [o.char, o.human ? 1 : 0, o.from, o.pid, o.root]);
   // ch: who's chained to whom, in pairs.
   const ch = [];
-  for (const o of race.worms) if (o.chain > o.idx) ch.push(o.idx, o.chain);
+  for (const o of race.worms) for (const m of o.chains) if (m > o.idx) ch.push(o.idx, m);
   return { t: 's', c: Math.round(race.clock * 1000) / 1000, st: STATES.indexOf(race.state), w, x, ch, b: race.items.boxes.map((b) => (b.t > 0 ? 0 : 1)).join(''), e, ev };
 }
 
@@ -54,7 +54,7 @@ export class MirrorRace {
     this.worms = racers.map((r, i) => {
       const p = gridSlot(this.track, i), w = makeWorm(i, r.char, !!r.human, p.x, p.z);
       w.aim = w.look = Math.atan2(p.tx, p.tz);
-      w.out = !!r.out; w.cuts = r.cuts || (r.half ? 1 : 0); w.half = w.cuts > 0; w.pid = r.pid || ''; w.second = !!w.pid; w.evil = w.pid[0] === 'e'; w.long = r.long || 0; w.money = r.money || 0; w.scarlet = !!r.scarlet; w.patch = +r.plaster || 0; w.chain = r.chain >= 0 ? r.chain : -1;
+      w.out = !!r.out; w.cuts = r.cuts || (r.half ? 1 : 0); w.half = w.cuts > 0; w.pid = r.pid || ''; w.second = !!w.pid; w.evil = w.pid[0] === 'e'; w.long = r.long || 0; w.money = r.money || 0; w.scarlet = !!r.scarlet; w.patch = +r.plaster || 0; w.chains = (r.chains || []).slice();
       return w;
     });
     for (const w of this.worms) if (w.pid && w.pid !== 'e') { const o = this.worms.find((x) => x.char === w.char && x.pid === (w.evil ? 'e' : '')); if (o) { w.root = o.idx; w.twin = o.idx; if (o.twin < 0) o.twin = w.idx; } } // (an evil clone, 'e', is a worm of its own)
@@ -168,9 +168,9 @@ export class MirrorRace {
     wx.xin = kind === 'wormx' && E.length >= 3 ? { idx: E[2] } : null;
     wx.chain = kind === 'chain' && E.length >= 5 ? { a: E[2], b: E[3], far: !!E[4], t0: E[4] ? CHAIN.carry : 0 } : null;
     if (a.ch) {
-      const was = this.worms.map((w) => w.chain);
-      for (const w of this.worms) w.chain = -1;
-      for (let i = 0; i + 1 < a.ch.length; i += 2) if (this.worms[a.ch[i]] && this.worms[a.ch[i + 1]]) { this.worms[a.ch[i]].chain = a.ch[i + 1]; this.worms[a.ch[i + 1]].chain = a.ch[i]; if (was[a.ch[i]] < 0) ev.push({ type: 'chained', idx: a.ch[i], other: a.ch[i + 1] }); }
+      const was = this.worms.map((w) => w.chains);
+      for (const w of this.worms) w.chains = [];
+      for (let i = 0; i + 1 < a.ch.length; i += 2) { const p = this.worms[a.ch[i]], q = this.worms[a.ch[i + 1]]; if (!p || !q) continue; p.chains.push(q.idx); q.chains.push(p.idx); if (!(was[p.idx] || []).includes(q.idx)) ev.push({ type: 'chained', idx: p.idx, other: q.idx }); }
     }
     wx.visit = VISITS.includes(kind) && E.length >= 3 ? E[2] : -1;
     wx.clone = kind === 'clone' && E.length >= 5 ? { x: E[3], z: E[4] } : null;

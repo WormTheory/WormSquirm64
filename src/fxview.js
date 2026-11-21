@@ -291,8 +291,8 @@ export class FxView {
     }
     // Every chain: a sagging row of links from one worm's neck to the other's.
     let nl = 0;
-    for (const a of race.worms) {
-      const b = race.worms[a.chain];
+    for (const a of race.worms) for (const bi of a.chains) {
+      const b = race.worms[bi];
       if (!b || b.idx < a.idx || a.out || b.out) continue;
       const N = 9, d = Math.hypot(b.x - a.x, b.z - a.z), sag = Math.max(0, 1 - d / CHAIN.len) * 0.35, ya = 0.5 + (a.lift || 0), yb = 0.5 + (b.lift || 0);
       for (let i = 0; i < N; i++) {
@@ -490,8 +490,8 @@ export class NestView {
     this.parent.visible = false;
     scene.add(this.parent);
     // The worm in the parent's beak: a short string of blobs, coloured for whoever it was.
-    this.wormMat = lam(0xe88aa0);
-    this.worm = Array.from({ length: 7 }, (_, i) => { const m = new THREE.Mesh(ball, this.wormMat); m.scale.setScalar(0.2 - i * 0.012); m.visible = false; scene.add(m); return m; });
+    // The worms in the parent's beak: a short string of blobs for each, coloured for whoever it was.
+    this.strands = []; this.strandGeo = ball;
     this.queue = []; this.now = null; this.fed = 0; this.onGulp = null;
     // Once the first worm has been fed, the view turns to look down on the race from the nest: the race is drawn first,
     // and the nest, its branch and the chicks are drawn over it, in the way. watching says that's so.
@@ -501,7 +501,11 @@ export class NestView {
   }
 
   // Another worm for the chicks.
-  feed(color) { this.queue.push(color); }
+  // (stamp: when it was taken. Worms taken at the same moment, a chain gang, come in one beakful: one feeding.)
+  feed(color, stamp) {
+    const last = this.queue[this.queue.length - 1];
+    if (last && stamp !== undefined && last.stamp === stamp) last.colors.push(color); else this.queue.push({ stamp, colors: [color] });
+  }
 
   // From now on: no sky behind the nest (the race is there instead), and the camera sits behind the chicks
   // looking out over their heads, so they fill the bottom of the picture.
@@ -524,7 +528,13 @@ export class NestView {
   }
 
   update(time, dt) {
-    if (!this.now && this.queue.length) { this.now = { t: 0, chick: this.fed++ % 3 }; this.wormMat.color.setHex(this.queue.shift()); }
+    if (!this.now && this.queue.length) {
+      const meal = this.queue.shift().colors.slice(0, 8);
+      this.now = { t: 0, chick: this.fed++ % 3, n: meal.length };
+      // A string of blobs for each worm in the beak, made as they're first needed.
+      while (this.strands.length < meal.length) { const mat = lam(0xe88aa0); this.strands.push({ mat, balls: Array.from({ length: 7 }, (_, i) => { const m = new THREE.Mesh(this.strandGeo, mat); m.scale.setScalar(0.2 - i * 0.012); m.visible = false; this.scene.add(m); return m; }) }); }
+      meal.forEach((c, k) => this.strands[k].mat.color.setHex(c));
+    }
     const f = this.now;
     this.chicks.forEach((c, i) => {
       // They cheep (beaks opening and shutting) all the time, and gape wide when food's coming.
@@ -533,7 +543,7 @@ export class NestView {
       c.position.y = 1.1 + 0.08 * Math.sin(time * 9 + i * 1.7) + (eating && f.t > 3.4 && f.t < 3.9 ? 0.25 * Math.sin((f.t - 3.4) * Math.PI * 2) : 0);
     });
     this.parent.visible = !!f;
-    this.worm.forEach((m) => { m.visible = !!f && f.t < 3.4; });
+    this.strands.forEach((s, k) => s.balls.forEach((m) => { m.visible = !!f && k < f.n && f.t < 3.4; }));
     if (!f) return;
     f.t += dt;
     // The parent flies in, hovers over a chick, drops the worm in, and leaves.
@@ -543,9 +553,10 @@ export class NestView {
     this.parent.rotation.y = Math.PI / 2 - 0.5;
     flap(this.parent, time, 14);
     const drop = Math.max(0, Math.min(1, (f.t - 2.6) / 0.8));
-    this.worm.forEach((m, i) => {
-      const hang = 0.26 * i;
-      m.position.set(px + 1.6 + 0.12 * Math.sin(time * 11 + i), py + 0.4 - hang - drop * (py - c.y - 0.2 - hang * 0.5), c.z + 0.1);
+    // (Several at once hang side by side, fanned out a little.)
+    for (let k = 0; k < f.n; k++) this.strands[k].balls.forEach((m, i) => {
+      const hang = 0.26 * i, fan = (k - (f.n - 1) / 2) * 0.34;
+      m.position.set(px + 1.6 + fan * (0.4 + i * 0.12) + 0.12 * Math.sin(time * 11 + i + k), py + 0.4 - hang - drop * (py - c.y - 0.2 - hang * 0.5), c.z + 0.1 + fan * 0.6);
     });
     if (f.t > 3.4 && !f.gulped) { f.gulped = true; if (this.onGulp) this.onGulp(); }
     if (f.t > 6.2) { this.now = null; this.setWatching(); }

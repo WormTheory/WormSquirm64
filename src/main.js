@@ -92,14 +92,14 @@ function dress(base) {
   if (carry.wormx) { out.push({ char: X_CHAR, human: false, pid: '' }); base = [...base, { char: X_CHAR, human: false }]; } // (the stranger stays on, at the back of the grid)
   for (const r of base) for (const pid of carry.pieces[r.char] || []) out.push({ char: r.char, human: r.human, pid });
   for (const r of out) { const k = keyOf(r); if (r.pid) r.human = false; r.long = carry.long[k] || 0; r.cuts = carry.cuts[k] || 0; // (a piece cut off a worm, or an evil clone, is nobody's to drive)
- r.half = r.cuts > 0; r.second = !!r.pid; r.out = carry.eaten.has(k); r.money = carry.money[k] || 0; r.scarlet = carry.scarlet.has(k); r.plaster = carry.plaster[k] || 0; r.chain = -1; }
+ r.half = r.cuts > 0; r.second = !!r.pid; r.out = carry.eaten.has(k); r.money = carry.money[k] || 0; r.scarlet = carry.scarlet.has(k); r.plaster = carry.plaster[k] || 0; r.chains = []; }
   // (Chains: each end is told the other's place in the list.)
-  for (const [ka, kb] of carry.chains) { const a = out.findIndex((r) => keyOf(r) === ka), b = out.findIndex((r) => keyOf(r) === kb); if (a >= 0 && b >= 0 && !out[a].out && !out[b].out) { out[a].chain = b; out[b].chain = a; } }
+  for (const [ka, kb] of carry.chains) { const a = out.findIndex((r) => keyOf(r) === ka), b = out.findIndex((r) => keyOf(r) === kb); if (a >= 0 && b >= 0 && !out[a].out && !out[b].out) { out[a].chains.push(b); out[b].chains.push(a); } }
   return out;
 }
 // Notes what the race just run has done to its worms.
 function remember(race) {
-  carry.chains = race.worms.filter((w) => w.chain > w.idx).map((w) => [keyOf(w), keyOf(race.worms[w.chain])]);
+  carry.chains = race.worms.flatMap((w) => w.chains.filter((m) => m > w.idx && race.worms[m]).map((m) => [keyOf(w), keyOf(race.worms[m])]));
   for (const w of race.worms) {
     const k = keyOf(w);
     carry.cuts[k] = w.cuts; notePiece(w); carry.long[k] = w.long || 0;
@@ -196,7 +196,7 @@ const online = new Online(menus, inputs, TRACKS, {
     net = { room, msg }; session = null;
     // (A guest learns what's stuck to whom from the host's list.)
     resetCarryKeepNest();
-    msg.racers.forEach((r, i) => { if (r.chain > i && msg.racers[r.chain]) carry.chains.push([keyOf(r), keyOf(msg.racers[r.chain])]); });
+    msg.racers.forEach((r, i) => { for (const m of r.chains || []) if (m > i && msg.racers[m]) carry.chains.push([keyOf(r), keyOf(msg.racers[m])]); });
     for (const r of msg.racers) { const k = keyOf(r); if (r.out) carry.eaten.add(k); carry.cuts[k] = r.cuts || 0; carry.long[k] = r.long || 0; notePiece(r); if (r.scarlet) carry.scarlet.add(k); carry.plaster[k] = +r.plaster || 0; if (r.char === X_CHAR) carry.wormx = true; carry.money[k] = r.money || 0; }
     const locals = [];
     msg.seats.forEach((s, k) => { if (s.peer === room.self && online.humans[s.local]) locals.push({ devs: online.humans[s.local].devs, me: msg.seatIdx[k] }); });
@@ -270,7 +270,7 @@ function showResults() {
       const table = () => menus.dialog(`<div class="head">${session.cup.name.toUpperCase()}</div><table class="t">${final.map((w, i) =>
         `<tr class="${mine.has(w.idx) ? 'me' : ''}"><td>${i + 1}${ORD[i]}</td><td>${dot(w)}</td><td>${score(w)} pts${w.gone ? ' (eaten)' : ''}</td></tr>`).join('')}</table>`,
       [{ label: 'MAIN MENU', fn: toTitle }]);
-      const top = final.slice(0, 3).map((f) => ({ w: race.worms[f.idx], gone: f.gone, chained: f.chain >= 0, money: f.money, scarlet: f.scarlet }));
+      const top = final.slice(0, 3).map((f) => ({ w: race.worms[f.idx], gone: f.gone, chained: f.chains.length > 0, money: f.money, scarlet: f.scarlet }));
       menus.hide();
       phase = 'ceremony';
       ceremony = new Ceremony({ scene: G.scene, race, views: G.views, top, layer: hudLayer, cup: session.cup.name, done: () => { phase = 'after-ceremony'; table(); } });
@@ -314,7 +314,7 @@ function react(e, mine) {
       const w = G.race.worms[e.idx];
       carry.eaten.add(keyOf(w));
       if (!nest) { nest = new NestView(); nest.onGulp = () => sfx.gulp(); }
-      nest.feed(charOf(w).color);
+      nest.feed(charOf(w).color, clockT);
       break;
     }
     case 'cut': {
