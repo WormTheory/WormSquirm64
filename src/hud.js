@@ -5,6 +5,7 @@
 import { CHARS, hex } from './characters.js';
 import { uiPx } from './settings.js';
 import { ITEM_NAMES } from './sim/items.js';
+import { chosen } from './sim/events.js';
 
 const EVENT_WORDS = { rain: 'RAIN!', heat: 'HEATWAVE!', bird: 'BIRD!', stomp: 'LOOK OUT!', moon: 'BLOOD MOON!', twister: 'TORNADO!', quake: 'EARTHQUAKE!', frost: 'FROST!', hail: 'HAIL!', dizzy: 'MIX-UP! TURN ROUND!',
   split: 'SPLIT!', check: 'CHECK FOR $30.00!', brand: 'SCARLET LETTER!', monkey: 'MONKEY M-M-M-MADNESS!' };
@@ -186,6 +187,7 @@ export class PlayerHud {
         this.autoBox = [left, listTop, bw, bh];
         listTop += bh + os * 0.6;
       }
+      const marked = chosen(race), flash = Math.floor(performance.now() / 180) % 2 === 0;
       (race.order || race.worms).forEach((o, i) => {
         const oy = listTop + i * os * 1.4;
         this.rows.push([o.idx, left, oy - os * 0.2, Math.max(60, W * 0.3), os * 1.4]);
@@ -194,7 +196,13 @@ export class PlayerHud {
         c.fillStyle = o.out ? '#5a5e66' : hex(CHARS[o.char].color); c.fill(); c.lineWidth = 1; c.strokeStyle = '#000'; c.stroke();
         // (A branded worm has its scarlet A before its name; half a worm is marked as one.)
         const ax = o.scarlet ? text('A ', left + os * 1.4, oy, os, o.out ? '#8a5a5a' : '#f02020') : 0;
-        text(CHARS[o.char].name + (o.half ? ' \u00bd' : ''), left + os * 1.4 + ax, oy, os, o.out ? '#8a8e96' : o.idx === me ? '#ffe24a' : '#fff');
+        const nx = left + os * 1.4 + ax + text(CHARS[o.char].name + (o.half ? ' \u00bd' : ''), left + os * 1.4 + ax, oy, os, o.out ? '#8a8e96' : o.idx === me ? '#ffe24a' : '#fff');
+        // The worm an event has picked out gets a flashing red triangle pointing at its name, for as long as the event lasts.
+        if (o.idx === marked && flash) {
+          const tx = Math.round(nx + os * 0.5), ty = oy + os * 0.55;
+          c.beginPath(); c.moveTo(tx, ty); c.lineTo(tx + os * 0.95, ty - os * 0.6); c.lineTo(tx + os * 0.95, ty + os * 0.6); c.closePath();
+          c.fillStyle = '#f02020'; c.fill(); c.lineWidth = 1; c.strokeStyle = '#000'; c.stroke();
+        }
       });
     }
 

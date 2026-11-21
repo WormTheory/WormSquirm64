@@ -30,7 +30,7 @@ export function snapshot(race) {
   }
   const e = [], wx = race.weather, ev = [EVENT_KINDS.indexOf(wx.type), r2(wx.t)];
   for (const o of race.items.ents) e.push(ENT_TYPES.indexOf(o.type), r2(o.x), r2(o.z));
-  if (wx.bird) ev.push(r2(wx.bird.x), r2(wx.bird.z), r2(wx.bird.h));
+  if (wx.bird) ev.push(r2(wx.bird.x), r2(wx.bird.z), r2(wx.bird.h), wx.bird.target);
   else if (wx.twister) ev.push(r2(wx.twister.x), r2(wx.twister.z));
   else if (wx.monkey) ev.push(r2(wx.monkey.x), r2(wx.monkey.z));
   else if (wx.visit >= 0) ev.push(wx.visit);
@@ -157,7 +157,7 @@ export class MirrorRace {
     const wx = this.weather, kind = EVENT_KINDS[a.ev[0]] || 'none', E = a.ev;
     if (kind !== wx.type) { ev.push({ type: 'event', kind }); this.feet = 0; }
     wx.type = kind; wx.t = E[1] + (this.rc - a.c);
-    wx.bird = kind === 'bird' && E.length >= 5 ? { x: E[2], z: E[3], h: E[4] } : null;
+    wx.bird = kind === 'bird' && E.length >= 5 ? { x: E[2], z: E[3], h: E[4], target: E.length >= 6 ? E[5] : -1 } : null;
     wx.monkey = kind === 'monkey' && E.length >= 4 ? { x: E[2] + (b.ev[0] === E[0] && b.ev.length >= 4 ? (b.ev[2] - E[2]) * f : 0), z: E[3] + (b.ev[0] === E[0] && b.ev.length >= 4 ? (b.ev[3] - E[3]) * f : 0) } : null;
     wx.visit = (kind === 'split' || kind === 'check' || kind === 'brand') && E.length >= 3 ? E[2] : -1;
     wx.twister = kind === 'twister' && E.length >= 4 ? { x: E[2] + (b.ev[0] === E[0] && b.ev.length >= 4 ? (b.ev[2] - E[2]) * f : 0), z: E[3] + (b.ev[0] === E[0] && b.ev.length >= 4 ? (b.ev[3] - E[3]) * f : 0) } : null;

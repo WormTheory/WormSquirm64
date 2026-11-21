@@ -42,10 +42,37 @@ export function makeEvents(race, on, freq = 5, kinds = null) {
   return { on, wait, may, twister: null, monkey: null, visit: -1, type: 'none', t: 0, next: on && may.length ? race.rng.range(8, 14) * wait : Infinity, bird: null, stomp: null, wolf: -1 };
 }
 
+// The worms the hand may call on for a visit (for the knife, ones still in one piece).
+const visitable = (race, kind, live) => live.filter((w) => !(w.fall > 0) && !(w.lift > 0) && (kind !== 'split' || (!w.half && race.worms.length < MAX_WORMS)) && !(kind === 'brand' && w.scarlet));
+
+// An event is settled on a moment before it starts (OMEN seconds), along with the worm it's coming for, if it's
+// that sort. Nothing shows yet; it's so that anyone just watching can be looking at the right worm when it happens.
+export const OMEN = 1.4;
+function foresee(race, ev) {
+  const rng = race.rng, live = race.worms.filter((w) => !w.out && !w.finished), kind = rng.pick(ev.may);
+  let idx = -1;
+  if (kind === 'split' || kind === 'check' || kind === 'brand') { const able = visitable(race, kind, live); if (able.length) idx = rng.pick(able).idx; }
+  else if ((kind === 'bird' || kind === 'moon') && live.length >= 2) idx = rng.pick(live).idx;
+  ev.omen = { kind, idx };
+  if (idx >= 0) race.events.push({ type: 'omen', idx });
+}
+
+// The worm an event has singled out, or -1: the one the hand is visiting, the bird's prey, the were-wolf-worm.
+export function chosen(race) {
+  const wx = race.weather;
+  if (wx.visit >= 0) return wx.visit;
+  if (wx.type === 'bird' && wx.bird && wx.bird.target >= 0) return wx.bird.target;
+  if (wx.type === 'moon') { const w = race.worms.find((o) => o.wolf > 0 || o.howl > 0); return w ? w.idx : -1; }
+  return -1;
+}
+
 // (kind can be given, to start a particular event: the tests do.)
 export function begin(race, ev, force) {
   const rng = race.rng, tr = race.track, live = race.worms.filter((w) => !w.out && !w.finished);
-  let kind = force || rng.pick(ev.may);
+  // (What was foreseen happens, to the worm foreseen if it's still there to be had.)
+  const omen = !force && ev.omen ? ev.omen : null, pick = (able) => (omen && able.find((w) => w.idx === omen.idx)) || rng.pick(able);
+  ev.omen = null;
+  let kind = force || (omen ? omen.kind : rng.pick(ev.may));
   // (A wolf needs someone to hunt, and the bird always leaves someone to race: failing that, whatever else is allowed, or nothing.)
   if ((kind === 'moon' || kind === 'bird') && live.length < 2) {
     const other = ev.may.filter((k) => k !== 'moon' && k !== 'bird');
@@ -53,7 +80,7 @@ export function begin(race, ev, force) {
     kind = rng.pick(other);
   }
   ev.type = kind; ev.t = 0;
-  if (kind === 'moon') { ev.len = MOON.len; ev.wolf = -1; }
+  if (kind === 'moon') { ev.len = MOON.len; ev.wolf = -1; ev.want = omen ? omen.idx : -1; }
   else if (kind === 'twister') {
     // It starts a way ahead of the leader and comes back down the road to meet everyone.
     const lead = live.reduce((a, b) => (b.prog > a.prog ? b : a), live[0] || race.worms[0]);
@@ -63,10 +90,10 @@ export function begin(race, ev, force) {
   else if (kind === 'frost') ev.len = rng.range(9, 12);
   else if (kind === 'hail') { ev.len = rng.range(8, 10); ev.hail = []; ev.nextStone = 0.4; }
   else if (kind === 'split' || kind === 'check' || kind === 'brand') {
-    // The hand picks a worm that's free to be bothered (and, for the knife, one that's still in one piece).
-    const able = live.filter((w) => !(w.fall > 0) && !(w.lift > 0) && (kind !== 'split' || (!w.half && race.worms.length < MAX_WORMS)) && !(kind === 'brand' && w.scarlet));
+    // The hand picks a worm that's free to be bothered.
+    const able = visitable(race, kind, live);
     if (!able.length) { ev.type = 'none'; ev.next = rng.range(2, 5); return; } // (nobody suitable: try something else shortly)
-    ev.visit = rng.pick(able).idx; ev.done = false; ev.len = VISIT.len;
+    ev.visit = pick(able).idx; ev.done = false; ev.len = VISIT.len;
   } else if (kind === 'monkey') {
     if (live.length < 2) { ev.type = 'none'; ev.next = rng.range(2, 5); return; }
     const lead = live.reduce((a, b) => (b.prog > a.prog ? b : a), live[0]), p = pointAt(tr, lead.s + 14, 0);
@@ -76,7 +103,7 @@ export function begin(race, ev, force) {
     ev.len = rng.range(WEATHER_FOR[0], WEATHER_FOR[1]);
     for (const w of race.worms) { w.wash = null; w.bake = rng.range(0.15, 1.1); } // (bake: hurts a second, on average)
   } else if (kind === 'bird') {
-    const prey = rng.pick(live), a = rng.range(0, Math.PI * 2);
+    const prey = pick(live), a = rng.range(0, Math.PI * 2);
     ev.bird = { target: prey.idx, x: prey.x + Math.cos(a) * 40, z: prey.z + Math.sin(a) * 40, h: BIRD_HIGH, got: false, ax: Math.cos(a), az: Math.sin(a) };
     ev.len = BIRD_IN + BIRD_OUT;
   } else {
@@ -130,7 +157,10 @@ export function stepEvents(race, dt) {
   // Baked worms recover once the sun's off them.
   if (ev.type !== 'heat') for (const w of race.worms) if (w.heat > 0) w.heat = Math.max(0, w.heat - 0.12 * dt);
   if (ev.type === 'none') {
+    // (Once nobody's left racing, nothing more happens: the score screen is left in peace.)
+    if (race.worms.every((w) => w.finished || w.out)) { ev.omen = null; return; }
     ev.next -= dt;
+    if (ev.next <= OMEN && !ev.omen && ev.on && ev.may.length) foresee(race, ev);
     if (ev.next <= 0) begin(race, ev);
     return;
   }
@@ -270,7 +300,7 @@ export function stepEvents(race, dt) {
     if (!wolf) {
       // A moment for the moon to rise, and then it picks its worm.
       const able = live.filter((w) => !w.finished && !(w.flat > 0));
-      if (ev.t >= MOON.pick && able.length) { const w = rng.pick(able); ev.wolf = w.idx; w.howl = MOON.rear; w.spasm = null; w.queued = null; race.events.push({ type: 'howl', idx: w.idx }); }
+      if (ev.t >= MOON.pick && able.length) { const w = able.find((o) => o.idx === ev.want) || rng.pick(able); ev.wolf = w.idx; w.howl = MOON.rear; w.spasm = null; w.queued = null; race.events.push({ type: 'howl', idx: w.idx }); }
     } else if (ev.t >= ev.len - MOON.back) {
       // The curse lifts: it rears up once more and is itself again.
       if (wolf.wolf) { wolf.wolf = 0; wolf.howl = MOON.back; race.events.push({ type: 'unwolf', idx: wolf.idx }); }

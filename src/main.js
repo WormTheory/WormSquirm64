@@ -136,7 +136,7 @@ function setupRace(trackIdx, racers, locals, mirror) {
   G = { race, scene, views, fx, players, overview, trackIdx };
   acc = 0; lastBeep = 9;
   songSpeed(1); songShift(0); songLevel(0);
-  Object.assign(DIRECTOR, { until: 0, prio: 0, lastLead: -1, history: [], tick: 0 });
+  Object.assign(DIRECTOR, { until: 0, prio: 0, lastLead: -1, history: [], tick: 0, nestAt: 0 });
 }
 
 // Nobody playing: eight worms sitting on the first track's grid, behind the menus.
@@ -308,11 +308,12 @@ function react(e, mine) {
 // ---- spectator mode ----
 // Somebody watching has a camera but no worm. They can pick a worm from the list (or step through with left and
 // right), or leave AUTO VIEW on and have the game cut to whatever's worth seeing.
-const DIRECTOR = { until: 0, prio: 0, lastLead: -1, history: [], tick: 0 };
+const DIRECTOR = { until: 0, prio: 0, lastLead: -1, history: [], tick: 0, nestAt: 0 };
 // Cuts an auto-viewing spectator to a worm: prio says how much it matters, hold how many seconds before something lesser can cut away.
-function focus(idx, prio, hold) {
+// (eaten: this is a look in at the nest, at a worm the bird has had.)
+function focus(idx, prio, hold, eaten) {
   const p = G.players.find((q) => q.spectator && q.auto), w = G.race.worms[idx];
-  if (!p || !w || w.out || (clockT < DIRECTOR.until && prio < DIRECTOR.prio)) return;
+  if (!p || !w || (w.out && !eaten) || (clockT < DIRECTOR.until && prio < DIRECTOR.prio)) return;
   p.me = idx; DIRECTOR.until = clockT + hold; DIRECTOR.prio = prio;
 }
 // What's worth cutting to, as the race reports it.
@@ -325,6 +326,7 @@ function direct(e) {
       else if (wx.bird && wx.bird.target !== undefined) focus(wx.bird.target, 3, 7);
       else if (e.kind === 'monkey' || e.kind === 'twister') { const lead = (G.race.order || []).find((w) => !w.out && !w.finished); if (lead) focus(lead.idx, 2, 6); }
       break;
+    case 'omen': focus(e.idx, 3, 6); break;                           // an event is about to pick on this worm: be there first
     case 'howl': focus(e.idx, 3, 9); break;                           // the blood moon's choice
     case 'grab': case 'cut': case 'paid': case 'branded': focus(e.idx, 3, 5); break;
     case 'finish': focus(e.idx, 2, 3.5); break;
@@ -340,7 +342,8 @@ function spectate(p, dt, live) {
     if (nav.dx && order.length) { const at = order.findIndex((w) => w.idx === p.me); p.me = order[(at + Math.sign(nav.dx) + order.length) % order.length].idx; p.auto = false; sfx.ui('move'); }
     if (nav.start && phase === 'race' && !menus.active) pause(true);
   }
-  if (race.worms[p.me].out && order.length) p.me = order[0].idx;
+  // (An eaten worm can be watched, at the nest. With no nest to show, as when it was eaten in an earlier race, on to someone else.)
+  if (race.worms[p.me].out && !nest && order.length) p.me = order[0].idx;
   if (p.auto && race.state === 'racing') {
     // Once a second: a new leader is worth a look, and so is a worm that's made up three places in eight seconds.
     DIRECTOR.tick -= dt;
@@ -353,12 +356,41 @@ function spectate(p, dt, live) {
       DIRECTOR.history.push(Object.fromEntries(race.worms.map((w) => [w.idx, w.rank])));
       if (DIRECTOR.history.length > 8) DIRECTOR.history.shift();
       // With nothing going on, back to whoever's in front (and off anyone who's finished).
-      if (clockT > DIRECTOR.until && lead && (race.worms[p.me].finished || DIRECTOR.prio > 0)) { p.me = lead.idx; DIRECTOR.prio = 0; }
+      if (clockT > DIRECTOR.until && lead && (race.worms[p.me].finished || race.worms[p.me].out || DIRECTOR.prio > 0)) { p.me = lead.idx; DIRECTOR.prio = 0; }
+      // Now and then, in a quiet moment, a look in on a worm the bird took.
+      const gone = race.worms.filter((w) => w.out);
+      if (nest && gone.length && clockT > DIRECTOR.until && clockT > DIRECTOR.nestAt) { DIRECTOR.nestAt = clockT + 18 + Math.random() * 14; focus(gone[Math.floor(Math.random() * gone.length)].idx, 1, 4.5, true); }
     }
   }
-  // The camera swings round behind whichever worm it's on, following the road.
-  const w = race.worms[p.me], l = locate(race.track, w.x, w.z, -1), fwd = Math.atan2(l.tx, l.tz), off = Math.atan2(Math.sin(fwd - p.cam.yaw), Math.cos(fwd - p.cam.yaw));
-  p.cam.yaw += off * Math.min(1, dt * 3);
+  const w = race.worms[p.me], l = locate(race.track, w.x, w.z, -1), fwd = Math.atan2(l.tx, l.tz);
+  let want = fwd;
+  if (p.auto) {
+    // Auto view still turns about its worm, but picks the side to stand on that gets the most other worms in the
+    // picture: twice a second it tries every direction and counts who'd be in front of the camera. Looking up the
+    // road wins a tie, and so does the angle it already has, so it doesn't dither.
+    p.frameT = (p.frameT || 0) - dt;
+    if (p.frameT <= 0 || p.frameOf !== p.me || p.frameYaw === undefined) {
+      p.frameT = 0.5;
+      let best = -1;
+      const turn = (a, b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+      for (let i = 0; i < 24; i++) {
+        const yaw = (i / 24) * Math.PI * 2, sx = Math.sin(yaw), sz = Math.cos(yaw), cx = w.x - sx * 10, cz = w.z - sz * 10;
+        let score = 0.6 * Math.cos(yaw - fwd) + (p.frameOf === p.me && p.frameYaw !== undefined && turn(yaw, p.frameYaw) < 0.14 ? 0.7 : 0);
+        for (const o of race.worms) {
+          if (o === w || o.out) continue;
+          const dx = o.x - cx, dz = o.z - cz, d = Math.hypot(dx, dz);
+          if (d < 3 || d > 75 || (dx * sx + dz * sz) / d < 0.8) continue; // (within about 37 degrees of straight ahead)
+          score += d < 35 ? 1.5 : 1;
+        }
+        if (score > best) { best = score; want = yaw; }
+      }
+      p.frameYaw = want; p.frameOf = p.me;
+    }
+    want = p.frameYaw;
+  }
+  // (Otherwise the camera swings round behind whichever worm it's on, following the road.)
+  const off = Math.atan2(Math.sin(want - p.cam.yaw), Math.cos(want - p.cam.yaw));
+  p.cam.yaw += off * Math.min(1, dt * (p.auto ? 2 : 3));
   p.hud.watching = { auto: p.auto };
 }
 canvas.addEventListener('click', (e) => {
@@ -448,7 +480,7 @@ function frame(now, hidden) {
       p.hud.update(G.race, p.me, dt);
       // The camera follows a smoothed point, so a flop doesn't shake the whole picture.
       // (If the bird has had this player's worm but its other half is still going, they follow that half.)
-      { const own = G.race.worms[p.me], t = G.race.worms[own.twin]; if (own.out && t && !t.out) p.me = t.idx; }
+      if (!p.spectator) { const own = G.race.worms[p.me], t = G.race.worms[own.twin]; if (own.out && t && !t.out) p.me = t.idx; }
       const me = G.race.worms[p.me], k = 1 - Math.exp(-dt * 6), c = p.cam, D = 10, cp = Math.cos(c.pitch);
       // (A worm that's fallen off is watched from where the hand will put it back.)
       const at = me.fall > 0 && me.pit ? centreNear(G.race.track, me.x, me.z) : me;
@@ -475,7 +507,7 @@ function frame(now, hidden) {
       renderer.setClearColor(0x000000); renderer.clear();
       // A player whose worm the bird took watches the nest instead.
       for (const p of G.players) {
-        if (!(G.race.worms[p.me].out && nest) || p.spectator) { view(p.rect, p.camera); continue; }
+        if (!(G.race.worms[p.me].out && nest)) { view(p.rect, p.camera); continue; }
         // After the feeding the nest looks down on the race: the race first, then the nest and chicks over it, in the way.
         if (nest.watching) {
           view(p.rect, nest.raceCam);
