@@ -190,7 +190,7 @@ export function stepItems(race, dt) {
       let ax, az;
       // (If its target has left a decoy, it goes for that, and that's the end of both.)
       const lure = t ? ents.find((o) => o.type === 'decoy' && o.owner === t.idx) : null;
-      if (lure && Math.hypot(lure.x - e.x, lure.z - e.z) < 12) { ax = lure.x; az = lure.z; if (Math.hypot(ax - e.x, az - e.z) < 1.2) { ents.splice(ents.indexOf(lure), 1); i = Math.min(i, ents.length); ents.splice(ents.indexOf(e), 1); race.events.push({ type: 'pop', idx: t.idx }); continue; } }
+      if (lure && Math.hypot(lure.x - e.x, lure.z - e.z) < 12) { ax = lure.x; az = lure.z; if (Math.hypot(ax - e.x, az - e.z) < 1.2) { lure.life = 0; dead = true; race.events.push({ type: 'pop', idx: t.idx }); } }
       else if (t && !t.out && Math.hypot(t.x - e.x, t.z - e.z) < 9) { ax = t.x; az = t.z; } else { const p = pointAt(tr, loc.s + 5, 0); ax = p.x; az = p.z; }
       const d = Math.hypot(ax - e.x, az - e.z) || 1;
       e.x += ((ax - e.x) / d) * speed * dt; e.z += ((az - e.z) / d) * speed * dt;
