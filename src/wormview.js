@@ -99,6 +99,18 @@ const VICTORY = [
   (i, t, r) => [(i - 4.5) * GAP, r + 0.9 * (1 + Math.sin(t * 7 - i * 0.9)), 0],
   // Green Morm: spins flat like a helicopter blade, hopping.
   (i, t, r) => { const a = t * 7, d = (i - 4.5) * GAP; return [d * Math.cos(a), r + 0.3 + 0.7 * Math.abs(Math.sin(t * 3.5)), d * Math.sin(a)]; },
+  // Worm X: signs his name. He slithers an X on the ground over and over, one stroke, then round the end and back
+  // along the other, his body crossing itself in the middle, and lifts his head at the end of each stroke.
+  (i, t, r) => {
+    const A = 1.1, D = 2 * Math.SQRT2 * A, E = 2 * A, LOOP = 2 * D + 2 * E;
+    const d = (((t * 3.2 - i * GAP) % LOOP) + LOOP) % LOOP; // how far round the loop this ball has got
+    let x, z, end = 0;
+    if (d < D) { const u = d / D; x = -A + 2 * A * u; z = -A + 2 * A * u; end = u; }                 // the first stroke
+    else if (d < D + E) { const u = (d - D) / E; x = A; z = A - 2 * A * u; }                           // round the end
+    else if (d < 2 * D + E) { const u = (d - D - E) / D; x = A - 2 * A * u; z = -A + 2 * A * u; end = u; } // the second stroke
+    else { const u = (d - 2 * D - E) / E; x = -A; z = A - 2 * A * u; }                                 // and back to the start
+    return [x, r + (i < 3 ? (3 - i) * 0.3 * Math.max(0, end * 4 - 3) : 0), z];
+  },
 ];
 
 export class WormView {
@@ -247,7 +259,7 @@ export class WormView {
     if (w.scarlet) { const f = this.meshes[2].position, b = this.meshes[4].position; this.letter.rotation.y = Math.atan2(f.x - b.x, f.z - b.z) + Math.PI; }
     this.wolfKit.visible = false; this.showPlasters(w.patch); this.meshes[0].rotation.x = 0; this.meshes[0].rotation.z = 0;
     // (tight: on the podium there's less room, and the dance is kept closer in.)
-    const pose = VICTORY[this.kind] || VICTORY[2], small = Math.max(0.2, 0.62 ** (w.cuts || 0)), tight = this.tight || 1;
+    const pose = VICTORY[this.kind] || VICTORY[0], small = Math.max(0.2, 0.62 ** (w.cuts || 0)), tight = this.tight || 1;
     let hx = 0, hz = 1;
     for (let i = 0; i < this.n; i++) {
       // (A piece of a worm dances the same dance at its own size.)
