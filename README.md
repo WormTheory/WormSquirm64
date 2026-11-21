@@ -66,7 +66,8 @@ python3 -m http.server 8000   # then open http://localhost:8000
   $30.00 (shown on the score screen, and it adds up), or brands one with a scarlet letter A (shown by its name).
   It can chain two worms together, carrying them
   to the same spot first if they're far apart: they can't get further apart than the chain allows, and must dance
-  side by side at the end. All of these last through a cup. A syringe can splice its genes (twice as likely as most events; the bird is half as likely and the two birds a quarter;
+  side by side at the end. All of these last through a cup. A syringe can splice its genes (twice as likely as most events; the bird is half as likely and the two birds a quarter, and both, with the worm
+  whistle, get rarer as fewer worms are left;
   see below), or take what's needed to grow an evil clone of it: a tank of green is lowered onto the road, drains,
   and out breaks 'Evil' whoever, in the opposite colours, with the same mutations and none of the accessories, to race
   for itself from then on. When a worm is cut in two, what it was wearing is shared between the pieces.

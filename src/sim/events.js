@@ -67,9 +67,16 @@ export const CLONE = { down: [2, 3.2], drain: [3.2, 4.5], out: 4.6, len: 5.6 };
 // How likely each event is beside the rest: the gene splice comes twice as often as most, the bird half as often,
 // and the two birds a quarter as often.
 const ODDS = { gene: 2, bird: 0.5, birds2: 0.25 };
-function pickKind(rng, kinds) {
-  let x = rng() * kinds.reduce((n, k) => n + (ODDS[k] || 1), 0);
-  for (const k of kinds) { x -= ODDS[k] || 1; if (x <= 0) return k; }
+// The bird, and anything that brings it, gets rarer as the worms run out: as often as ever with eight or more left
+// in the race, falling away smoothly to next to never with one. (Left: not eaten. A finished worm still counts.)
+export function birdOdds(race) {
+  const left = race.worms.filter((w) => !w.out).length, u = Math.max(0, Math.min(1, (left - 1) / 7));
+  return Math.max(0.02, u * u * (3 - 2 * u));
+}
+function pickKind(race, kinds) {
+  const rng = race.rng, few = birdOdds(race), odds = (k) => (ODDS[k] || 1) * (k === 'bird' || k === 'birds2' ? few : 1);
+  let x = rng() * kinds.reduce((n, k) => n + odds(k), 0);
+  for (const k of kinds) { x -= odds(k); if (x <= 0) return k; }
   return kinds[kinds.length - 1];
 }
 
@@ -89,7 +96,7 @@ export function chainGang(race, w) {
   return seen;
 }
 function foresee(race, ev) {
-  const rng = race.rng, live = race.worms.filter((w) => !w.out && !w.finished), kind = pickKind(rng, ev.may);
+  const rng = race.rng, live = race.worms.filter((w) => !w.out && !w.finished), kind = pickKind(race, ev.may);
   let idx = -1;
   if (VISITS.includes(kind)) { const able = visitable(race, kind, live); if (able.length) idx = rng.pick(able).idx; }
   else if ((kind === 'bird' || kind === 'moon') && live.length >= 2) idx = rng.pick(live).idx;
@@ -156,12 +163,12 @@ export function begin(race, ev, force, target) {
   // (What was foreseen happens, to the worm foreseen if it's still there to be had.)
   const omen = !force && ev.omen ? ev.omen : force && target !== undefined ? { kind: force, idx: target } : null, pick = (able) => (omen && able.find((w) => w.idx === omen.idx)) || rng.pick(able);
   ev.omen = null;
-  let kind = force || (omen ? omen.kind : pickKind(rng, ev.may));
+  let kind = force || (omen ? omen.kind : pickKind(race, ev.may));
   // (A wolf needs someone to hunt, and the bird always leaves someone to race: failing that, whatever else is allowed, or nothing.)
   if ((kind === 'moon' || kind === 'bird') && live.length < 2) {
     const other = ev.may.filter((k) => k !== 'moon' && k !== 'bird');
     if (!other.length) { ev.next = rng.range(GAP[0], GAP[1]) * ev.wait; return; }
-    kind = pickKind(rng, other);
+    kind = pickKind(race, other);
   }
   // (Two birds: one, and then, when it's gone, another.)
   if (kind === 'birds2') { ev.again = true; ev.title = 'birds2'; kind = 'bird'; }

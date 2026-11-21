@@ -3,6 +3,7 @@
 // the front of the pack gets things to leave behind, the back gets things that catch up.
 import { locate, pointAt } from './track.js';
 import { airOf, GENE } from './genes.js';
+import { birdOdds } from './events.js';
 
 export const ITEMS = ['BOOST', 'PEEL', 'PEBBLE', 'HOMING', 'STAR', 'ZAP', 'MOLE', 'GLUE', 'SWAP', 'SPRING', 'BUBBLE', 'GIANT',
   'COMPOST', 'SALT', 'HOOK', 'BROLLY', 'DECOY', 'MAGNET', 'HOSE', 'WHISTLE', 'SHOVEL', 'BUNCH', 'SAUCE', 'MIRROR', 'HICCUPS', 'COUPON', 'EGG'];
@@ -41,11 +42,12 @@ export function stun(race, w, secs) {
 }
 
 // How likely each item is, for a worm r of the way down the order (0: leading, 1: last).
-function roll(rng, r) {
+// few: how much rarer the worm whistle is for there being few worms left (events.js, birdOdds).
+function roll(rng, r, few = 1) {
   const wts = [1 + 2 * r, 0.5 + 3 * (1 - r), 0.5 + 2.5 * (1 - r), 0.6 + 1.5 * r, 2.2 * r * r, 1.3 * r * r, r > 0.3 ? 1.4 * r : 0,
     0.4 + 2 * (1 - r), r > 0.15 ? 1.3 * r : 0, 0.7 + 1.1 * r, 0.9, 1.7 * r * r,
     // compost, salt, hook, umbrella, decoy, magnet, hose, whistle, shovel, bunch, hot sauce, mirror, hiccups, coupon, egg
-    0.3 + 1.5 * (1 - r), 0.3 + 1.5 * (1 - r), r > 0.1 ? 1.2 * r : 0, 0.6, 0.3 + 1.4 * (1 - r), 1.1 * r, r > 0.2 ? 1.2 * r : 0, 1.2 * r * r, 0.5 + 0.8 * r,
+    0.3 + 1.5 * (1 - r), 0.3 + 1.5 * (1 - r), r > 0.1 ? 1.2 * r : 0, 0.6, 0.3 + 1.4 * (1 - r), 1.1 * r, r > 0.2 ? 1.2 * r : 0, 1.2 * r * r * few, 0.5 + 0.8 * r,
     0.3 + 1.2 * (1 - r), 0.3 + 1.2 * r, 0.6, 1.3 * r * r, 0.5, 0.7];
   let x = rng() * wts.reduce((a, b) => a + b, 0);
   for (let i = 0; i < wts.length; i++) { x -= wts[i]; if (x <= 0) return i; }
@@ -55,7 +57,7 @@ function roll(rng, r) {
 // (forced: the item it's to be, for the egg, the magnet and the tests.)
 export function give(race, w, forced) {
   const n = race.worms.length, rng = race.rng, ents = race.items.ents;
-  let item = forced !== undefined ? forced : roll(rng, n > 1 ? w.rank / (n - 1) : 0.5);
+  let item = forced !== undefined ? forced : roll(rng, n > 1 ? w.rank / (n - 1) : 0.5, birdOdds(race));
   const leader = race.order && race.order.find((o) => !o.out && !o.finished);
   if (item === 6 && (!leader || leader === w || (leader.mut[GENE.camo] && rng() < 0.5))) item = 0; // nobody ahead to send a mole after (or nobody it can see)
   // (Nor to change places with, if the worm in front can't be swapped just now.)
