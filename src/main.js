@@ -80,15 +80,15 @@ let nest = null;
 // been given, a scarlet letter. A worm is known by its number, with a 'b' and the piece's own name on the end for a
 // piece that a cut made. pieces: those names, for each worm that's been cut; cuts: how many times each piece has been.
 const keyOf = (w) => w.char + (w.pid ? 'b' + w.pid : '');
-let carry = { eaten: new Set(), pieces: {}, cuts: {}, scarlet: new Set(), money: {} };
-const resetCarry = () => { carry = { eaten: new Set(), pieces: {}, cuts: {}, scarlet: new Set(), money: {} }; nest = null; };
+let carry = { eaten: new Set(), pieces: {}, cuts: {}, scarlet: new Set(), plaster: new Set(), money: {} };
+const resetCarry = () => { carry = { eaten: new Set(), pieces: {}, cuts: {}, scarlet: new Set(), plaster: new Set(), money: {} }; nest = null; };
 const resetCarryKeepNest = () => { const n = nest; resetCarry(); nest = n; };
 // A plain list of racers [{char, human}], with all that put on: the pieces cut off worms are added on the end.
 const notePiece = (w) => { if (w.pid) { const l = carry.pieces[w.char] || (carry.pieces[w.char] = []); if (!l.includes(w.pid)) l.push(w.pid); } };
 function dress(base) {
   const out = base.map((r) => ({ ...r, pid: '' }));
   for (const r of base) for (const pid of carry.pieces[r.char] || []) out.push({ char: r.char, human: r.human, pid });
-  for (const r of out) { const k = keyOf(r); r.cuts = carry.cuts[k] || 0; r.half = r.cuts > 0; r.second = !!r.pid; r.out = carry.eaten.has(k); r.money = carry.money[k] || 0; r.scarlet = carry.scarlet.has(k); }
+  for (const r of out) { const k = keyOf(r); r.cuts = carry.cuts[k] || 0; r.half = r.cuts > 0; r.second = !!r.pid; r.out = carry.eaten.has(k); r.money = carry.money[k] || 0; r.scarlet = carry.scarlet.has(k); r.plaster = carry.plaster.has(k); }
   return out;
 }
 // Notes what the race just run has done to its worms.
@@ -97,6 +97,7 @@ function remember(race) {
     const k = keyOf(w);
     carry.cuts[k] = w.cuts; notePiece(w);
     if (w.scarlet) carry.scarlet.add(k);
+    if (w.patch > 0) carry.plaster.add(k);
     if (w.out) carry.eaten.add(k);
     carry.money[k] = w.money;
   }
@@ -145,6 +146,8 @@ function setupRace(trackIdx, racers, locals, mirror) {
 function backdrop() {
   session = null; net = null; resetCarry();
   setupRace(0, CHARS.map((_, char) => ({ char, human: false })), [], false);
+  // (Behind the title the worms race properly, the way worms in a racing game ought to. It's a lie.)
+  G.race.worms.forEach((w, i) => { w.demo = true; w.demoS = 14 - i * 2.4; w.demoLane = ((i % 4) - 1.5) * 0.42; });
   phase = 'menu';
   trackName.hidden = true;
   playSong('menu');
@@ -185,7 +188,7 @@ const online = new Online(menus, inputs, TRACKS, {
     net = { room, msg }; session = null;
     // (A guest learns what's stuck to whom from the host's list.)
     resetCarryKeepNest();
-    for (const r of msg.racers) { const k = keyOf(r); if (r.out) carry.eaten.add(k); carry.cuts[k] = r.cuts || 0; notePiece(r); if (r.scarlet) carry.scarlet.add(k); carry.money[k] = r.money || 0; }
+    for (const r of msg.racers) { const k = keyOf(r); if (r.out) carry.eaten.add(k); carry.cuts[k] = r.cuts || 0; notePiece(r); if (r.scarlet) carry.scarlet.add(k); if (r.plaster) carry.plaster.add(k); carry.money[k] = r.money || 0; }
     const locals = [];
     msg.seats.forEach((s, k) => { if (s.peer === room.self && online.humans[s.local]) locals.push({ devs: online.humans[s.local].devs, me: msg.seatIdx[k] }); });
     setupRace(msg.track, msg.racers, locals, !room.isHost);
@@ -304,6 +307,18 @@ function react(e, mine) {
     case 'monkeygrab': sfx.ook(me ? 0.16 : 0.08); break;
     case 'monkeythrow': sfx.twirl(0.16); break;
     default:
+  }
+}
+
+// The race behind the title screen. Nothing here is the real game: each worm slides along its own line at a steady
+// lick, easing past the others now and then, and slithers as it goes (the view does that for a worm marked demo).
+function demoRace(dt) {
+  const tr = G.race.track;
+  for (const w of G.race.worms) {
+    if (!w.demo) continue;
+    w.demoS += (8.5 + 1.3 * Math.sin(clockT * 0.23 + w.idx * 1.9)) * dt;
+    const lat = (w.demoLane + 0.12 * Math.sin(clockT * 0.31 + w.idx * 2.3)) * tr.hw, p = pointAt(tr, w.demoS, lat);
+    w.x = p.x; w.z = p.z; w.s = w.demoS;
   }
 }
 
@@ -474,6 +489,7 @@ function frame(now, hidden) {
   last = now; clockT += dt;
   inputs.frame();
   if (menus.active) menus.tick();
+  if (phase === 'menu' && G) demoRace(dt);
   if (phase === 'race') stepRace(dt, !menus.active, now);
   else if (phase === 'after') stepRace(dt, false, now); // the race carries on behind the results
   if (!hidden) {
@@ -520,9 +536,9 @@ function frame(now, hidden) {
       }
       if (G.overview) view([0.5, 0.5, 0.5, 0.5], G.overview);
     } else {
-      // Behind the menus: a slow turn around the start line.
-      const p = pointAt(G.race.track, 0, 0), a = clockT * 0.15;
-      titleCam.position.set(p.x + Math.sin(a) * 26, 11, p.z + Math.cos(a) * 26);
+      // Behind the menus: a slow turn around the pack as it goes.
+      const ws = G.race.worms, mid = ws.reduce((n, w) => n + (w.demoS || 0), 0) / ws.length, p = pointAt(G.race.track, mid, 0), a = clockT * 0.15;
+      titleCam.position.set(p.x + Math.sin(a) * 22, 9, p.z + Math.cos(a) * 22);
       titleCam.lookAt(p.x, 1, p.z);
       view([0, 0, 1, 1], titleCam);
     }

@@ -265,6 +265,8 @@ export class WormView {
       const l = Math.hypot(dx, dz) || 1;
       dx /= l; dz /= l;
       let lat = 0.05 * Math.sin(time * 3 - i * 0.8 + w.idx) + tw * 0.13 * Math.sin(time * 55 - i * 1.7) + (w.stun > 0 ? 0.4 * Math.sin(time * 26 - i * 1.4) : 0), y = this.rad[i] + tw * 0.07 * (1 + Math.sin(time * 47 - i * 2.1));
+      // (On the title screen it slithers, as a worm does: a wave running down it from head to tail.)
+      if (w.demo) lat = 0.34 * Math.sin(time * 9 - i * 0.95 + w.idx) * Math.min(1, i / 2 + 0.3);
       if (st) {
         lat += env * st.lat * Math.sin(time * st.latF - i * 0.9);
         const ph = this.hopT - i * st.lag;

@@ -49,7 +49,7 @@ export class MirrorRace {
     this.worms = racers.map((r, i) => {
       const p = gridSlot(this.track, i), w = makeWorm(i, r.char, !!r.human, p.x, p.z);
       w.aim = w.look = Math.atan2(p.tx, p.tz);
-      w.out = !!r.out; w.cuts = r.cuts || (r.half ? 1 : 0); w.half = w.cuts > 0; w.pid = r.pid || ''; w.second = !!w.pid; w.money = r.money || 0; w.scarlet = !!r.scarlet;
+      w.out = !!r.out; w.cuts = r.cuts || (r.half ? 1 : 0); w.half = w.cuts > 0; w.pid = r.pid || ''; w.second = !!w.pid; w.money = r.money || 0; w.scarlet = !!r.scarlet; w.patch = r.plaster ? 1 : 0;
       return w;
     });
     for (const w of this.worms) if (w.pid) { const o = this.worms.find((x) => x.char === w.char && !x.pid); if (o) { w.root = o.idx; w.twin = o.idx; if (o.twin < 0) o.twin = w.idx; } }

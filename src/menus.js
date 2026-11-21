@@ -14,6 +14,7 @@ export const CSS = `
 #ws .logo{display:flex;align-items:center;justify-content:center;gap:.04em;font-size:clamp(34px,11vmin,110px);padding:0 .15em;
   -webkit-text-stroke:3px #1a0a40;filter:drop-shadow(5px 5px 0 #1a0a40)}
 #ws:not(.ghost) [data-tilt]{transform:rotate(-3deg)}
+#ws .copy{font:700 clamp(11px,2.4vmin,17px) Arial,Helvetica,sans-serif;color:#fff;letter-spacing:.1em;margin-top:1.6em;text-align:center;text-shadow:0 1px 0 #000}
 #ws .logo span{-webkit-background-clip:text;background-clip:text;color:transparent}
 #ws .logo .ws{text-align:right;line-height:.76;background-image:linear-gradient(#fff36a 20%,#ff8a1c 60%,#e02818)}
 #ws .logo .n64{font-size:2.08em;line-height:.8;background-image:linear-gradient(#7cf0ff,#2860e8)}
@@ -255,7 +256,8 @@ export class Menus {
     this.put('title', `<div class="logo" data-tilt="-3"><span class="ws">WORM<br>SQUIRM</span><span class="n64">64</span></div>
       <div class="col"><button class="btn" type="button" data-a="start">START</button>
       <button class="btn" type="button" data-a="controls">CONTROLS</button>
-      <button class="btn" type="button" data-a="options">OPTIONS</button></div>`,
+      <button class="btn" type="button" data-a="options">OPTIONS</button></div>
+      <div class="copy">&copy; 1996 WORMTHEORY</div>`,
     { start: () => this.mode(), controls: () => this.controls(), options: () => this.options() }, this.titleFocus || 0);
   }
 
