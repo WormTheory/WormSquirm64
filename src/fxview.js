@@ -250,6 +250,10 @@ export class FxView {
       for (let i = 0; i < mine.length; i++) if (t >= mine[i].t) { from = mine[i]; to = mine[i + 1] || mine[i]; }
       const start = Math.max(from.t, to.t - 0.75), f = to === from ? 1 : Math.max(0, Math.min(1, (t - start) / Math.max(0.01, to.t - start)));
       g.position.set(from.x + (to.x - from.x) * f, Math.sin(Math.PI * f) * 7 * (to === from ? 0 : 1), from.z + (to.z - from.z) * f);
+      // They arrive by dropping out of the sky onto their first footfalls, and leave by jumping back up into it.
+      const up = steps[steps.length - 1].t + 0.45;
+      if (t < mine[0].t) g.position.set(mine[0].x, 80 * (1 - t / mine[0].t) ** 2, mine[0].z);
+      else if (t > up) g.position.y += 110 * (t - up) ** 2;
       g.rotation.y = Math.atan2(dirx, dirz);
     });
   }
@@ -281,9 +285,14 @@ export class NestView {
     this.camera = new THREE.PerspectiveCamera(46, 4 / 3, 0.2, 200);
     this.camera.position.set(0, 4.2, 9.5); this.camera.lookAt(0, 1.6, 0);
     const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); scene.add(m); return m; };
-    this.backdrop = [add(new THREE.CylinderGeometry(0.9, 1.4, 14, 7), lam(0x5a3a20), -1, -7.4, -1)]; // the tree
-    const branch = add(new THREE.CylinderGeometry(0.5, 0.7, 16, 6), lam(0x5a3a20), 2, -0.6, -0.4); branch.rotation.z = Math.PI / 2 - 0.08;
-    for (const [x, y, z, r] of [[-5, 3, -4, 3], [5, 4, -5, 3.6], [0, 6, -6, 4], [-7, -2, -3, 2.6], [7, -1, -4, 2.8]]) this.backdrop.push(add(new THREE.IcosahedronGeometry(r, 0), lam(0x2f8a40), x, y, z));
+    this.backdrop = [];
+    // The nest hangs in the sky from a balloon on either side, which is why it can look down on the race.
+    for (const [side, colour] of [[-1, 0xe03838], [1, 0x3878e8]]) {
+      const balloon = add(new THREE.SphereGeometry(1.25, 8, 6), lam(colour), side * 3.5, 4.5, 0); balloon.scale.y = 1.2;
+      add(new THREE.ConeGeometry(0.22, 0.3, 5), lam(colour), side * 3.5, 2.9, 0);                          // its knot
+      const string = add(new THREE.CylinderGeometry(0.035, 0.035, 2.7, 4), lam(0xf4f0e0), side * 2.85, 1.8, 0); // down to the rim of the nest
+      string.rotation.z = side * 0.5;
+    }
     this.sky = scene.background;
     add(new THREE.TorusGeometry(2.1, 0.6, 5, 9), lam(0x8a6a3a), 0, 0.5, 0).rotation.x = Math.PI / 2;
     add(new THREE.CylinderGeometry(2.1, 1.6, 0.5, 9), lam(0x6a4e28), 0, 0.2, 0);
@@ -292,8 +301,9 @@ export class NestView {
     this.chicks = [-1.1, 0, 1.1].map((x, i) => {
       const g = new THREE.Group();
       const body = new THREE.Mesh(ball, lam(0xf0d048)); body.scale.set(0.62, 0.7, 0.62);
-      const top = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.5, 4), lam(0xf08020)), bottom = top.clone();
-      top.position.set(0, 0.55, 0.3); bottom.position.set(0, 0.45, 0.3); bottom.rotation.x = Math.PI;
+      // The beak: two halves on the front of the face, under the eyes, pointing at whoever's looking.
+      const top = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.46, 4), lam(0xf08020)), bottom = top.clone();
+      top.position.set(0, 0.14, 0.72); bottom.position.set(0, 0.06, 0.72);
       for (const ex of [-0.22, 0.22]) { const e = new THREE.Mesh(ball, new THREE.MeshBasicMaterial({ color: 0x101010 })); e.scale.setScalar(0.07); e.position.set(ex, 0.3, 0.52); g.add(e); }
       g.add(body, top, bottom);
       g.position.set(x, 1.1, i === 1 ? 0.5 : 0);
@@ -318,7 +328,7 @@ export class NestView {
   // Another worm for the chicks.
   feed(color) { this.queue.push(color); }
 
-  // From now on: no sky and no tree behind the nest (the race is there instead), and the camera sits behind the chicks
+  // From now on: no sky behind the nest (the race is there instead), and the camera sits behind the chicks
   // looking out over their heads, so they fill the bottom of the picture.
   setWatching() {
     this.watching = true;
@@ -344,7 +354,7 @@ export class NestView {
     this.chicks.forEach((c, i) => {
       // They cheep (beaks opening and shutting) all the time, and gape wide when food's coming.
       const eating = f && f.chick === i, open = eating && f.t < 3.4 ? 0.9 : 0.25 + 0.25 * Math.sin(time * 7 + i * 2);
-      c.userData.top.rotation.x = -open; c.userData.bottom.rotation.x = Math.PI + open;
+      c.userData.top.rotation.x = Math.PI / 2 - open; c.userData.bottom.rotation.x = Math.PI / 2 + open; // (a cone points up: a quarter turn lays it forwards)
       c.position.y = 1.1 + 0.08 * Math.sin(time * 9 + i * 1.7) + (eating && f.t > 3.4 && f.t < 3.9 ? 0.25 * Math.sin((f.t - 3.4) * Math.PI * 2) : 0);
     });
     this.parent.visible = !!f;

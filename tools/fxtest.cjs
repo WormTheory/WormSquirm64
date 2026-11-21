@@ -27,6 +27,11 @@ const { chromium } = require('playwright');
   await race(1, 0);
   await ws(() => { const r = window.__ws.race, w = r.worms[window.__ws.G.players[0].me]; w.dead = true; w.fall = 2.6; r.step(1 / 60); });
   await page.waitForTimeout(1500); await shot('jug');
+  // The legs drop out of the sky to start with, and jump back up into it at the end.
+  await race(1, 0); await ws(() => window.__ws.event('stomp'));
+  await page.waitForTimeout(450); await shot('legs-falling');
+  await ws(() => { const r = window.__ws.race; r.weather.t = r.weather.len - 0.75; });
+  await page.waitForTimeout(450); await shot('legs-leaving');
   for (const [kind, wait] of [['rain', 1500], ['heat', 3500], ['stomp', 2600]]) {
     await race(1, 0); await ws((k) => window.__ws.event(k), kind);
     await page.waitForTimeout(wait); await shot(kind);
